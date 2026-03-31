@@ -339,20 +339,20 @@ export class InteractionController {
             }
         }
 
-        // 2. 使用原始逻辑像素参数（与 CandleRenderer / calcKLinePositions 一致）
-        const unit = opt.kWidth + opt.kGap
-        const startX = opt.kGap
+        // 2. 使用物理像素对齐后的间距计算 idx（与 calcKLinePositions 一致）
+        const { unitPx, startXPx, kWidthPx } = this.chart.getKLinePhysicalConfig()
 
-        // 3. 在逻辑像素空间计算 idx
-        const offset = worldX - startX
+        // 3. 在物理像素空间计算 idx
+        const worldXPx = worldX * dpr
+        const offsetPx = worldXPx - startXPx
 
-        if (offset < 0) {
+        if (offsetPx < 0) {
             this.clearHover()
             return
         }
 
         const data = this.chart.getData()
-        const idx = Math.floor(offset / unit)
+        const idx = Math.floor(offsetPx / unitPx)
 
         // 4. 确定鼠标落在哪个 pane
         const paneRenderers = this.chart.getPaneRenderers()
@@ -367,8 +367,6 @@ export class InteractionController {
         if (idx >= 0 && idx < (data?.length ?? 0)) {
             this.crosshairIndex = idx
 
-            const { kWidthPx } = this.chart.getKLinePhysicalConfig()
-
             let snappedX: number
             if (this.kLinePositions && this.visibleRange &&
                 idx >= this.visibleRange.start && idx < this.visibleRange.end) {
@@ -376,10 +374,10 @@ export class InteractionController {
                 const kLineStartX = this.kLinePositions[idx - this.visibleRange.start]!
                 snappedX = kLineStartX + (kWidthPx - 1) / 2 / dpr - scrollLeft
             } else {
-                // 5.2 超出可见范围，使用原始计算 + 像素对齐
-                const leftLogical = startX + idx * unit
-                const alignedLeft = Math.round(leftLogical * dpr) / dpr
-                snappedX = alignedLeft + (kWidthPx - 1) / 2 / dpr - scrollLeft
+                // 5.2 超出可见范围，使用物理像素对齐计算
+                const leftPx = startXPx + idx * unitPx
+                const leftLogical = leftPx / dpr
+                snappedX = leftLogical + (kWidthPx - 1) / 2 / dpr - scrollLeft
             }
 
             this.crosshairPos = {
@@ -409,10 +407,11 @@ export class InteractionController {
         const bodyTop = Math.min(openY, closeY)
         const bodyBottom = Math.max(openY, closeY)
 
-        // 6.1 使用逻辑像素计算在当前 K 线单元内的相对 X 位置
-        const kLineStartX = startX + idx * unit
-        const inUnitX = worldX - kLineStartX
-        const kWidthLogical = opt.kWidth
+        // 6.1 使用物理像素对齐后的值计算在当前 K 线单元内的相对 X 位置
+        const kLineStartXPx = startXPx + idx * unitPx
+        const inUnitXPx = worldXPx - kLineStartXPx
+        const inUnitX = inUnitXPx / dpr
+        const kWidthLogical = kWidthPx / dpr
         const cxLogical = kWidthLogical / 2
 
         // 6.2 扩大 hitBody 的 Y 方向判定范围

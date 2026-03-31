@@ -165,7 +165,7 @@ export class Chart {
 
         const range: VisibleRange = { start, end }
 
-        // 4.1 计算 K 线起始 x 坐标数组
+        // 4.1 计算 K 线起始 x 坐标数组, 作为统一坐标源
         const kLinePositions = this.calcKLinePositions(range)
 
         // 4.2 设置 K 线坐标数组到交互控制器
@@ -375,20 +375,24 @@ export class Chart {
         const count = end - start
         const dpr = this.viewport?.dpr || window.devicePixelRatio || 1
 
-        // 1. 使用原始逻辑像素参数
-        const unit = this.opt.kWidth + this.opt.kGap
-        const startX = this.opt.kGap
+        // 1. 物理像素间距（整数，统一）
+        const unitPx = Math.round((this.opt.kWidth + this.opt.kGap) * dpr)
+        const startXPx = Math.round(this.opt.kGap * dpr)
 
         const positions: number[] = new Array(count)
 
         for (let i = 0; i < count; i++) {
             const dataIndex = start + i
-            const leftLogical = startX + dataIndex * unit
-            // 2. 与 CandleRenderer 中的对齐方式一致
-            positions[i] = leftLogical
+            // 2. 物理像素坐标（等间距整数）
+            const leftPx = startXPx + dataIndex * unitPx
+            // 3. 转回逻辑坐标
+            positions[i] = leftPx / dpr
         }
 
-        tagLogThrottle("pos[]", positions, "pos[]", 5000)
+        /* console.log('calcKLinePositions', positions.map(i => {
+            return i * dpr
+        })) */
+
         return positions
     }
 

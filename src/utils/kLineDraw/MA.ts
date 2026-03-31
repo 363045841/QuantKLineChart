@@ -23,7 +23,8 @@ function drawMALine(
   endIndex: number,
   priceRange: PriceRange | undefined,
   period: number,
-  color: string
+  color: string,
+  kLinePositions?: number[]
 ) {
   if (data.length < period) return
 
@@ -54,8 +55,6 @@ function drawMALine(
 
   if (!Number.isFinite(maxPrice) || !Number.isFinite(minPrice)) return
 
-  const unit = option.kWidth + option.kGap
-
   ctx.strokeStyle = color
   ctx.lineWidth = 1
   ctx.lineJoin = 'round'
@@ -75,8 +74,16 @@ function drawMALine(
     }
     const maValue = sum / period
 
-    // 计算逻辑像素坐标并对齐
-    const logicX = option.kGap + i * unit + option.kWidth / 2
+    // 使用统一坐标源计算 X 坐标
+    let logicX: number
+    if (kLinePositions && kLinePositions[i - startIndex] !== undefined) {
+      // 使用预计算的坐标 + kWidth/2 得到中心点
+      logicX = kLinePositions[i - startIndex] + option.kWidth / 2
+    } else {
+      // 回退到原始计算
+      const unit = option.kWidth + option.kGap
+      logicX = option.kGap + i * unit + option.kWidth / 2
+    }
     const logicY = priceToY(maValue, maxPrice, minPrice, height, paddingTop, paddingBottom)
 
     const x = alignToPhysicalPixelCenter(logicX, dpr)
@@ -101,9 +108,10 @@ export function drawMA5Line(
   dpr: number = 1,
   startIndex: number = 0,
   endIndex: number = data.length,
-  priceRange?: PriceRange
+  priceRange?: PriceRange,
+  kLinePositions?: number[]
 ) {
-  drawMALine(ctx, data, option, logicHeight, dpr, startIndex, endIndex, priceRange, 5, MA5_COLOR)
+  drawMALine(ctx, data, option, logicHeight, dpr, startIndex, endIndex, priceRange, 5, MA5_COLOR, kLinePositions)
 }
 
 export function drawMA10Line(
@@ -114,9 +122,10 @@ export function drawMA10Line(
   dpr: number = 1,
   startIndex: number = 0,
   endIndex: number = data.length,
-  priceRange?: PriceRange
+  priceRange?: PriceRange,
+  kLinePositions?: number[]
 ) {
-  drawMALine(ctx, data, option, logicHeight, dpr, startIndex, endIndex, priceRange, 10, MA10_COLOR)
+  drawMALine(ctx, data, option, logicHeight, dpr, startIndex, endIndex, priceRange, 10, MA10_COLOR, kLinePositions)
 }
 
 export function drawMA20Line(
@@ -127,9 +136,10 @@ export function drawMA20Line(
   dpr: number = 1,
   startIndex: number = 0,
   endIndex: number = data.length,
-  priceRange?: PriceRange
+  priceRange?: PriceRange,
+  kLinePositions?: number[]
 ) {
-  drawMALine(ctx, data, option, logicHeight, dpr, startIndex, endIndex, priceRange, 20, MA20_COLOR)
+  drawMALine(ctx, data, option, logicHeight, dpr, startIndex, endIndex, priceRange, 20, MA20_COLOR, kLinePositions)
 }
 
 export function drawMA30Line(
@@ -140,9 +150,10 @@ export function drawMA30Line(
   dpr: number = 1,
   startIndex: number = 0,
   endIndex: number = data.length,
-  priceRange?: PriceRange
+  priceRange?: PriceRange,
+  kLinePositions?: number[]
 ) {
-  drawMALine(ctx, data, option, logicHeight, dpr, startIndex, endIndex, priceRange, 30, MA30_COLOR)
+  drawMALine(ctx, data, option, logicHeight, dpr, startIndex, endIndex, priceRange, 30, MA30_COLOR, kLinePositions)
 }
 
 export function drawMA60Line(
@@ -153,7 +164,8 @@ export function drawMA60Line(
   dpr: number = 1,
   startIndex: number = 0,
   endIndex: number = data.length,
-  priceRange?: PriceRange
+  priceRange?: PriceRange,
+  kLinePositions?: number[]
 ) {
-  drawMALine(ctx, data, option, logicHeight, dpr, startIndex, endIndex, priceRange, 60, MA60_COLOR)
+  drawMALine(ctx, data, option, logicHeight, dpr, startIndex, endIndex, priceRange, 60, MA60_COLOR, kLinePositions)
 }
