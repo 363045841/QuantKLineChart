@@ -43,6 +43,8 @@ export class InteractionController {
     private kLinePositions: number[] | null = null
     /** 当前帧的可见 K 线索引范围 */
     private visibleRange: { start: number; end: number } | null = null
+    /** K 线宽度（物理像素），用于计算 K 线中心偏移 */
+    private kWidthPx: number | null = null
 
     constructor(chart: Chart) {
         this.chart = chart
@@ -236,10 +238,18 @@ export class InteractionController {
      * 设置当前帧的 K 线起始 x 坐标数组和可见范围
      * @param positions K 线起始 x 坐标数组
      * @param visibleRange 可见 K 线索引范围
+     * @param kWidthPx K 线宽度（物理像素）
      */
-    setKLinePositions(positions: number[] | null, visibleRange: { start: number; end: number } | null) {
+    setKLinePositions(
+        positions: number[] | null,
+        visibleRange: { start: number; end: number } | null,
+        kWidthPx?: number
+    ) {
         this.kLinePositions = positions
         this.visibleRange = visibleRange
+        if (kWidthPx !== undefined) {
+            this.kWidthPx = kWidthPx
+        }
     }
 
     /** 检查是否正在拖拽 */
@@ -339,22 +349,42 @@ export class InteractionController {
             }
         }
 
-        // 2. 使用物理像素对齐后的间距计算 idx（与 calcKLinePositions 一致）
-        const { unitPx, startXPx, kWidthPx } = this.chart.getKLinePhysicalConfig()
-
-        // 3. 在物理像素空间计算 idx
-        const worldXPx = worldX * dpr
-        const offsetPx = worldXPx - startXPx
-
-        if (offsetPx < 0) {
+        // 3. kLinePositions 未就绪时不显示十字线
+        if (!this.kLinePositions || !this.visibleRange || !this.kWidthPx) {
             this.clearHover()
             return
         }
 
-        const data = this.chart.getData()
-        const idx = Math.floor(offsetPx / unitPx)
+        // 4. 通过二分查找从 kLinePositions 反查 idx
+        const kWidthLogical = this.kWidthPx / dpr
 
-        // 4. 确定鼠标落在哪个 pane
+        // 二分查找：找到 worldX 对应的 K 线索引
+        let lo = 0, hi = this.kLinePositions.length
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1
+            if (this.kLinePositions[mid]! < worldX) {
+                lo = mid + 1
+            } else {
+                hi = mid
+            }
+        }
+
+        // 确定最终 localIdx：比较左右两个位置的 K 线中心，选更近的
+        let localIdx = lo
+        if (lo > 0 && lo < this.kLinePositions.length) {
+            const prevCenter = this.kLinePositions[lo - 1]! + kWidthLogical / 2
+            const currCenter = this.kLinePositions[lo]! + kWidthLogical / 2
+            if (Math.abs(worldX - prevCenter) < Math.abs(worldX - currCenter)) {
+                localIdx = lo - 1
+            }
+        } else if (lo === this.kLinePositions.length && this.kLinePositions.length > 0) {
+            localIdx = this.kLinePositions.length - 1
+        }
+
+        const idx = localIdx + this.visibleRange.start
+        const data = this.chart.getData()
+
+        // 5. 确定鼠标落在哪个 pane
         const paneRenderers = this.chart.getPaneRenderers()
         const renderer = paneRenderers.find((r) => {
             const pane = r.getPane()
@@ -363,22 +393,12 @@ export class InteractionController {
         const pane = renderer?.getPane() || null
         this.activePaneId = pane?.id || null
 
-        // 5. 计算十字线位置
+        // 6. 计算十字线位置（统一使用 kLinePositions）
         if (idx >= 0 && idx < (data?.length ?? 0)) {
             this.crosshairIndex = idx
 
-            let snappedX: number
-            if (this.kLinePositions && this.visibleRange &&
-                idx >= this.visibleRange.start && idx < this.visibleRange.end) {
-                // 5.1 使用预计算的坐标（与渲染完全一致）
-                const kLineStartX = this.kLinePositions[idx - this.visibleRange.start]!
-                snappedX = kLineStartX + (kWidthPx - 1) / 2 / dpr - scrollLeft
-            } else {
-                // 5.2 超出可见范围，使用物理像素对齐计算
-                const leftPx = startXPx + idx * unitPx
-                const leftLogical = leftPx / dpr
-                snappedX = leftLogical + (kWidthPx - 1) / 2 / dpr - scrollLeft
-            }
+            const kLineStartX = this.kLinePositions[localIdx]!
+            const snappedX = kLineStartX + (this.kWidthPx - 1) / 2 / dpr - scrollLeft
 
             this.crosshairPos = {
                 x: Math.min(Math.max(snappedX, 0), plotWidth),
@@ -386,13 +406,10 @@ export class InteractionController {
             }
         } else {
             this.crosshairIndex = null
-            this.crosshairPos = {
-                x: Math.min(Math.max(mouseX, 0), plotWidth),
-                y: Math.min(Math.max(mouseY, 0), plotHeight),
-            }
+            this.crosshairPos = null
         }
 
-        // 6. Tooltip 命中判定
+        // 7. Tooltip 命中判定
         const k = typeof this.crosshairIndex === 'number' ? data[this.crosshairIndex] : undefined
         if (!k || !pane || pane.id !== 'main') {
             this.hoveredIndex = null
@@ -407,20 +424,18 @@ export class InteractionController {
         const bodyTop = Math.min(openY, closeY)
         const bodyBottom = Math.max(openY, closeY)
 
-        // 6.1 使用物理像素对齐后的值计算在当前 K 线单元内的相对 X 位置
-        const kLineStartXPx = startXPx + idx * unitPx
-        const inUnitXPx = worldXPx - kLineStartXPx
-        const inUnitX = inUnitXPx / dpr
-        const kWidthLogical = kWidthPx / dpr
+        // 7.1 使用 kLinePositions 计算在当前 K 线单元内的相对 X 位置
+        const kLineStartX = this.kLinePositions[localIdx]!
+        const inUnitX = worldX - kLineStartX
         const cxLogical = kWidthLogical / 2
 
-        // 6.2 扩大 hitBody 的 Y 方向判定范围
+        // 7.2 扩大 hitBody 的 Y 方向判定范围
         const MIN_BODY_HIT_HEIGHT = 8
         const bodyHeight = Math.abs(bodyBottom - bodyTop)
         const effectiveBodyTop = bodyHeight < MIN_BODY_HIT_HEIGHT ? (bodyTop + bodyBottom) / 2 - MIN_BODY_HIT_HEIGHT / 2 : bodyTop
         const effectiveBodyBottom = bodyHeight < MIN_BODY_HIT_HEIGHT ? (bodyTop + bodyBottom) / 2 + MIN_BODY_HIT_HEIGHT / 2 : bodyBottom
 
-        // 6.3 扩大 hitWick 的 X 方向判定范围
+        // 7.3 扩大 hitWick 的 X 方向判定范围
         const HIT_WICK_HALF_EXTENDED = 3
 
         const hitBody = localY >= effectiveBodyTop && localY <= effectiveBodyBottom &&
@@ -435,7 +450,7 @@ export class InteractionController {
 
         this.hoveredIndex = this.crosshairIndex
 
-        // 6.4 tooltip 防溢出定位
+        // 7.4 tooltip 防溢出定位
         const padding = 12
         const preferGap = 14
         const tooltipW = this.tooltipSize.width

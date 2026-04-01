@@ -7,7 +7,7 @@ import { TEXT_COLORS, PRICE_COLORS } from '@/core/theme/colors'
  * 使用 pane.yAxis.priceToY 作为 Y 映射（与当前 pane 的 priceRange 一致），world 坐标绘制（会 translate(-scrollLeft, 0)）
  */
 export const ExtremaMarkersRenderer: PaneRenderer = {
-    draw({ ctx, pane, data, range, scrollLeft, kWidth, kGap, dpr, paneWidth }) {
+    draw({ ctx, pane, data, range, scrollLeft, kWidth, kGap, dpr, paneWidth, kLinePositions }) {
         if (!data.length) return
 
         if (pane.id !== 'main') return
@@ -36,13 +36,17 @@ export const ExtremaMarkersRenderer: PaneRenderer = {
 
         if (!Number.isFinite(max) || !Number.isFinite(min)) return
 
-        const unit = kWidth + kGap
-        const centerX = (i: number) => kGap + i * unit + kWidth / 2
+        // 使用统一的 kLinePositions 计算 K 线中心 X 坐标
+        const getCenterX = (i: number) => {
+            const localIdx = i - range.start
+            if (localIdx < 0 || localIdx >= kLinePositions.length) return 0
+            return kLinePositions[localIdx]! + kWidth / 2
+        }
 
         ctx.save()
         ctx.translate(-scrollLeft, 0)
-        drawPriceMarker(ctx, centerX(maxIndex), pane.yAxis.priceToY(max), max, dpr, paneWidth, scrollLeft)
-        drawPriceMarker(ctx, centerX(minIndex), pane.yAxis.priceToY(min), min, dpr, paneWidth, scrollLeft)
+        drawPriceMarker(ctx, getCenterX(maxIndex), pane.yAxis.priceToY(max), max, dpr, paneWidth, scrollLeft)
+        drawPriceMarker(ctx, getCenterX(minIndex), pane.yAxis.priceToY(min), min, dpr, paneWidth, scrollLeft)
         ctx.restore()
     },
 }

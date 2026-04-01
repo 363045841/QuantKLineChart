@@ -9,6 +9,10 @@ import { drawMALegend } from '@/core/renderers/maLegend'
 import { drawAllPanesBorders } from '@/core/renderers/globalBorders'
 import { tagLog, tagLogThrottle } from '@/utils/logger'
 import { MarkerManager } from './marker/registry'
+import { getPhysicalKLineConfig, calcKWidthPx } from '@/core/utils/klineConfig'
+
+// 重新导出以保持向后兼容
+export { getPhysicalKLineConfig, calcKWidthPx }
 
 /**
  * 图表 DOM 元素引用
@@ -51,51 +55,6 @@ export type ChartOptions = {
 
     /** 价格标签额外宽度（用于显示涨跌幅，默认 60px） */
     priceLabelWidth?: number
-}
-
-/**
- * 计算奇数化后的 K 线宽度（物理像素），确保影线能完美居中显示
- * @param kWidth K 线宽度（逻辑像素）
- * @param dpr 设备像素比
- * @returns 奇数化后的物理像素宽度
- */
-export function calcKWidthPx(kWidth: number, dpr: number): number {
-    let kWidthPx = Math.round(kWidth * dpr)
-    if (kWidthPx % 2 === 0) {
-        kWidthPx += 1
-    }
-    return Math.max(1, kWidthPx)
-}
-
-/**
- * 获取图表渲染使用的物理像素配置
- * @param kWidth K 线宽度（逻辑像素）
- * @param kGap K 线间隙（逻辑像素）
- * @param dpr 设备像素比
- * @returns 物理像素和逻辑像素的配置对象
- */
-export function getPhysicalKLineConfig(kWidth: number, kGap: number, dpr: number) {
-    const kWidthPx = calcKWidthPx(kWidth, dpr)
-    const kGapPx = Math.round(kGap * dpr)
-    const unitPx = kWidthPx + kGapPx
-    const startXPx = kGapPx
-
-    // 1. 转回逻辑像素（供需要逻辑像素的地方使用）
-    const kWidthLogical = kWidthPx / dpr
-    const kGapLogical = kGapPx / dpr
-    const unitLogical = unitPx / dpr
-    const startXLogical = startXPx / dpr
-
-    return {
-        kWidthPx,
-        kGapPx,
-        unitPx,
-        startXPx,
-        kWidthLogical,
-        kGapLogical,
-        unitLogical,
-        startXLogical,
-    }
 }
 
 /** K 线起始 x 坐标数组，positions[i] 表示第 i 根 K 线的起始 x 坐标（逻辑像素） */
@@ -154,13 +113,14 @@ export class Chart {
         xAxisCtx.scale(vp.dpr, vp.dpr)
         xAxisCtx.clearRect(0, 0, vp.plotWidth, this.opt.bottomAxisHeight)
 
-        // 4. 计算可视 K 线数据范围
+        // 4. 计算可视 K 线数据范围（使用物理像素对齐）
         let { start, end } = getVisibleRange(
             vp.scrollLeft,
             vp.plotWidth,
             this.opt.kWidth,
             this.opt.kGap,
-            this.data.length
+            this.data.length,
+            vp.dpr
         )
 
         const range: VisibleRange = { start, end }
@@ -168,8 +128,9 @@ export class Chart {
         // 4.1 计算 K 线起始 x 坐标数组, 作为统一坐标源
         const kLinePositions = this.calcKLinePositions(range)
 
-        // 4.2 设置 K 线坐标数组到交互控制器
-        this.interaction.setKLinePositions(kLinePositions, range)
+        // 4.2 设置 K 线坐标数组到交互控制器（传递 kWidthPx 用于计算 K 线中心）
+        const { kWidthPx } = getPhysicalKLineConfig(this.opt.kWidth, this.opt.kGap, vp.dpr)
+        this.interaction.setKLinePositions(kLinePositions, range, kWidthPx)
 
         // 5. 遍历所有 PaneRenderer 独立绘制每个 pane
         const isDragging = this.interaction.isDraggingState()
@@ -375,23 +336,16 @@ export class Chart {
         const count = end - start
         const dpr = this.viewport?.dpr || window.devicePixelRatio || 1
 
-        // 1. 物理像素间距（整数，统一）
-        const unitPx = Math.round((this.opt.kWidth + this.opt.kGap) * dpr)
-        const startXPx = Math.round(this.opt.kGap * dpr)
+        // 统一使用 getPhysicalKLineConfig，确保与渲染完全一致
+        const { unitPx, startXPx } = getPhysicalKLineConfig(this.opt.kWidth, this.opt.kGap, dpr)
 
         const positions: number[] = new Array(count)
 
         for (let i = 0; i < count; i++) {
             const dataIndex = start + i
-            // 2. 物理像素坐标（等间距整数）
             const leftPx = startXPx + dataIndex * unitPx
-            // 3. 转回逻辑坐标
             positions[i] = leftPx / dpr
         }
-
-        /* console.log('calcKLinePositions', positions.map(i => {
-            return i * dpr
-        })) */
 
         return positions
     }
@@ -433,7 +387,13 @@ export class Chart {
     /** 获取内容总宽度（用于外部 scroll-content 撑开 scrollWidth） */
     getContentWidth(): number {
         const n = this.data?.length ?? 0
-        const plotWidth = this.opt.kGap + n * (this.opt.kWidth + this.opt.kGap)
+        const dpr = this.viewport?.dpr || window.devicePixelRatio || 1
+
+        // 使用物理像素对齐后的配置，确保与渲染一致
+        const { startXPx, unitPx } = getPhysicalKLineConfig(this.opt.kWidth, this.opt.kGap, dpr)
+
+        // 实际需要的 plot 宽度（物理像素转回逻辑像素）
+        const plotWidth = (startXPx + n * unitPx) / dpr
         const yAxisTotalWidth = this.opt.rightAxisWidth + (this.opt.priceLabelWidth || 60)
         return plotWidth + yAxisTotalWidth
     }

@@ -52,6 +52,7 @@ import KLineTooltip from './KLineTooltip.vue'
 import MarkerTooltip from './MarkerTooltip.vue'
 import IndicatorSelector from './IndicatorSelector.vue'
 import { Chart, type PaneSpec } from '@/core/chart'
+import { getPhysicalKLineConfig } from '@/core/utils/klineConfig'
 import { CandleRenderer } from '@/core/renderers/candle'
 import { GridLinesRenderer } from '@/core/renderers/gridLines'
 import { LastPriceLineRenderer } from '@/core/renderers/lastPrice'
@@ -266,10 +267,20 @@ function handleIndicatorToggle(indicatorId: string, active: boolean) {
   scheduleRender()
 }
 
-/* 计算总宽度：绑图区域宽度 + 右侧轴宽度 + 价格标签宽度 */
+/* 计算总宽度：使用物理像素对齐后的值，确保与渲染一致 */
 const totalWidth = computed(() => {
   const n = props.data?.length ?? 0
-  const plotWidth = currentKGap.value + n * (currentKWidth.value + currentKGap.value)
+  const dpr = window.devicePixelRatio || 1
+
+  // 使用物理像素对齐后的配置
+  const { startXPx, unitPx } = getPhysicalKLineConfig(
+    currentKWidth.value,
+    currentKGap.value,
+    dpr
+  )
+
+  // 实际需要的 plot 宽度（物理像素转回逻辑像素）
+  const plotWidth = (startXPx + n * unitPx) / dpr
   const yAxisTotalWidth = props.rightAxisWidth + props.priceLabelWidth
   return plotWidth + yAxisTotalWidth
 })

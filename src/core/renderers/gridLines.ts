@@ -8,10 +8,9 @@ import { GRID_COLORS } from '@/core/theme/colors'
  * 横向按像素均分铺满整个绘图区高度，纵向按月分割（使用预计算的月边界，网格线对齐到K线实体中部）
  */
 export const GridLinesRenderer: PaneRenderer = {
-    draw({ ctx, pane, data, range, scrollLeft, kWidth, kGap, dpr, paneWidth: _paneWidth }) {
+    draw({ ctx, pane, data, range, scrollLeft, kWidth, kGap, dpr, paneWidth: _paneWidth, kLinePositions }) {
         if (!data.length) return
 
-        const unit = kWidth + kGap
         const tickCount = pane.id === 'main' ? 6 : 2
 
         ctx.save()
@@ -39,7 +38,12 @@ export const GridLinesRenderer: PaneRenderer = {
 
         for (const idx of boundaries) {
             if (idx < range.start || idx >= range.end || idx >= data.length) continue
-            const worldX = kGap + idx * unit + kWidth / 2
+
+            // 使用统一的 kLinePositions 计算 K 线中心 X 坐标
+            const localIdx = idx - range.start
+            if (localIdx < 0 || localIdx >= kLinePositions.length) continue
+            const worldX = kLinePositions[localIdx]! + kWidth / 2
+
             const v = createVerticalLineRect(worldX, 0, pane.height, dpr)
             if (v) ctx.fillRect(v.x, v.y, v.width, v.height)
         }

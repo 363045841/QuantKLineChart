@@ -1,29 +1,39 @@
 import type { KLineData } from '@/types/price'
 import type { PriceRange } from '@/core/scale/price'
+import { getPhysicalKLineConfig } from '@/core/utils/klineConfig'
 
 /**
- * 计算当前视口可见的 K 线索引范围。
+ * 计算当前视口可见的 K 线索引范围（使用物理像素对齐）。
  *
- * - 基于 `scrollLeft` 与 `viewWidth` 推导可见的 worldX 区间。
- * - 再用 `unit = kWidth + kGap` 映射到索引区间。
- * - 会额外在左右各扩展 1 根（start-1/end+1），用于避免边缘裁剪带来的“断线/缺一根”观感。
+ * - 所有计算在物理像素空间进行，确保与 calcKLinePositions 一致
+ * - 会额外在左右各扩展 1 根（start-1/end+1），用于避免边缘裁剪带来的”断线/缺一根”观感
  *
  * @param scrollLeft 容器当前横向滚动量（逻辑像素）
  * @param viewWidth  绘图区域宽度（plotWidth，逻辑像素，不含右侧 yAxis）
  * @param kWidth     单根 K 线宽度（逻辑像素）
  * @param kGap       K 线间距（逻辑像素）
  * @param totalDataCount 数据总条数
+ * @param dpr        设备像素比
  */
 export function getVisibleRange(
     scrollLeft: number,
     viewWidth: number,
     kWidth: number,
     kGap: number,
-    totalDataCount: number
+    totalDataCount: number,
+    dpr: number = 1
 ): { start: number; end: number } {
-    const unit = kWidth + kGap
-    const start = Math.max(0, Math.floor(scrollLeft / unit) - 1)
-    const end = Math.min(totalDataCount, Math.ceil((scrollLeft + viewWidth) / unit) + 1)
+    // 使用统一的物理像素配置，确保与 calcKLinePositions 完全一致
+    const { unitPx, startXPx } = getPhysicalKLineConfig(kWidth, kGap, dpr)
+
+    // scrollLeft 和 viewWidth 转换到物理像素空间
+    const scrollLeftPx = scrollLeft * dpr
+    const viewWidthPx = viewWidth * dpr
+
+    // 计算可见范围（物理像素空间整数运算）
+    const start = Math.max(0, Math.floor((scrollLeftPx - startXPx) / unitPx) - 1)
+    const end = Math.min(totalDataCount, Math.ceil((scrollLeftPx + viewWidthPx - startXPx) / unitPx) + 1)
+
     return { start, end }
 }
 
