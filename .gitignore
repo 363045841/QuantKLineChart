@@ -35,3 +35,6 @@ coverage
 # Vitest
 __screenshots__/
 docs/TradingView级别像素对齐技术.md
+
+# Memory bank
+.memorybank/
