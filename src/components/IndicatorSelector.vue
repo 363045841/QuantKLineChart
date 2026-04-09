@@ -53,28 +53,40 @@ export interface Indicator {
   id: string
   label: string
   name: string
+  pane: 'main' | 'sub'
   params?: ParamConfig[]
 }
 
 const indicators: Indicator[] = [
-  { id: 'MA', label: 'MA', name: '均线' },
+  { id: 'MA', label: 'MA', name: '均线', pane: 'main' },
   {
     id: 'BOLL',
     label: 'BOLL',
     name: '布林带',
+    pane: 'main',
     params: [
       { key: 'period', label: '周期', type: 'number', min: 2, max: 100, step: 1 },
       { key: 'multiplier', label: '倍数', type: 'number', min: 0.1, max: 5, step: 0.1 },
     ],
   },
-  { id: 'MACD', label: 'MACD', name: '指数平滑异同移动平均线' },
-  { id: 'RSI', label: 'RSI', name: '相对强弱指标' },
-  { id: 'CCI', label: 'CCI', name: '顺势指标' },
-  { id: 'STOCH', label: 'STOCH', name: '随机指标' },
-  { id: 'MOM', label: 'MOM', name: '动量指标' },
-  { id: 'WMSR', label: 'WMSR', name: '威廉指标' },
-  { id: 'KST', label: 'KST', name: '确然指标' },
-  { id: 'FASTK', label: 'FASTK', name: '快速随机指标' },
+  {
+    id: 'MACD',
+    label: 'MACD',
+    name: '指数平滑异同移动平均线',
+    pane: 'sub',
+    params: [
+      { key: 'fastPeriod', label: '快线', type: 'number', min: 2, max: 50, step: 1 },
+      { key: 'slowPeriod', label: '慢线', type: 'number', min: 2, max: 100, step: 1 },
+      { key: 'signalPeriod', label: '信号', type: 'number', min: 2, max: 50, step: 1 },
+    ],
+  },
+  { id: 'RSI', label: 'RSI', name: '相对强弱指标', pane: 'sub' },
+  { id: 'CCI', label: 'CCI', name: '顺势指标', pane: 'sub' },
+  { id: 'STOCH', label: 'STOCH', name: '随机指标', pane: 'sub' },
+  { id: 'MOM', label: 'MOM', name: '动量指标', pane: 'sub' },
+  { id: 'WMSR', label: 'WMSR', name: '威廉指标', pane: 'sub' },
+  { id: 'KST', label: 'KST', name: '确然指标', pane: 'sub' },
+  { id: 'FASTK', label: 'FASTK', name: '快速随机指标', pane: 'sub' },
 ]
 
 const props = defineProps<{
@@ -103,18 +115,19 @@ function isActive(indicatorId: string): boolean {
 }
 
 function toggleIndicator(indicatorId: string) {
+  const indicator = indicators.find((i) => i.id === indicatorId)
+  if (!indicator) return
+
   const active = !isActive(indicatorId)
+
   if (active) {
-    // 单选模式：只选当前点击的指标
+    // 同类型指标互斥：取消同 pane 的其他指标
+    indicators
+      .filter((i) => i.pane === indicator.pane && i.id !== indicatorId && isActive(i.id))
+      .forEach((i) => emit('toggle', i.id, false))
+
     emit('toggle', indicatorId, true)
-    // 取消其他指标的选择
-    indicators.forEach((ind) => {
-      if (ind.id !== indicatorId && isActive(ind.id)) {
-        emit('toggle', ind.id, false)
-      }
-    })
   } else {
-    // 取消选择
     emit('toggle', indicatorId, false)
   }
 }
@@ -131,6 +144,9 @@ function getParamValues(indicatorId: string): Record<string, number> {
     for (const p of indicator.params) {
       if (p.key === 'period') defaultParams[p.key] = 20
       else if (p.key === 'multiplier') defaultParams[p.key] = 2
+      else if (p.key === 'fastPeriod') defaultParams[p.key] = 12
+      else if (p.key === 'slowPeriod') defaultParams[p.key] = 26
+      else if (p.key === 'signalPeriod') defaultParams[p.key] = 9
     }
   }
   return {
@@ -190,14 +206,14 @@ function onParamsConfirm(values: Record<string, number>) {
 .indicator-btn {
   flex-shrink: 0;
   padding: 6px 16px;
-  border: 1px solid #d0d0d0;
+  border: 1px solid #e0e0e0;
   border-radius: 16px;
   background: #ffffff;
   color: #666;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.45s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
   display: flex;
   align-items: center;
@@ -205,20 +221,20 @@ function onParamsConfirm(values: Record<string, number>) {
 }
 
 .indicator-btn:hover {
-  background: #f0f0f0;
-  border-color: #b0b0b0;
+  background: #f8f8f8;
+  border-color: #ccc;
   color: #333;
 }
 
 .indicator-btn.active {
-  background: #1890ff;
-  border-color: #1890ff;
-  color: #ffffff;
+  background: #f8f8f8;
+  border-color: #ccc;
+  color: #1a1a1a;
 }
 
 .indicator-btn.active:hover {
-  background: #40a9ff;
-  border-color: #40a9ff;
+  background: #f0f0f0;
+  border-color: #bbb;
 }
 
 .param-hint {
@@ -230,7 +246,7 @@ function onParamsConfirm(values: Record<string, number>) {
   width: 24px;
   height: 24px;
   padding: 0;
-  border: 1px solid #d0d0d0;
+  border: 1px solid #e0e0e0;
   border-radius: 50%;
   background: #fff;
   color: #999;
@@ -243,7 +259,8 @@ function onParamsConfirm(values: Record<string, number>) {
 }
 
 .settings-btn:hover {
-  border-color: #1890ff;
-  color: #1890ff;
+  border-color: #333;
+  color: #333;
+  background: #f8f8f8;
 }
 </style>

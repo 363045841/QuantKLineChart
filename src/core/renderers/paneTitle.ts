@@ -18,6 +18,9 @@ export interface PaneTitleOptions {
  * 在面板左上角显示标题
  */
 export function createPaneTitleRendererPlugin(options: PaneTitleOptions): RendererPlugin {
+  // 可变配置，支持动态更新
+  let currentOptions = { ...options }
+
   return {
     name: `paneTitle_${options.paneId}`,
     version: '1.0.0',
@@ -28,11 +31,11 @@ export function createPaneTitleRendererPlugin(options: PaneTitleOptions): Render
 
     draw(context: RenderContext) {
       const { ctx, pane } = context
-      if (pane.id !== options.paneId) return
+      if (pane.id !== currentOptions.paneId) return
 
       const fontSize = 12
       const x = 12
-      const y = options.yOffset ?? fontSize
+      const y = currentOptions.yOffset ?? fontSize
 
       ctx.save()
       ctx.font = `${fontSize}px Arial`
@@ -41,16 +44,20 @@ export function createPaneTitleRendererPlugin(options: PaneTitleOptions): Render
 
       // 绘制标题
       ctx.fillStyle = TEXT_COLORS.PRIMARY
-      ctx.fillText(options.title, x, y)
+      ctx.fillText(currentOptions.title, x, y)
 
       // 绘制描述
-      if (options.description) {
-        const titleWidth = ctx.measureText(options.title).width
+      if (currentOptions.description) {
+        const titleWidth = ctx.measureText(currentOptions.title).width
         ctx.fillStyle = TEXT_COLORS.WEAK
-        ctx.fillText(` - ${options.description}`, x + titleWidth, y)
+        ctx.fillText(` - ${currentOptions.description}`, x + titleWidth, y)
       }
 
       ctx.restore()
+    },
+
+    setConfig(config: Record<string, unknown>) {
+      currentOptions = { ...currentOptions, ...config }
     },
   }
 }

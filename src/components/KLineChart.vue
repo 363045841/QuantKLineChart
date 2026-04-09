@@ -72,6 +72,8 @@ import { createGlobalBordersRendererPlugin } from '@/core/renderers/globalBorder
 import { createPaneTitleRendererPlugin } from '@/core/renderers/paneTitle'
 import { createBOLLRendererPlugin } from '@/core/renderers/boll'
 import { createBOLLLegendRendererPlugin } from '@/core/renderers/bollLegend'
+import { createMACDRendererPlugin } from '@/core/renderers/macd'
+import { createMACDLegendRendererPlugin } from '@/core/renderers/macdLegend'
 
 type MAFlags = {
   ma5?: boolean
@@ -252,6 +254,9 @@ const activeIndicators = ref<string[]>(['MA'])
 // 指标参数配置
 const indicatorParams = ref<Record<string, Record<string, number>>>({})
 
+// 副图指标列表（互斥）
+const SUB_PANE_INDICATORS = ['MACD', 'RSI', 'CCI', 'STOCH', 'MOM', 'WMSR', 'KST', 'FASTK'] as const
+
 // 指标切换处理
 function handleIndicatorToggle(indicatorId: string, active: boolean) {
   if (active) {
@@ -280,6 +285,28 @@ function handleIndicatorToggle(indicatorId: string, active: boolean) {
     chartRef.value?.setRendererEnabled('bollLegend', active)
   }
 
+  // 副图指标互斥处理
+  if (SUB_PANE_INDICATORS.includes(indicatorId as any)) {
+    if (active) {
+      // 禁用成交量，启用当前指标
+      chartRef.value?.setRendererEnabled('volume', false)
+      chartRef.value?.setRendererEnabled('macd', indicatorId === 'MACD')
+      chartRef.value?.setRendererEnabled('macdLegend', indicatorId === 'MACD')
+      chartRef.value?.updateRendererConfig('paneTitle_sub', { title: indicatorId })
+    } else {
+      // 如果没有其他副图指标启用，恢复成交量
+      const hasOtherSubIndicator = activeIndicators.value.some(id =>
+        SUB_PANE_INDICATORS.includes(id as any)
+      )
+      if (!hasOtherSubIndicator) {
+        chartRef.value?.setRendererEnabled('volume', true)
+        chartRef.value?.setRendererEnabled('macd', false)
+        chartRef.value?.setRendererEnabled('macdLegend', false)
+        chartRef.value?.updateRendererConfig('paneTitle_sub', { title: 'VOL' })
+      }
+    }
+  }
+
   scheduleRender()
 }
 
@@ -292,6 +319,12 @@ function handleUpdateParams(indicatorId: string, params: Record<string, number>)
   if (indicatorId === 'BOLL') {
     chartRef.value?.updateRendererConfig('boll', params)
     chartRef.value?.updateRendererConfig('bollLegend', params)
+  }
+
+  // 更新 MACD 参数
+  if (indicatorId === 'MACD') {
+    chartRef.value?.updateRendererConfig('macd', params)
+    chartRef.value?.updateRendererConfig('macdLegend', params)
   }
 
   scheduleRender()
@@ -418,6 +451,12 @@ onMounted(() => {
     yPaddingPx: props.yPaddingPx,
   }))
   chart.setRendererEnabled('bollLegend', false) // 默认禁用，点击按钮启用
+  chart.useRenderer(createMACDRendererPlugin())
+  chart.setRendererEnabled('macd', false) // 默认禁用，点击按钮启用
+  chart.useRenderer(createMACDLegendRendererPlugin({
+    yPaddingPx: props.yPaddingPx,
+  }))
+  chart.setRendererEnabled('macdLegend', false) // 默认禁用，点击按钮启用
   chart.useRenderer(createCrosshairRendererPlugin({
     getCrosshairState: () => ({
       pos: chart.interaction.crosshairPos,

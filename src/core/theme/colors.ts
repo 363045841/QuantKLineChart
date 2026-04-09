@@ -135,6 +135,20 @@ export const BOLL_COLORS = {
 } as const
 
 /**
+ * MACD 颜色
+ */
+export const MACD_COLORS = {
+    /** DIF 线颜色（快线）- 与 MA20 相同 */
+    DIF: 'rgba(69, 112, 249, 1)',
+    /** DEA 线颜色（慢线）- 橙色 */
+    DEA: 'rgba(255, 152, 0, 1)',
+    /** MACD 柱上涨颜色 */
+    BAR_UP: 'rgba(214, 10, 34, 1)',
+    /** MACD 柱下跌颜色 */
+    BAR_DOWN: 'rgba(3, 123, 102, 1)',
+} as const
+
+/**
  * 十字线颜色
  */
 export const CROSSHAIR_COLORS = {
