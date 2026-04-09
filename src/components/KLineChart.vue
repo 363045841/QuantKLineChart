@@ -40,7 +40,12 @@
         </div>
       </div>
     </div>
-    <IndicatorSelector :active-indicators="activeIndicators" @toggle="handleIndicatorToggle" />
+    <IndicatorSelector
+      :active-indicators="activeIndicators"
+      :indicator-params="indicatorParams"
+      @toggle="handleIndicatorToggle"
+      @update-params="handleUpdateParams"
+    />
   </div>
 </template>
 
@@ -65,6 +70,8 @@ import { createCrosshairRendererPlugin } from '@/core/renderers/crosshair'
 import { createMALegendRendererPlugin } from '@/core/renderers/maLegend'
 import { createGlobalBordersRendererPlugin } from '@/core/renderers/globalBorders'
 import { createPaneTitleRendererPlugin } from '@/core/renderers/paneTitle'
+import { createBOLLRendererPlugin } from '@/core/renderers/boll'
+import { createBOLLLegendRendererPlugin } from '@/core/renderers/bollLegend'
 
 type MAFlags = {
   ma5?: boolean
@@ -242,6 +249,9 @@ function onScroll() {
 // 指标选择器状态
 const activeIndicators = ref<string[]>(['MA'])
 
+// 指标参数配置
+const indicatorParams = ref<Record<string, Record<string, number>>>({})
+
 // 指标切换处理
 function handleIndicatorToggle(indicatorId: string, active: boolean) {
   if (active) {
@@ -261,6 +271,27 @@ function handleIndicatorToggle(indicatorId: string, active: boolean) {
       ma30: active,
       ma60: active,
     })
+    chartRef.value?.setRendererEnabled('maLegend', active)
+  }
+
+  // 更新 BOLL 显示配置
+  if (indicatorId === 'BOLL') {
+    chartRef.value?.setRendererEnabled('boll', active)
+    chartRef.value?.setRendererEnabled('bollLegend', active)
+  }
+
+  scheduleRender()
+}
+
+// 指标参数更新处理
+function handleUpdateParams(indicatorId: string, params: Record<string, number>) {
+  // 保存参数配置
+  indicatorParams.value[indicatorId] = params
+
+  // 更新 BOLL 参数
+  if (indicatorId === 'BOLL') {
+    chartRef.value?.updateRendererConfig('boll', params)
+    chartRef.value?.updateRendererConfig('bollLegend', params)
   }
 
   scheduleRender()
@@ -364,6 +395,8 @@ onMounted(() => {
   chart.useRenderer(createGridLinesRendererPlugin()) // 网格线渲染到所有 pane
   chart.useRenderer(createExtremaMarkersRendererPlugin())
   chart.useRenderer(createMARendererPlugin(props.showMA))
+  chart.useRenderer(createBOLLRendererPlugin())
+  chart.setRendererEnabled('boll', false) // 默认禁用，点击按钮启用
   chart.useRenderer(createCandleRenderer())
   chart.useRenderer(createLastPriceLineRendererPlugin())
   chart.useRenderer(createVolumeRendererPlugin())
@@ -381,6 +414,10 @@ onMounted(() => {
     yPaddingPx: props.yPaddingPx,
     showMA: props.showMA,
   }))
+  chart.useRenderer(createBOLLLegendRendererPlugin({
+    yPaddingPx: props.yPaddingPx,
+  }))
+  chart.setRendererEnabled('bollLegend', false) // 默认禁用，点击按钮启用
   chart.useRenderer(createCrosshairRendererPlugin({
     getCrosshairState: () => ({
       pos: chart.interaction.crosshairPos,

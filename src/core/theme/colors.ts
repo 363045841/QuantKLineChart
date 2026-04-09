@@ -121,6 +121,20 @@ export const MA_COLORS = {
 } as const
 
 /**
+ * 布林带颜色
+ */
+export const BOLL_COLORS = {
+    /** 上轨颜色 */
+    UPPER: 'rgba(178, 34, 34, 1)',
+    /** 中轨颜色（与 MA20 相同） */
+    MIDDLE: 'rgba(69, 112, 249, 1)',
+    /** 下轨颜色 */
+    LOWER: 'rgba(34, 139, 34, 1)',
+    /** 带状区域填充 */
+    BAND_FILL: 'rgba(100, 149, 237, 0.1)',
+} as const
+
+/**
  * 十字线颜色
  */
 export const CROSSHAIR_COLORS = {
