@@ -10,6 +10,8 @@ A financial charting library based on Vue 3 and Canvas, focusing on high-perform
 
 - **Canvas-based**: High-performance K-line chart rendering using Canvas
 - **Responsive Design**: Adapts to different screen sizes, supports all device pixel ratios (DPR) for crisp rendering
+- **Wick Handling**: Unified DPR coordinate calculation ensures wicks are perfectly centered and crisp across all DPR screens
+- **Pixel Alignment**: Unified coordinate source with physical-level pixel alignment, eliminating sub-pixel rendering for sharp, crisp lines
 - **Framework-agnostic**: Core logic is completely independent, not tied to any specific framework
 - **Plugin Architecture**: Renderer plugins support dynamic registration, configuration and lifecycle management
 - **Volume-Price Annotation**: Automatically identifies and annotates four patterns: volume-price rise, divergence, etc.
