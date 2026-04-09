@@ -1,0 +1,205 @@
+/**
+ * 插件宿主 - 核心管理类
+ */
+import type { Plugin, PluginConfig, PluginHost, PluginState } from './types'
+import { PluginRegistry } from './PluginRegistry'
+import { EventBus } from './EventBus'
+import { HookSystem } from './HookSystem'
+import { ConfigManager } from './ConfigManager'
+
+export class PluginHostImpl implements PluginHost {
+  private registry: PluginRegistry
+  private eventBus: EventBus
+  private hookSystem: HookSystem
+  private configManager: ConfigManager
+  private isDestroyed = false
+
+  constructor() {
+    this.registry = new PluginRegistry()
+    this.eventBus = new EventBus()
+    this.hookSystem = new HookSystem()
+    this.configManager = new ConfigManager()
+  }
+
+  // 实现 PluginHost 接口
+  readonly events = {
+    on: <T = unknown>(event: string, handler: (data: T) => void) => {
+      this.eventBus.on(event, handler)
+    },
+    off: <T = unknown>(event: string, handler: (data: T) => void) => {
+      this.eventBus.off(event, handler)
+    },
+    emit: <T = unknown>(event: string, data: T) => {
+      this.eventBus.emit(event, data)
+    },
+    once: <T = unknown>(event: string, handler: (data: T) => void) => {
+      this.eventBus.once(event, handler)
+    },
+  }
+
+  readonly hooks = {
+    tap: <T = unknown, R = unknown>(
+      hookName: string,
+      fn: (context: T) => R | Promise<R>,
+      priority = 0
+    ) => {
+      this.hookSystem.tap(hookName, fn, priority)
+    },
+    untap: (hookName: string, fn: (context: unknown) => unknown) => {
+      this.hookSystem.untap(hookName, fn)
+    },
+    call: async <T = unknown, R = unknown>(hookName: string, context: T) => {
+      return this.hookSystem.call<T, R>(hookName, context)
+    },
+    callSync: <T = unknown, R = unknown>(hookName: string, context: T) => {
+      return this.hookSystem.callSync<T, R>(hookName, context)
+    },
+  }
+
+  getConfig<K = unknown>(pluginName: string, key: string, defaultValue?: K): K {
+    return this.configManager.get<K>(pluginName, key, defaultValue)
+  }
+
+  setConfig(pluginName: string, key: string, value: unknown): void {
+    this.configManager.set(pluginName, key, value)
+  }
+
+  getPlugin<T extends Plugin = Plugin>(name: string): T | undefined {
+    return this.registry.getPlugin<T>(name)
+  }
+
+  log(level: 'info' | 'warn' | 'error', message: string, ...args: unknown[]): void {
+    const timestamp = new Date().toISOString()
+    const prefix = `[${timestamp}] [${level.toUpperCase()}]`
+    console[level](`${prefix} ${message}`, ...args)
+  }
+
+  /**
+   * 安装插件
+   */
+  async use(plugin: Plugin, config?: PluginConfig): Promise<void> {
+    this.ensureNotDestroyed()
+
+    if (this.registry.has(plugin.name)) {
+      throw new Error(`Plugin "${plugin.name}" is already installed`)
+    }
+
+    try {
+      // 注册插件
+      const descriptor = this.registry.register(plugin, config)
+
+      // 注册默认配置
+      if (config) {
+        this.configManager.setAll(plugin.name, config)
+      }
+
+      // 触发安装前钩子
+      await this.hooks.call('plugin:beforeInstall', { plugin, config })
+
+      // 安装插件
+      await plugin.install(this, descriptor.config)
+
+      // 更新状态
+      this.registry.updateState(plugin.name, 'installed' as PluginState)
+
+      // 触发安装后钩子
+      await this.hooks.call('plugin:afterInstall', { plugin, config })
+
+      this.log('info', `Plugin "${plugin.name}" installed successfully`)
+    } catch (error) {
+      this.registry.updateState(
+        plugin.name,
+        'error' as PluginState,
+        error instanceof Error ? error : new Error(String(error))
+      )
+      this.log('error', `Failed to install plugin "${plugin.name}":`, error)
+      throw error
+    }
+  }
+
+  /**
+   * 移除插件
+   */
+  async remove(name: string): Promise<void> {
+    this.ensureNotDestroyed()
+
+    const descriptor = this.registry.get(name)
+    if (!descriptor) {
+      throw new Error(`Plugin "${name}" is not installed`)
+    }
+
+    try {
+      // 触发卸载前钩子
+      await this.hooks.call('plugin:beforeUninstall', { name })
+
+      // 调用插件的卸载方法
+      if (descriptor.plugin.uninstall) {
+        await descriptor.plugin.uninstall()
+      }
+
+      // 清理
+      this.registry.unregister(name)
+      this.configManager.clear(name)
+
+      // 触发卸载后钩子
+      await this.hooks.call('plugin:afterUninstall', { name })
+
+      this.log('info', `Plugin "${name}" removed successfully`)
+    } catch (error) {
+      this.log('error', `Failed to remove plugin "${name}":`, error)
+      throw error
+    }
+  }
+
+  /**
+   * 获取所有插件
+   */
+  getPlugins() {
+    return this.registry.getAll()
+  }
+
+  /**
+   * 获取插件状态
+   */
+  getState(name: string): PluginState | undefined {
+    return this.registry.get(name)?.state
+  }
+
+  /**
+   * 销毁宿主
+   */
+  async destroy(): Promise<void> {
+    if (this.isDestroyed) return
+
+    // 卸载所有插件
+    for (const descriptor of this.registry.getAll()) {
+      try {
+        if (descriptor.plugin.uninstall) {
+          await descriptor.plugin.uninstall()
+        }
+      } catch (error) {
+        this.log('error', `Error uninstalling "${descriptor.plugin.name}":`, error)
+      }
+    }
+
+    // 清理资源
+    this.registry.clear()
+    this.eventBus.clear()
+    this.hookSystem.clear()
+    this.configManager.clear()
+
+    this.isDestroyed = true
+    this.log('info', 'PluginHost destroyed')
+  }
+
+  private ensureNotDestroyed(): void {
+    if (this.isDestroyed) {
+      throw new Error('PluginHost has been destroyed')
+    }
+  }
+}
+
+// 导出工厂函数
+export function createPluginHost(): PluginHostImpl {
+  return new PluginHostImpl()
+}

@@ -42,5 +42,13 @@ export class PriceScale {
         const viewHeight = Math.max(1, this.height - this.paddingTop - this.paddingBottom)
         return this.paddingTop + viewHeight * (1 - ratio)
     }
+
+    yToPrice(y: number): number {
+        const { maxPrice, minPrice } = this.range
+        const range = maxPrice - minPrice || 1
+        const viewHeight = Math.max(1, this.height - this.paddingTop - this.paddingBottom)
+        const ratio = 1 - (y - this.paddingTop) / viewHeight
+        return minPrice + ratio * range
+    }
 }
 

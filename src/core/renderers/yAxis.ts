@@ -1,36 +1,44 @@
-import type { PaneRenderer } from '@/core/layout/pane'
+import type { RendererPlugin, RenderContext } from '@/plugin'
+import { RENDERER_PRIORITY, GLOBAL_PANE_ID } from '@/plugin'
 import { drawPriceAxis } from '@/utils/kLineDraw/axis'
+import { calculateTickCount } from '@/core/utils/tickCount'
 
 /**
- * 创建 Y 轴渲染器，每个 pane 各画一段，复用 drawPriceAxis
- * @param opts 配置选项
- * @param opts.axisX 轴的横坐标
- * @param opts.axisWidth 轴宽度
- * @param opts.yPaddingPx 垂直内边距
- * @param opts.ticks 刻度数量（可选，默认根据 pane 高度自动计算）
- * @returns PaneRenderer 实例
+ * 创建 Y 轴渲染器插件
+ * 渲染到所有面板的 Y 轴区域
  */
-export function createYAxisRenderer(opts: {
-    axisX: number
-    axisWidth: number
-    yPaddingPx: number
-    ticks?: number
-}): PaneRenderer {
-    return {
-        draw({ ctx, pane, dpr, paneWidth: _paneWidth }) {
-            const ticks = typeof opts.ticks === 'number' ? opts.ticks : Math.max(2, Math.min(8, Math.round(pane.height / 80)))
-            drawPriceAxis(ctx, {
-                x: opts.axisX,
-                y: pane.top,
-                width: opts.axisWidth,
-                height: pane.height,
-                priceRange: pane.priceRange,
-                yPaddingPx: opts.yPaddingPx,
-                dpr,
-                ticks,
-                drawLeftBorder: false,
-                drawTickLines: false,
-            })
-        },
-    }
+export function createYAxisRendererPlugin(options: {
+  axisWidth: number
+  yPaddingPx: number
+}): RendererPlugin {
+  return {
+    name: 'yAxis',
+    version: '1.0.0',
+    description: 'Y轴价格刻度渲染器',
+    debugName: 'Y轴',
+    paneId: GLOBAL_PANE_ID,
+    priority: RENDERER_PRIORITY.SYSTEM_YAXIS,
+
+    draw(context: RenderContext) {
+      const { ctx, pane, dpr, yAxisCtx } = context
+
+      // Y 轴绘制到 yAxisCtx（如果提供）或使用 ctx
+      const targetCtx = yAxisCtx || ctx
+
+      const ticks = calculateTickCount(pane.height, pane.id === 'main')
+
+      drawPriceAxis(targetCtx, {
+        x: 0,
+        y: pane.top,
+        width: options.axisWidth,
+        height: pane.height,
+        priceRange: pane.priceRange,
+        yPaddingPx: options.yPaddingPx,
+        dpr,
+        ticks,
+        drawLeftBorder: false,
+        drawTickLines: false,
+      })
+    },
+  }
 }

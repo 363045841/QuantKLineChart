@@ -34,7 +34,7 @@ export interface PaneRenderer {
         dpr: number
         paneWidth: number
         kLinePositions: number[]
-        markerManager: MarkerManager
+        markerManager?: MarkerManager
     }): void
 }
 

@@ -1,4 +1,6 @@
-import type { PaneRenderer } from '@/core/layout/pane'
+import type { RendererPlugin, RenderContext } from '@/plugin'
+import { RENDERER_PRIORITY } from '@/plugin'
+import type { KLineData } from '@/types/price'
 import { getKLineTrend, type kLineTrend } from '@/types/kLine'
 import { createAlignedKLineFromPx, createVerticalLineRect } from '@/core/draw/pixelAlign'
 import { PRICE_COLORS } from '@/core/theme/colors'
@@ -8,108 +10,104 @@ import { analyzeVolumePriceRelationBatch, DEFAULT_VOLUME_PRICE_CONFIG } from '@/
 import type { MarkerManager } from '@/core/marker/registry'
 
 /**
- * Candle 渲染器：在单个 pane 中绘制 K 线蜡烛图
+ * 创建 K 线蜡烛图渲染器插件
  */
-export const CandleRenderer: PaneRenderer = {
-    /**
-     * 绘制 K 线蜡烛图
-     * @param ctx Canvas 绘图上下文，Chart 已执行 translate(0, pane.top)，y=0 对应 pane 顶部
-     * @param pane 当前 pane 实例
-     * @param data 全量 K 线数据
-     * @param range 当前视口可见的索引范围
-     * @param scrollLeft 滚动偏移量，renderer 内部如需 world 坐标需执行 ctx.translate(-scrollLeft, 0)
-     * @param kWidth K 线宽度
-     * @param kGap K 线间隔
-     * @param dpr 设备像素比
-     * @param _paneWidth pane 宽度（未使用）
-     * @param kLinePositions K 线起始 x 坐标数组（由 Chart 统一计算）
-     */
-    draw({ ctx, pane, data, range, scrollLeft, kWidth, kGap, dpr, paneWidth: _paneWidth, kLinePositions, markerManager }) {
-        if (!data.length) return
+export function createCandleRenderer(): RendererPlugin {
+    return {
+        name: 'candle',
+        version: '1.0.0',
+        description: 'K线蜡烛图渲染器',
+        debugName: 'K线',
+        paneId: 'main',
+        priority: RENDERER_PRIORITY.MAIN,
 
-        const { kWidthPx } = getPhysicalKLineConfig(kWidth, kGap, dpr)
+        draw(context: RenderContext) {
+            const { ctx, pane, data, range, scrollLeft, kWidth, kGap, dpr, kLinePositions, markerManager } = context
+            const klineData = data as KLineData[]
+            if (!klineData.length) return
 
-        ctx.save()
-        ctx.translate(-scrollLeft, 0)
+            const { kWidthPx } = getPhysicalKLineConfig(kWidth, kGap, dpr)
 
-        const positions = kLinePositions || []
-        const realPos: number[] = []
+            ctx.save()
+            ctx.translate(-scrollLeft, 0)
 
-        // 批量计算量价关系，使用前缀和优化性能
-        const relations = analyzeVolumePriceRelationBatch(
-            data,
-            range.start,
-            range.end,
-            DEFAULT_VOLUME_PRICE_CONFIG
-        )
+            const positions = kLinePositions || []
 
-        for (let i = range.start; i < range.end && i < data.length; i++) {
-            const e = data[i]
-            if (!e) continue
-
-            const openY = pane.yAxis.priceToY(e.open)
-            const closeY = pane.yAxis.priceToY(e.close)
-            const highY = pane.yAxis.priceToY(e.high)
-            const lowY = pane.yAxis.priceToY(e.low)
-
-            const rawRectY = Math.min(openY, closeY)
-            const rawRectH = Math.max(Math.abs(openY - closeY), 1)
-
-            // 使用 Chart 统一计算的 x 坐标
-            const leftLogical = positions[i - range.start]
-            if (!leftLogical) continue
-            const aligned = createAlignedKLineFromPx(
-                Math.round(leftLogical * dpr),
-                rawRectY,
-                kWidthPx,
-                rawRectH,
-                dpr
+            // 批量计算量价关系，使用前缀和优化性能
+            const relations = analyzeVolumePriceRelationBatch(
+                klineData,
+                range.start,
+                range.end,
+                DEFAULT_VOLUME_PRICE_CONFIG
             )
 
-            const trend: kLineTrend = getKLineTrend(e)
-            const color = trend === 'up' ? PRICE_COLORS.UP : PRICE_COLORS.DOWN
+            for (let i = range.start; i < range.end && i < klineData.length; i++) {
+                const e = klineData[i]
+                if (!e) continue
 
-            ctx.fillStyle = color
-            ctx.fillRect(aligned.bodyRect.x, aligned.bodyRect.y, aligned.bodyRect.width, aligned.bodyRect.height)
-            realPos[i - range.start] = aligned.bodyRect.x
-            const wickWidth = aligned.wickRect.width
-            const wickX = aligned.wickRect.x
-            const bodyTop = aligned.bodyRect.y
-            const bodyBottom = aligned.bodyRect.y + aligned.bodyRect.height
-            const bodyHigh = Math.max(e.open, e.close)
-            const bodyLow = Math.min(e.open, e.close)
+                const openY = pane.yAxis.priceToY(e.open)
+                const closeY = pane.yAxis.priceToY(e.close)
+                const highY = pane.yAxis.priceToY(e.high)
+                const lowY = pane.yAxis.priceToY(e.low)
 
-            if (e.high > bodyHigh) {
-                const wick = createVerticalLineRect(wickX, highY, bodyTop, dpr)
-                if (wick) ctx.fillRect(wick.x, wick.y, wickWidth, wick.height)
+                const rawRectY = Math.min(openY, closeY)
+                const rawRectH = Math.max(Math.abs(openY - closeY), 1)
+
+                // 使用 Chart 统一计算的 x 坐标
+                const leftLogical = positions[i - range.start]
+                if (!leftLogical) continue
+                const aligned = createAlignedKLineFromPx(
+                    Math.round(leftLogical * dpr),
+                    rawRectY,
+                    kWidthPx,
+                    rawRectH,
+                    dpr
+                )
+
+                const trend: kLineTrend = getKLineTrend(e)
+                const color = trend === 'up' ? PRICE_COLORS.UP : PRICE_COLORS.DOWN
+
+                ctx.fillStyle = color
+                ctx.fillRect(aligned.bodyRect.x, aligned.bodyRect.y, aligned.bodyRect.width, aligned.bodyRect.height)
+
+                const wickWidth = aligned.wickRect.width
+                const wickX = aligned.wickRect.x
+                const bodyTop = aligned.bodyRect.y
+                const bodyBottom = aligned.bodyRect.y + aligned.bodyRect.height
+                const bodyHigh = Math.max(e.open, e.close)
+                const bodyLow = Math.min(e.open, e.close)
+
+                if (e.high > bodyHigh) {
+                    const wick = createVerticalLineRect(wickX, highY, bodyTop, dpr)
+                    if (wick) ctx.fillRect(wick.x, wick.y, wickWidth, wick.height)
+                }
+                if (e.low < bodyLow) {
+                    const wick = createVerticalLineRect(wickX, bodyBottom, lowY, dpr)
+                    if (wick) ctx.fillRect(wick.x, wick.y, wickWidth, wick.height)
+                }
+
+                // 绘制量价关系标记
+                const relation = relations[i - range.start]
+                if (relation !== VolumePriceRelation.OTHERS && markerManager) {
+                    // 根据量价关系决定标记位置
+                    const isRising = relation === VolumePriceRelation.RISE_WITH_VOLUME ||
+                        relation === VolumePriceRelation.RISE_WITHOUT_VOLUME
+                    const markerY = isRising ? highY - 15 : lowY + 15
+                    const markerX = aligned.bodyRect.x + aligned.bodyRect.width / 2
+
+                    drawVolumePriceMarker(ctx, markerX, markerY, relation!, i, kWidth, 4, markerManager as MarkerManager)
+                }
             }
-            if (e.low < bodyLow) {
-                const wick = createVerticalLineRect(wickX, bodyBottom, lowY, dpr)
-                if (wick) ctx.fillRect(wick.x, wick.y, wickWidth, wick.height)
-            }
 
-            // 绘制量价关系标记
-            const relation = relations[i - range.start]
-            if (relation !== VolumePriceRelation.OTHERS) {
-                // 根据量价关系决定标记位置
-                const isRising = relation === VolumePriceRelation.RISE_WITH_VOLUME ||
-                    relation === VolumePriceRelation.RISE_WITHOUT_VOLUME
-                const markerY = isRising ? highY - 15 : lowY + 15
-                const markerX = aligned.bodyRect.x + aligned.bodyRect.width / 2
-
-
-                drawVolumePriceMarker(ctx, markerX, markerY, relation!, i, kWidth, 4, markerManager)
-            }
-        }
-
-        ctx.restore()
-    },
+            ctx.restore()
+        },
+    }
 }
 
 /**
 * 绘制量价关系标记
 * 在K线图上标注量价关系标记符号
-* 
+*
 * @param ctx - Canvas绘图上下文
 * @param x - 标记的x坐标（三角形水平中心）
 * @param y - 标记的y坐标（三角形底边/顶点与K线的接触点）

@@ -364,7 +364,17 @@ export function drawTimeAxis(ctx: CanvasRenderingContext2D, opts: TimeAxisOption
         drawBottomBorder = true,
     } = opts
 
-    const unit = kWidth + kGap
+    // 使用物理像素对齐后的单位，与 getPhysicalKLineConfig 保持一致
+    const physKWidth = Math.round(kWidth * dpr)
+    const alignedPhysKWidth = physKWidth % 2 === 0 ? physKWidth + 1 : physKWidth
+    const physKGap = Math.round(kGap * dpr)
+    const unitPx = alignedPhysKWidth + physKGap
+    const startXPx = physKGap // 第一根 K 线左侧的间距
+
+    // 转换到逻辑像素空间
+    const unit = unitPx / dpr
+    const startX = startXPx / dpr
+    const alignedKWidth = alignedPhysKWidth / dpr
 
     // 背景
     ctx.fillStyle = bgColor
@@ -404,8 +414,8 @@ export function drawTimeAxis(ctx: CanvasRenderingContext2D, opts: TimeAxisOption
         const k = data[idx]
         if (!k) continue
 
-        // 关键修改：加 kWidth/2 使刻度对齐到K线实体中部
-        const worldX = kGap + idx * unit + kWidth / 2
+        // 使用与 calcKLinePositions 一致的坐标计算
+        const worldX = startX + idx * unit + alignedKWidth / 2
         const screenX = worldX - scrollLeft
 
         // 避免文字/刻度贴边：按左右 padding 收紧可绘制区域

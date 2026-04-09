@@ -3,13 +3,17 @@ import { getVisibleRange } from '@/core/viewport/viewport'
 import { Pane, type VisibleRange } from '@/core/layout/pane'
 import { InteractionController } from '@/core/controller/interaction'
 import { PaneRenderer } from '@/core/paneRenderer'
-import { drawTimeAxisLayer } from '@/core/renderers/timeAxis'
-import { drawCrosshair } from '@/core/renderers/crosshair'
-import { drawMALegend } from '@/core/renderers/maLegend'
-import { drawAllPanesBorders } from '@/core/renderers/globalBorders'
-import { tagLog, tagLogThrottle } from '@/utils/logger'
 import { MarkerManager } from './marker/registry'
 import { getPhysicalKLineConfig, calcKWidthPx } from '@/core/utils/klineConfig'
+import {
+  createPluginHost,
+  type PluginHostImpl,
+  RendererPluginManager,
+  type RendererPlugin,
+  type RendererPluginWithHost,
+  type RenderContext,
+  wrapPaneInfo,
+} from '@/plugin'
 
 // 重新导出以保持向后兼容
 export { getPhysicalKLineConfig, calcKWidthPx }
@@ -81,6 +85,12 @@ export class Chart {
     private markerManager: MarkerManager
     readonly interaction: InteractionController
 
+    /** 插件宿主 */
+    private pluginHost: PluginHostImpl
+
+    /** 渲染器插件管理器 */
+    private rendererPluginManager: RendererPluginManager
+
     /**
      * 创建图表实例
      * @param dom 由 Vue 组件传入的 DOM 句柄
@@ -91,8 +101,54 @@ export class Chart {
         this.opt = opt
         this.interaction = new InteractionController(this)
         this.markerManager = new MarkerManager()
+        this.pluginHost = createPluginHost()
+        this.rendererPluginManager = new RendererPluginManager()
+
+        // 注入依赖
+        this.rendererPluginManager.setPluginHost(this.pluginHost)
+        this.rendererPluginManager.setInvalidateCallback(() => this.scheduleDraw())
 
         this.initPanes()
+    }
+
+    /** 获取插件宿主 */
+    get plugin(): PluginHostImpl {
+        return this.pluginHost
+    }
+
+    // ========== 渲染器插件 API ==========
+
+    /** 安装渲染器插件 */
+    useRenderer(plugin: RendererPlugin | RendererPluginWithHost, config?: Record<string, unknown>): void {
+        this.rendererPluginManager.register(plugin)
+        if (config && plugin.setConfig) {
+            plugin.setConfig(config)
+        }
+    }
+
+    /** 移除渲染器插件 */
+    removeRenderer(name: string): void {
+        this.rendererPluginManager.unregister(name)
+    }
+
+    /** 获取渲染器插件 */
+    getRenderer<T extends RendererPlugin = RendererPlugin>(name: string): T | undefined {
+        return this.rendererPluginManager.getPlugin<T>(name)
+    }
+
+    /** 更新渲染器配置（自动重绘） */
+    updateRendererConfig(name: string, config: Record<string, unknown>): void {
+        this.rendererPluginManager.updateConfig(name, config)
+    }
+
+    /** 启用/禁用渲染器 */
+    setRendererEnabled(name: string, enabled: boolean): void {
+        this.rendererPluginManager.setEnabled(name, enabled)
+    }
+
+    /** 获取所有渲染器 */
+    getAllRenderers(): RendererPlugin[] {
+        return this.rendererPluginManager.getAllPlugins()
     }
 
     /** 绘制一帧 */
@@ -104,16 +160,7 @@ export class Chart {
         const vp = this.computeViewport()
         if (!vp) return
 
-        // 2. 获取 xAxis Canvas 上下文
-        const xAxisCtx = this.dom.xAxisCanvas.getContext('2d')
-        if (!xAxisCtx) return
-
-        // 3. 清空 xAxis Canvas 并设置 DPR 缩放
-        xAxisCtx.setTransform(1, 0, 0, 1, 0, 0)
-        xAxisCtx.scale(vp.dpr, vp.dpr)
-        xAxisCtx.clearRect(0, 0, vp.plotWidth, this.opt.bottomAxisHeight)
-
-        // 4. 计算可视 K 线数据范围（使用物理像素对齐）
+        // 2. 计算可视 K 线数据范围
         let { start, end } = getVisibleRange(
             vp.scrollLeft,
             vp.plotWidth,
@@ -125,110 +172,120 @@ export class Chart {
 
         const range: VisibleRange = { start, end }
 
-        // 4.1 计算 K 线起始 x 坐标数组, 作为统一坐标源
+        // 3. 计算 K 线坐标
         const kLinePositions = this.calcKLinePositions(range)
 
-        // 4.2 设置 K 线坐标数组到交互控制器（传递 kWidthPx 用于计算 K 线中心）
+        // 4. 设置交互控制器
         const { kWidthPx } = getPhysicalKLineConfig(this.opt.kWidth, this.opt.kGap, vp.dpr)
         this.interaction.setKLinePositions(kLinePositions, range, kWidthPx)
 
-        // 5. 遍历所有 PaneRenderer 独立绘制每个 pane
-        const isDragging = this.interaction.isDraggingState()
+        // 5. 遍历所有 Pane 渲染
         for (const renderer of this.paneRenderers) {
-            renderer.draw({
+            const pane = renderer.getPane()
+            const plotCtx = renderer.getDom().plotCanvas.getContext('2d')
+            const yAxisCtx = renderer.getDom().yAxisCanvas.getContext('2d')
+
+            // 更新价格范围
+            pane.updateRange(this.data, range)
+
+            // 清空 plotCanvas
+            if (plotCtx) {
+                plotCtx.setTransform(1, 0, 0, 1, 0, 0)
+                plotCtx.scale(vp.dpr, vp.dpr)
+                plotCtx.clearRect(0, 0, vp.plotWidth, pane.height + 2 / vp.dpr)
+            }
+
+            // 清空 yAxisCanvas
+            const yAxisWidth = this.opt.rightAxisWidth + (this.opt.priceLabelWidth || 60)
+            if (yAxisCtx) {
+                yAxisCtx.setTransform(1, 0, 0, 1, 0, 0)
+                yAxisCtx.scale(vp.dpr, vp.dpr)
+                yAxisCtx.clearRect(0, 0, yAxisWidth, pane.height + 2 / vp.dpr)
+            }
+
+            // 构建渲染上下文
+            const context: RenderContext = {
+                ctx: plotCtx!,
+                pane: wrapPaneInfo(pane),
                 data: this.data,
                 range,
                 scrollLeft: vp.scrollLeft,
                 kWidth: this.opt.kWidth,
                 kGap: this.opt.kGap,
                 dpr: vp.dpr,
-                crosshairPos: isDragging ? null : this.interaction.crosshairPos,
-                crosshairIndex: isDragging ? null : this.interaction.crosshairIndex,
-                title: renderer.getPane().id === 'sub' ? 'VOL - 成交量' : undefined,
+                paneWidth: vp.plotWidth,
                 kLinePositions,
                 markerManager: this.markerManager,
-            })
-        }
+                yAxisCtx: yAxisCtx ?? undefined,
+            }
 
-        // 6. 绘制 xAxis 时间轴
-        drawTimeAxisLayer({
-            ctx: xAxisCtx,
-            data: this.data,
-            scrollLeft: vp.scrollLeft,
-            kWidth: this.opt.kWidth,
-            kGap: this.opt.kGap,
-            startIndex: range.start,
-            endIndex: range.end,
-            dpr: vp.dpr,
-            crosshair:
-                !isDragging && this.interaction.crosshairPos && typeof this.interaction.crosshairIndex === 'number'
-                    ? { x: this.interaction.crosshairPos.x, index: this.interaction.crosshairIndex }
-                    : null,
-        })
-
-        // 7. 绘制十字线（垂直线在所有 pane 上绘制，水平线只在活跃 pane 上绘制）
-        if (!isDragging && this.interaction.crosshairPos) {
-            const { x, y } = this.interaction.crosshairPos
-            const activePaneId = this.interaction.activePaneId
-
-            for (const renderer of this.paneRenderers) {
-                const pane = renderer.getPane()
-                const plotCtx = renderer.getDom().plotCanvas.getContext('2d')
-                if (!plotCtx) continue
-
-                const isActive = pane.id === activePaneId
-                const localY = isActive ? y - pane.top : 0
-
+            // 插件渲染器绘制
+            if (plotCtx) {
                 plotCtx.save()
-                drawCrosshair({
-                    ctx: plotCtx,
-                    plotWidth: vp.plotWidth,
-                    plotHeight: pane.height,
-                    dpr: vp.dpr,
-                    x,
-                    y: localY,
-                    drawVertical: true,
-                    drawHorizontal: isActive,
-                })
+                const errors = this.rendererPluginManager.render(pane.id, context)
+                if (errors.length > 0) {
+                    this.pluginHost.events.emit('renderer:error', { paneId: pane.id, errors })
+                }
                 plotCtx.restore()
             }
         }
 
-        // 8. 绘制 MA 图例
-        const mainRenderer = this.paneRenderers.find((r) => r.getPane().id === 'main')
-        if (mainRenderer) {
-            const plotCtx = mainRenderer.getDom().plotCanvas.getContext('2d')
-            if (plotCtx) {
-                drawMALegend({
-                    ctx: plotCtx,
-                    data: this.data,
-                    yPaddingPx: this.opt.yPaddingPx,
-                    endIndex: range.end,
-                    showMA: { ma5: true, ma10: true, ma20: true, ma30: true, ma60: true },
-                    dpr: vp.dpr,
-                })
+        // 6. 渲染时间轴（通过插件管理器的特殊方法）
+        const xAxisCtx = this.dom.xAxisCanvas.getContext('2d')
+        if (xAxisCtx) {
+            const timeAxisContext: RenderContext = {
+                ctx: xAxisCtx,
+                pane: { id: 'xAxis', top: 0, height: this.opt.bottomAxisHeight, yAxis: { priceToY: () => 0, yToPrice: () => 0, getPaddingTop: () => 0, getPaddingBottom: () => 0 }, priceRange: { maxPrice: 0, minPrice: 0 } },
+                data: this.data,
+                range,
+                scrollLeft: vp.scrollLeft,
+                kWidth: this.opt.kWidth,
+                kGap: this.opt.kGap,
+                dpr: vp.dpr,
+                paneWidth: vp.plotWidth,
+                kLinePositions,
+                xAxisCtx,
+            }
+            const errors = this.rendererPluginManager.renderPlugin('timeAxis', timeAxisContext)
+            if (errors.length > 0) {
+                this.pluginHost.events.emit('renderer:error', { paneId: 'timeAxis', errors })
             }
         }
 
-        // 9. 绘制全局边框
+        // 7. 渲染全局边框（通过插件管理器）
         const borderCanvas = this.dom.borderCanvas
-        if (!borderCanvas) return
-        const borderCtx = borderCanvas.getContext('2d')
-        if (!borderCtx) return
+        if (borderCanvas) {
+            const borderCtx = borderCanvas.getContext('2d')
+            if (borderCtx) {
+                borderCtx.setTransform(1, 0, 0, 1, 0, 0)
+                borderCtx.scale(vp.dpr, vp.dpr)
+                borderCtx.clearRect(0, 0, vp.plotWidth, vp.plotHeight)
 
-        borderCtx.setTransform(1, 0, 0, 1, 0, 0)
-        borderCtx.scale(vp.dpr, vp.dpr)
-        borderCtx.clearRect(0, 0, vp.plotWidth, vp.plotHeight)
-
-        drawAllPanesBorders({
-            ctx: borderCtx,
-            dpr: vp.dpr,
-            plotWidth: vp.plotWidth,
-            panes: this.paneRenderers.map(r => ({
-                top: r.getPane().top,
-                height: r.getPane().height
-            }))
-        })
+                const borderContext: RenderContext = {
+                    ctx: borderCtx,
+                    pane: {
+                        id: 'globalBorders',
+                        top: 0,
+                        height: vp.plotHeight,
+                        yAxis: { priceToY: () => 0, yToPrice: () => 0, getPaddingTop: () => 0, getPaddingBottom: () => 0 },
+                        priceRange: { maxPrice: 0, minPrice: 0 },
+                    },
+                    data: this.data,
+                    range,
+                    scrollLeft: vp.scrollLeft,
+                    kWidth: this.opt.kWidth,
+                    kGap: this.opt.kGap,
+                    dpr: vp.dpr,
+                    paneWidth: vp.plotWidth,
+                    kLinePositions,
+                    borderCtx,
+                }
+                const errors = this.rendererPluginManager.renderPlugin('globalBorders', borderContext)
+                if (errors.length > 0) {
+                    this.pluginHost.events.emit('renderer:error', { paneId: 'globalBorders', errors })
+                }
+            }
+        }
     }
 
     /**
@@ -299,21 +356,6 @@ export class Chart {
     /** 获取 MarkerManager（供 InteractionController 使用） */
     getMarkerManager(): MarkerManager {
         return this.markerManager
-    }
-
-    /**
-     * 设置指定 pane 的渲染器链
-     * @param paneId pane 标识（如 'main' 或 'sub'）
-     * @param renderers 渲染器数组
-     */
-    setPaneRenderers(paneId: string, renderers: Pane['renderers']) {
-        const renderer = this.paneRenderers.find((r) => r.getPane().id === paneId)
-        if (!renderer) return
-        const pane = renderer.getPane()
-        // 1. 清空并替换渲染器（保持引用稳定）
-        pane.renderers.length = 0
-        for (const r of renderers) pane.renderers.push(r)
-        this.scheduleDraw()
     }
 
     /** 获取 ChartDom（供 InteractionController 使用） */
@@ -414,16 +456,19 @@ export class Chart {
         })
     }
 
-
-
     /** 销毁图表实例 */
-    destroy() {
+    async destroy() {
         if (this.raf != null) cancelAnimationFrame(this.raf)
         this.raf = null
         this.viewport = null
         this.paneRenderers.forEach((r) => r.destroy())
         this.paneRenderers = []
+
+        // 清理渲染器插件管理器（会调用所有 onUninstall）
+        this.rendererPluginManager.clear()
+
         this.onZoomChange = undefined
+        await this.pluginHost.destroy()
     }
 
     /** 初始化所有 pane */

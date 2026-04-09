@@ -1,10 +1,3 @@
-import type { KLineData } from '@/types/price'
-import { Pane, type VisibleRange } from '@/core/layout/pane'
-import { createYAxisRenderer } from '@/core/renderers/yAxis'
-import { drawCrosshairPriceLabelForPane } from '@/core/renderers/crosshairLabels'
-import { drawPaneTitle } from '@/core/renderers/paneTitle'
-import type { MarkerManager } from '@/core/marker/registry'
-
 export type PaneRendererDom = {
     plotCanvas: HTMLCanvasElement
     yAxisCanvas: HTMLCanvasElement
@@ -18,20 +11,15 @@ export type PaneRendererOptions = {
 }
 
 /**
- * PaneRenderer：负责单个 Pane 的独立渲染
+ * PaneRenderer：负责单个 Pane 的 Canvas 管理
+ * 渲染逻辑由 Chart 通过 RendererPluginManager 统一调度
  */
 export class PaneRenderer {
     private dom: PaneRendererDom
-    private pane: Pane
+    private pane: import('./layout/pane').Pane
     private opt: PaneRendererOptions
 
-    /**
-     * 创建 PaneRenderer 实例
-     * @param dom plotCanvas 和 yAxisCanvas DOM 元素
-     * @param pane 关联的 Pane 实例
-     * @param opt 渲染选项
-     */
-    constructor(dom: PaneRendererDom, pane: Pane, opt: PaneRendererOptions) {
+    constructor(dom: PaneRendererDom, pane: import('./layout/pane').Pane, opt: PaneRendererOptions) {
         this.dom = dom
         this.pane = pane
         this.opt = {
@@ -40,16 +28,12 @@ export class PaneRenderer {
         }
     }
 
-    /**
-     * 获取关联的 Pane 实例
-     */
-    getPane(): Pane {
+    /** 获取关联的 Pane 实例 */
+    getPane(): import('./layout/pane').Pane {
         return this.pane
     }
 
-    /**
-     * 获取 DOM 元素
-     */
+    /** 获取 DOM 元素 */
     getDom(): PaneRendererDom {
         return this.dom
     }
@@ -76,119 +60,8 @@ export class PaneRenderer {
         yAxisCanvas.height = Math.ceil(height * dpr)
     }
 
-    /**
-     * 绘制该 Pane 的内容
-     * @param args 绘制参数，包含 K 线数据、可见范围、滚动位置、K 线尺寸、DPR、十字线位置、标题和 markerManager
-     */
-    draw(args: {
-        data: KLineData[]
-        range: VisibleRange
-        scrollLeft: number
-        kWidth: number
-        kGap: number
-        dpr: number
-        crosshairPos?: { x: number; y: number } | null
-        crosshairIndex?: number | null
-        title?: string
-        kLinePositions: number[]
-        markerManager?: MarkerManager
-    }) {
-        const { data, range, scrollLeft, kWidth, kGap, dpr, crosshairPos, crosshairIndex, title, kLinePositions, markerManager } = args
-
-        // 1. 获取最新价（最后一根 K 线的收盘价）
-        const lastKLine = data.length > 0 ? data[data.length - 1] : undefined
-        const lastPrice = lastKLine?.close
-
-        // 2. 更新 Pane 的价格范围
-        this.pane.updateRange(data, range)
-
-        // 3. 获取 Canvas 上下文
-        const plotCtx = this.dom.plotCanvas.getContext('2d')
-        const yAxisCtx = this.dom.yAxisCanvas.getContext('2d')
-        if (!plotCtx || !yAxisCtx) return
-
-        const paneHeight = this.pane.height
-        const paneWidth = this.dom.plotCanvas.width / dpr
-
-        // 4. 清空 Canvas + 设置 DPR 缩放
-        plotCtx.setTransform(1, 0, 0, 1, 0, 0)
-        plotCtx.scale(dpr, dpr)
-        plotCtx.clearRect(0, 0, paneWidth, paneHeight + 2 / dpr)
-
-        yAxisCtx.setTransform(1, 0, 0, 1, 0, 0)
-        yAxisCtx.scale(dpr, dpr)
-        const canvasYAxisWidth = this.opt.rightAxisWidth + (this.opt.priceLabelWidth || 60)
-        yAxisCtx.clearRect(0, 0, canvasYAxisWidth, paneHeight + 2 / dpr)
-
-        // 5. 绘制 plot 层（渲染器链：网格线 → K线 → MA）
-        plotCtx.save()
-        plotCtx.beginPath()
-        plotCtx.rect(0, 0, paneWidth, paneHeight)
-        plotCtx.clip()
-        for (const r of this.pane.renderers) {
-            r.draw({
-                ctx: plotCtx,
-                pane: this.pane,
-                data,
-                range,
-                scrollLeft,
-                kWidth,
-                kGap,
-                dpr,
-                paneWidth,
-                kLinePositions,
-                markerManager: markerManager,
-            })
-        }
-        plotCtx.restore()
-
-        // 6. 绘制 yAxis 刻度
-        createYAxisRenderer({
-            axisX: 0,
-            axisWidth: this.opt.rightAxisWidth,
-            yPaddingPx: this.opt.yPaddingPx,
-            ticks: this.pane.id === 'sub' ? 2 : undefined,
-        }).draw({
-            ctx: yAxisCtx,
-            pane: this.pane,
-            data,
-            range,
-            scrollLeft,
-            kWidth,
-            kGap,
-            dpr,
-            paneWidth,
-            kLinePositions,
-        })
-
-        // 7. 绘制十字线价格标签
-        if (crosshairPos && crosshairIndex !== null) {
-            drawCrosshairPriceLabelForPane({
-                ctx: yAxisCtx,
-                pane: this.pane,
-                axisWidth: this.opt.rightAxisWidth + (this.opt.priceLabelWidth || 60),
-                dpr,
-                crosshairY: crosshairPos.y - this.pane.top,
-                yPaddingPx: this.opt.yPaddingPx,
-                lastPrice,
-            })
-        }
-
-        // 8. 绘制 Pane 标题
-        if (title) {
-            drawPaneTitle({
-                ctx: plotCtx,
-                dpr,
-                paneTop: 0,
-                title,
-            })
-        }
-    }
-
-    /**
-     * 销毁 PaneRenderer 实例
-     */
+    /** 销毁 PaneRenderer 实例 */
     destroy() {
-        // PaneRenderer 没有需要清理的 RAF 资源，此方法为空实现
+        // 无需清理的资源
     }
 }

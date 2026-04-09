@@ -78,7 +78,7 @@ function drawMALine(
     let logicX: number
     if (kLinePositions && kLinePositions[i - startIndex] !== undefined) {
       // 使用预计算的坐标 + kWidth/2 得到中心点
-      logicX = kLinePositions[i - startIndex] + option.kWidth / 2
+      logicX = kLinePositions[i - startIndex]! + option.kWidth / 2
     } else {
       // 回退到原始计算
       const unit = option.kWidth + option.kGap

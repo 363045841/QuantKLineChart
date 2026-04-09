@@ -1,33 +1,46 @@
-import type { PaneRenderer } from '@/core/layout/pane'
+import type { RendererPlugin, RenderContext } from '@/plugin'
+import { RENDERER_PRIORITY } from '@/plugin'
+import type { KLineData } from '@/types/price'
 import { PRICE_COLORS } from '@/core/theme/colors'
 
 /**
- * 最新价虚线渲染器，绘制在 plotCanvas 的 world 坐标系（需 translate(-scrollLeft,0)）
+ * 创建最新价虚线渲染器插件
  */
-export const LastPriceLineRenderer: PaneRenderer = {
-    draw({ ctx, pane, data, range, scrollLeft, kWidth, kGap, dpr, paneWidth: _paneWidth, kLinePositions }) {
-        const last = data[data.length - 1]
-        if (!last) return
+export function createLastPriceLineRendererPlugin(): RendererPlugin {
+    return {
+        name: 'lastPriceLine',
+        version: '1.0.0',
+        description: '最新价虚线渲染器',
+        debugName: '最新价线',
+        paneId: 'main',
+        priority: RENDERER_PRIORITY.FOREGROUND,
 
-        ctx.save()
-        ctx.translate(-scrollLeft, 0)
+        draw(context: RenderContext) {
+            const { ctx, pane, data, scrollLeft, kWidth, dpr, kLinePositions } = context
+            const klineData = data as KLineData[]
+            const last = klineData[klineData.length - 1]
+            if (!last) return
 
-        const y = Math.round(pane.yAxis.priceToY(last.close))
+            ctx.save()
+            ctx.translate(-scrollLeft, 0)
 
-        // 使用统一的 kLinePositions 计算绘制范围
-        const startX = kLinePositions[0] ?? 0
-        const endX = (kLinePositions[kLinePositions.length - 1] ?? 0) + kWidth
+            const y = Math.round(pane.yAxis.priceToY(last.close))
 
-        ctx.strokeStyle = PRICE_COLORS.LAST_PRICE
-        ctx.lineWidth = 1
-        ctx.setLineDash([4, 3])
-        ctx.beginPath()
-        const yy = (Math.floor(y * dpr) + 0.5) / dpr
-        ctx.moveTo(Math.round(startX * dpr) / dpr, yy)
-        ctx.lineTo(Math.round(endX * dpr) / dpr, yy)
-        ctx.stroke()
-        ctx.setLineDash([])
+            // 使用统一的 kLinePositions 计算绘制范围
+            const startX = kLinePositions[0] ?? 0
+            const endX = (kLinePositions[kLinePositions.length - 1] ?? 0) + kWidth
 
-        ctx.restore()
-    },
+            ctx.strokeStyle = PRICE_COLORS.LAST_PRICE
+            ctx.lineWidth = 1
+            ctx.setLineDash([4, 3])
+            ctx.beginPath()
+            const yy = (Math.floor(y * dpr) + 0.5) / dpr
+            ctx.moveTo(Math.round(startX * dpr) / dpr, yy)
+            ctx.lineTo(Math.round(endX * dpr) / dpr, yy)
+            ctx.stroke()
+            ctx.setLineDash([])
+
+            ctx.restore()
+        },
+    }
 }

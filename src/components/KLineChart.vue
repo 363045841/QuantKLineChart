@@ -53,12 +53,18 @@ import MarkerTooltip from './MarkerTooltip.vue'
 import IndicatorSelector from './IndicatorSelector.vue'
 import { Chart, type PaneSpec } from '@/core/chart'
 import { getPhysicalKLineConfig } from '@/core/utils/klineConfig'
-import { CandleRenderer } from '@/core/renderers/candle'
-import { GridLinesRenderer } from '@/core/renderers/gridLines'
-import { LastPriceLineRenderer } from '@/core/renderers/lastPrice'
-import { createMARenderer } from '@/core/renderers/ma'
-import { ExtremaMarkersRenderer } from '@/core/renderers/extremaMarkers'
-import { subVolumeRenderer } from '@/core/renderers/subVolume'
+import { createCandleRenderer } from '@/core/renderers/candle'
+import { createGridLinesRendererPlugin } from '@/core/renderers/gridLines'
+import { createLastPriceLineRendererPlugin } from '@/core/renderers/lastPrice'
+import { createMARendererPlugin } from '@/core/renderers/ma'
+import { createExtremaMarkersRendererPlugin } from '@/core/renderers/extremaMarkers'
+import { createVolumeRendererPlugin } from '@/core/renderers/subVolume'
+import { createYAxisRendererPlugin } from '@/core/renderers/yAxis'
+import { createTimeAxisRendererPlugin } from '@/core/renderers/timeAxis'
+import { createCrosshairRendererPlugin } from '@/core/renderers/crosshair'
+import { createMALegendRendererPlugin } from '@/core/renderers/maLegend'
+import { createGlobalBordersRendererPlugin } from '@/core/renderers/globalBorders'
+import { createPaneTitleRendererPlugin } from '@/core/renderers/paneTitle'
 
 type MAFlags = {
   ma5?: boolean
@@ -248,20 +254,13 @@ function handleIndicatorToggle(indicatorId: string, active: boolean) {
 
   // 更新 MA 显示配置
   if (indicatorId === 'MA') {
-    const maConfig = {
+    chartRef.value?.updateRendererConfig('ma', {
       ma5: active,
       ma10: active,
       ma20: active,
       ma30: active,
       ma60: active,
-    }
-    chartRef.value?.setPaneRenderers('main', [
-      GridLinesRenderer,
-      LastPriceLineRenderer,
-      CandleRenderer,
-      ExtremaMarkersRenderer,
-      createMARenderer(maConfig),
-    ])
+    })
   }
 
   scheduleRender()
@@ -294,7 +293,13 @@ function scrollToRight() {
   scheduleRender()
 }
 
-defineExpose({ scheduleRender, scrollToRight })
+defineExpose({
+  scheduleRender,
+  scrollToRight,
+  get plugin() {
+    return chartRef.value?.plugin
+  },
+})
 
 onMounted(() => {
   const container = containerRef.value
@@ -355,19 +360,67 @@ onMounted(() => {
     scheduleRender()
   })
 
-  // 注册 Pane 渲染器
-  chart.setPaneRenderers('main', [
-    GridLinesRenderer,
-    ExtremaMarkersRenderer,
-    createMARenderer(props.showMA),
-    CandleRenderer,
-    LastPriceLineRenderer,
-  ])
-  chart.setPaneRenderers('sub', [GridLinesRenderer, subVolumeRenderer])
+  // 注册渲染器插件
+  chart.useRenderer(createGridLinesRendererPlugin()) // 网格线渲染到所有 pane
+  chart.useRenderer(createExtremaMarkersRendererPlugin())
+  chart.useRenderer(createMARendererPlugin(props.showMA))
+  chart.useRenderer(createCandleRenderer())
+  chart.useRenderer(createLastPriceLineRendererPlugin())
+  chart.useRenderer(createVolumeRendererPlugin())
+  chart.useRenderer(createPaneTitleRendererPlugin({
+    paneId: 'sub',
+    title: 'VOL',
+  }))
+
+  // 系统渲染器插件
+  chart.useRenderer(createYAxisRendererPlugin({
+    axisWidth: props.rightAxisWidth,
+    yPaddingPx: props.yPaddingPx,
+  }))
+  chart.useRenderer(createMALegendRendererPlugin({
+    yPaddingPx: props.yPaddingPx,
+    showMA: props.showMA,
+  }))
+  chart.useRenderer(createCrosshairRendererPlugin({
+    getCrosshairState: () => ({
+      pos: chart.interaction.crosshairPos,
+      activePaneId: chart.interaction.activePaneId,
+      isDragging: chart.interaction.isDraggingState(),
+    }),
+  }))
+  chart.useRenderer(createTimeAxisRendererPlugin({
+    height: props.bottomAxisHeight,
+    getCrosshair: () => {
+      const pos = chart.interaction.crosshairPos
+      const idx = chart.interaction.hoveredIndex
+      if (pos && idx !== null) {
+        return { x: pos.x, index: idx }
+      }
+      return null
+    },
+  }))
+  chart.useRenderer(createGlobalBordersRendererPlugin({
+    getPaneInfos: () => chart.getPaneRenderers().map(r => ({
+      top: r.getPane().top,
+      height: r.getPane().height,
+    })),
+  }))
 
   chartRef.value = chart
   chart.updateData(props.data)
   chart.resize()
+
+  // 测试插件
+  chart.plugin.use({
+    name: 'debug',
+    version: '1.0.0',
+    install(host) {
+      console.log('[Debug Plugin] 已安装')
+      host.events.on('chart:draw', () => {
+        console.log('[Debug Plugin] chart draw event')
+      })
+    }
+  })
 
   const onResize = () => chart.resize()
   window.addEventListener('resize', onResize, { passive: true })
@@ -492,7 +545,7 @@ watch(
 .x-axis-canvas {
   position: absolute;
   left: 0;
-  bottom: 0;
   display: block;
+  /* top 和 width 由 JS 动态设置 */
 }
 </style>
