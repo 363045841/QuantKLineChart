@@ -317,21 +317,33 @@ export class Chart {
         newKWidth = Math.max(this.opt.minKWidth, Math.min(this.opt.maxKWidth, newKWidth))
         if (Math.abs(newKWidth - this.opt.kWidth) < 0.01) return
 
-        this.opt = { ...this.opt, kWidth: newKWidth, kGap: newKGap }
-
         // 5. 校正滚动位置，使缩放后鼠标仍指向同一根 K 线
         const newUnit = newKWidth + newKGap
         const newScrollLeft = centerIndex * newUnit - mouseX
 
         if (this.onZoomChange) {
+            // ✅ 不在这里更新 this.opt，避免与 scrollLeft 更新不同步产生残影
+            // 把新参数传给外部，等 scrollLeft 落地后再回调 applyZoom
             this.onZoomChange(newKWidth, newKGap, newScrollLeft)
             return
         }
 
-        // 6. 更新 DOM 并触发重绘
+        // 无外部回调时（独立使用场景）：同步更新 opt 和 scrollLeft
+        this.opt = { ...this.opt, kWidth: newKWidth, kGap: newKGap }
         const container = this.dom.container
         const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth)
         container.scrollLeft = Math.min(Math.max(0, newScrollLeft), maxScrollLeft)
+        this.scheduleDraw()
+    }
+
+    /**
+     * 由外部（Vue 组件）在 scrollLeft 落地后调用，原子性地应用缩放参数
+     * 确保 draw() 看到的 (kWidth, kGap, scrollLeft) 是一致的
+     * @param kWidth 新的 K 线宽度
+     * @param kGap 新的 K 线间隙
+     */
+    applyZoom(kWidth: number, kGap: number) {
+        this.opt = { ...this.opt, kWidth, kGap }
         this.scheduleDraw()
     }
 

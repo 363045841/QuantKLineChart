@@ -141,10 +141,7 @@ function scheduleRender() {
   chartRef.value?.scheduleDraw()
 }
 
-const tooltipRef = ref<HTMLDivElement | null>(null)
-
 function setTooltipEl(el: HTMLDivElement | null) {
-  tooltipRef.value = el
   if (!el) return
   const r = el.getBoundingClientRect()
   chartRef.value?.interaction.setTooltipSize({
@@ -420,21 +417,26 @@ onMounted(() => {
     },
   )
 
-  // 缩放回调：同步 kWidth/kGap -> 等 DOM 更新 scrollWidth -> 再设置 scrollLeft
+  // 缩放回调：同步 kWidth/kGap -> 等 DOM 更新 scrollWidth -> 再设置 scrollLeft -> 最后 applyZoom
   chart.setOnZoomChange(async (kWidth, kGap, targetScrollLeft) => {
+    // 1) 先更新响应式变量，驱动 totalWidth 计算
     currentKWidth.value = kWidth
     currentKGap.value = kGap
 
-    // 1) 等 Vue 更新 scroll-content width
+    // 2) 等 Vue 更新 scroll-content 的 width
     await nextTick()
-    // 2) 再等一帧，确保浏览器完成布局并刷新 scrollWidth
+    // 3) 再等一帧，确保浏览器完成布局刷新 scrollWidth
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
 
+    // 4) scrollLeft 落地
     const c = containerRef.value
     if (!c) return
     const maxScrollLeft = Math.max(0, c.scrollWidth - c.clientWidth)
     c.scrollLeft = Math.min(Math.max(0, targetScrollLeft), maxScrollLeft)
-    scheduleRender()
+
+    // 5) scrollLeft 已落地，现在才让 Chart 更新 opt 并渲染
+    //    这一帧看到的 (kWidth, kGap, scrollLeft) 是完全一致的
+    chart.applyZoom(kWidth, kGap)
   })
 
   // 注册渲染器插件
