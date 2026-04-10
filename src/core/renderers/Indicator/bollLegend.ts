@@ -1,7 +1,7 @@
 import type { RendererPlugin, RenderContext } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
 import type { KLineData } from '@/types/price'
-import { calcBOLLAtIndex } from '@/core/renderers/boll'
+import { calcBOLLAtIndex } from './boll'
 import { BOLL_COLORS, PRICE_COLORS } from '@/core/theme/colors'
 
 export interface BOLLLegendConfig {

@@ -1,6 +1,6 @@
 import type { RendererPlugin, RenderContext } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
-import type { MAFlags } from '@/core/renderers/ma'
+import type { MAFlags } from './ma'
 import type { KLineData } from '@/types/price'
 import { calcMAAtIndex } from '@/utils/kline/ma'
 import { MA_COLORS, PRICE_COLORS } from '@/core/theme/colors'

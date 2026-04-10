@@ -61,19 +61,26 @@ import { getPhysicalKLineConfig } from '@/core/utils/klineConfig'
 import { createCandleRenderer } from '@/core/renderers/candle'
 import { createGridLinesRendererPlugin } from '@/core/renderers/gridLines'
 import { createLastPriceLineRendererPlugin } from '@/core/renderers/lastPrice'
-import { createMARendererPlugin } from '@/core/renderers/ma'
+import { createMARendererPlugin } from '@/core/renderers/Indicator/ma'
 import { createExtremaMarkersRendererPlugin } from '@/core/renderers/extremaMarkers'
 import { createVolumeRendererPlugin } from '@/core/renderers/subVolume'
 import { createYAxisRendererPlugin } from '@/core/renderers/yAxis'
 import { createTimeAxisRendererPlugin } from '@/core/renderers/timeAxis'
 import { createCrosshairRendererPlugin } from '@/core/renderers/crosshair'
-import { createMALegendRendererPlugin } from '@/core/renderers/maLegend'
+import { createMALegendRendererPlugin } from '@/core/renderers/Indicator/maLegend'
 import { createGlobalBordersRendererPlugin } from '@/core/renderers/globalBorders'
 import { createPaneTitleRendererPlugin } from '@/core/renderers/paneTitle'
-import { createBOLLRendererPlugin } from '@/core/renderers/boll'
-import { createBOLLLegendRendererPlugin } from '@/core/renderers/bollLegend'
-import { createMACDRendererPlugin } from '@/core/renderers/macd'
-import { createMACDLegendRendererPlugin } from '@/core/renderers/macdLegend'
+import { createBOLLRendererPlugin } from '@/core/renderers/Indicator/boll'
+import { createBOLLLegendRendererPlugin } from '@/core/renderers/Indicator/bollLegend'
+import { createMACDRendererPlugin } from '@/core/renderers/Indicator/macd'
+import { createMACDLegendRendererPlugin } from '@/core/renderers/Indicator/macdLegend'
+import { createRSIRendererPlugin } from '@/core/renderers/Indicator/rsi'
+import { createCCIRendererPlugin } from '@/core/renderers/Indicator/cci'
+import { createSTOCHRendererPlugin } from '@/core/renderers/Indicator/stoch'
+import { createMOMRendererPlugin } from '@/core/renderers/Indicator/mom'
+import { createWMSRRendererPlugin } from '@/core/renderers/Indicator/wmsr'
+import { createKSTRendererPlugin } from '@/core/renderers/Indicator/kst'
+import { createFASTKRendererPlugin } from '@/core/renderers/Indicator/fastk'
 
 type MAFlags = {
   ma5?: boolean
@@ -287,11 +294,19 @@ function handleIndicatorToggle(indicatorId: string, active: boolean) {
 
   // 副图指标互斥处理
   if (SUB_PANE_INDICATORS.includes(indicatorId as any)) {
+    // 先禁用所有副图指标
+    const allSubIndicators = ['macd', 'rsi', 'cci', 'stoch', 'mom', 'wmsr', 'kst', 'fastk']
+    allSubIndicators.forEach(name => {
+      chartRef.value?.setRendererEnabled(name, false)
+    })
+
     if (active) {
       // 禁用成交量，启用当前指标
       chartRef.value?.setRendererEnabled('volume', false)
-      chartRef.value?.setRendererEnabled('macd', indicatorId === 'MACD')
-      chartRef.value?.setRendererEnabled('macdLegend', indicatorId === 'MACD')
+
+      // 根据指标 ID 启用对应的渲染器
+      const rendererName = indicatorId.toLowerCase()
+      chartRef.value?.setRendererEnabled(rendererName, true)
       chartRef.value?.updateRendererConfig('paneTitle_sub', { title: indicatorId })
     } else {
       // 如果没有其他副图指标启用，恢复成交量
@@ -300,8 +315,6 @@ function handleIndicatorToggle(indicatorId: string, active: boolean) {
       )
       if (!hasOtherSubIndicator) {
         chartRef.value?.setRendererEnabled('volume', true)
-        chartRef.value?.setRendererEnabled('macd', false)
-        chartRef.value?.setRendererEnabled('macdLegend', false)
         chartRef.value?.updateRendererConfig('paneTitle_sub', { title: 'VOL' })
       }
     }
@@ -457,6 +470,23 @@ onMounted(() => {
     yPaddingPx: props.yPaddingPx,
   }))
   chart.setRendererEnabled('macdLegend', false) // 默认禁用，点击按钮启用
+
+  // 其他副图指标渲染器（默认禁用）
+  chart.useRenderer(createRSIRendererPlugin())
+  chart.setRendererEnabled('rsi', false)
+  chart.useRenderer(createCCIRendererPlugin())
+  chart.setRendererEnabled('cci', false)
+  chart.useRenderer(createSTOCHRendererPlugin())
+  chart.setRendererEnabled('stoch', false)
+  chart.useRenderer(createMOMRendererPlugin())
+  chart.setRendererEnabled('mom', false)
+  chart.useRenderer(createWMSRRendererPlugin())
+  chart.setRendererEnabled('wmsr', false)
+  chart.useRenderer(createKSTRendererPlugin())
+  chart.setRendererEnabled('kst', false)
+  chart.useRenderer(createFASTKRendererPlugin())
+  chart.setRendererEnabled('fastk', false)
+
   chart.useRenderer(createCrosshairRendererPlugin({
     getCrosshairState: () => ({
       pos: chart.interaction.crosshairPos,

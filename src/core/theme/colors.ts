@@ -149,6 +149,62 @@ export const MACD_COLORS = {
 } as const
 
 /**
+ * RSI 颜色
+ */
+export const RSI_COLORS = {
+    RSI1: 'rgba(69, 112, 249, 1)',
+    RSI2: 'rgba(255, 152, 0, 1)',
+    RSI3: 'rgba(156, 39, 176, 1)',
+} as const
+
+/**
+ * CCI 颜色
+ */
+export const CCI_COLORS = {
+    CCI: 'rgba(69, 112, 249, 1)',
+    /** 超买线 +100 */
+    OVERBOUGHT: 'rgba(214, 10, 34, 0.5)',
+    /** 超卖线 -100 */
+    OVERSOLD: 'rgba(3, 123, 102, 0.5)',
+} as const
+
+/**
+ * KDJ/STOCH 颜色
+ */
+export const KDJ_COLORS = {
+    K: 'rgba(69, 112, 249, 1)',
+    D: 'rgba(255, 152, 0, 1)',
+    J: 'rgba(156, 39, 176, 1)',
+} as const
+
+/**
+ * MOM 颜色
+ */
+export const MOM_COLORS = {
+    MOM: 'rgba(69, 112, 249, 1)',
+    ZERO: 'rgba(0, 0, 0, 0.2)',
+} as const
+
+/**
+ * WMSR 颜色
+ */
+export const WMSR_COLORS = {
+    WMSR: 'rgba(69, 112, 249, 1)',
+    /** 超买线 -20 */
+    OVERBOUGHT: 'rgba(214, 10, 34, 0.5)',
+    /** 超卖线 -80 */
+    OVERSOLD: 'rgba(3, 123, 102, 0.5)',
+} as const
+
+/**
+ * KST 颜色
+ */
+export const KST_COLORS = {
+    KST: 'rgba(69, 112, 249, 1)',
+    SIGNAL: 'rgba(255, 152, 0, 1)',
+} as const
+
+/**
  * 十字线颜色
  */
 export const CROSSHAIR_COLORS = {
