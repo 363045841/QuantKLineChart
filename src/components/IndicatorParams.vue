@@ -10,12 +10,31 @@
                 <span class="params-title">{{ indicatorName }}</span>
                 <span class="params-subtitle">参数设置</span>
               </div>
-              <button class="params-close" @click="$emit('close')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-              </button>
+              <div class="header-right">
+                <button
+                  class="toggle-desc-btn"
+                  :class="{ active: showDescription }"
+                  @click="showDescription = !showDescription"
+                  title="显示/隐藏说明"
+                >
+                  <svg viewBox="0 0 1024 1024">
+                    <path d="M512 97.52381c228.912762 0 414.47619 185.563429 414.47619 414.47619s-185.563429 414.47619-414.47619 414.47619S97.52381 740.912762 97.52381 512 283.087238 97.52381 512 97.52381z m0 73.142857C323.486476 170.666667 170.666667 323.486476 170.666667 512s152.81981 341.333333 341.333333 341.333333 341.333333-152.81981 341.333333-341.333333S700.513524 170.666667 512 170.666667z m36.571429 268.190476v292.571428h-73.142858V438.857143h73.142858z m0-121.904762v73.142857h-73.142858v-73.142857h73.142858z" fill="currentColor" />
+                  </svg>
+                </button>
+                <button class="params-close" @click="$emit('close')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
+
+            <!-- 指标描述 -->
+            <Transition name="slide">
+              <div v-if="showDescription && indicatorDescription" class="indicator-description">
+                <p>{{ indicatorDescription }}</p>
+              </div>
+            </Transition>
 
             <!-- 体部 -->
             <div class="params-body">
@@ -23,42 +42,50 @@
                 v-for="param in params"
                 :key="param.key"
                 class="param-item"
+                :class="{ 'has-desc': showDescription && param.description }"
               >
-                <label class="param-label">
-                  <span class="param-label-text">{{ param.label }}</span>
-                  <span
-                    v-if="param.min !== undefined || param.max !== undefined"
-                    class="param-range"
-                  >
-                    {{ param.min ?? '-∞' }} ~ {{ param.max ?? '+∞' }}
-                  </span>
-                </label>
-                <div class="input-wrapper">
-                  <button
-                    class="stepper-btn"
-                    :disabled="param.min !== undefined && localValues[param.key] <= param.min"
-                    @click="step(param, -1)"
-                  >
-                    −
-                  </button>
-                  <input
-                    v-if="param.type === 'number'"
-                    type="number"
-                    class="param-input"
-                    :value="localValues[param.key]"
-                    :min="param.min"
-                    :max="param.max"
-                    :step="param.step || 1"
-                    @input="onInput(param.key, $event)"
-                  />
-                  <button
-                    class="stepper-btn"
-                    :disabled="param.max !== undefined && localValues[param.key] >= param.max"
-                    @click="step(param, 1)"
-                  >
-                    +
-                  </button>
+                <div class="param-header">
+                  <label class="param-label">
+                    <span class="param-label-text">{{ param.label }}</span>
+                    <span
+                      v-if="param.min !== undefined || param.max !== undefined"
+                      class="param-range"
+                    >
+                      {{ param.min ?? '-∞' }} ~ {{ param.max ?? '+∞' }}
+                    </span>
+                  </label>
+                  <div class="input-wrapper">
+                    <button
+                      class="stepper-btn"
+                      :disabled="param.min !== undefined && (localValues[param.key] ?? 0) <= param.min"
+                      @click="step(param, -1)"
+                    >
+                      −
+                    </button>
+                    <input
+                      v-if="param.type === 'number'"
+                      type="number"
+                      class="param-input"
+                      :value="localValues[param.key]"
+                      :min="param.min"
+                      :max="param.max"
+                      :step="param.step || 1"
+                      @input="onInput(param.key, $event)"
+                    />
+                    <button
+                      class="stepper-btn"
+                      :disabled="param.max !== undefined && (localValues[param.key] ?? 0) >= param.max"
+                      @click="step(param, 1)"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
+                <Transition name="slide">
+                  <div v-if="showDescription && param.description" class="param-description">
+                    {{ param.description }}
+                  </div>
+                </Transition>
               </div>
             </div>
 
@@ -99,12 +126,16 @@ export interface ParamConfig {
   max?: number
   step?: number
   default?: number
+  /** 参数描述 */
+  description?: string
 }
 
 const props = defineProps<{
   visible: boolean
   indicatorId: string
   indicatorName: string
+  /** 指标描述 */
+  indicatorDescription?: string
   params: ParamConfig[]
   values: Record<string, number>
 }>()
@@ -115,6 +146,7 @@ const emit = defineEmits<{
 }>()
 
 const localValues = ref<Record<string, number>>({ ...props.values })
+const showDescription = ref(true)
 
 watch(
   () => props.values,
@@ -148,7 +180,7 @@ function step(param: ParamConfig, direction: 1 | -1) {
 function onReset() {
   const defaults: Record<string, number> = {}
   props.params.forEach((p) => {
-    defaults[p.key] = p.default ?? props.values[p.key]
+    defaults[p.key] = p.default ?? props.values[p.key] ?? 0
   })
   localValues.value = defaults
 }
@@ -177,8 +209,8 @@ function onConfirm() {
   border: 1px solid #e0e0e0;
   border-radius: 12px;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15);
-  min-width: 300px;
-  max-width: 380px;
+  min-width: 340px;
+  max-width: 420px;
   width: 90vw;
   overflow: hidden;
 }
@@ -199,6 +231,12 @@ function onConfirm() {
   gap: 8px;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .params-title {
   font-size: 14px;
   font-weight: 600;
@@ -209,6 +247,38 @@ function onConfirm() {
 .params-subtitle {
   font-size: 11px;
   color: #999;
+}
+
+.toggle-desc-btn {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #888;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.toggle-desc-btn:hover {
+  background: #f0f0f0;
+  color: #555;
+  border-color: #ccc;
+}
+
+.toggle-desc-btn.active {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  color: #fff;
+}
+
+.toggle-desc-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
 .params-close {
@@ -237,6 +307,20 @@ function onConfirm() {
   height: 13px;
 }
 
+/* ── 指标描述 ── */
+.indicator-description {
+  padding: 12px 20px;
+  background: #f0f7ff;
+  border-bottom: 1px solid #d6e8f5;
+}
+
+.indicator-description p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #2c5282;
+}
+
 /* ── 体部 ── */
 .params-body {
   padding: 16px 20px;
@@ -246,10 +330,6 @@ function onConfirm() {
 }
 
 .param-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
   padding: 10px 14px;
   border-radius: 8px;
   background: #f8f8f8;
@@ -259,6 +339,17 @@ function onConfirm() {
 
 .param-item:has(.param-input:focus) {
   border-color: #bbb;
+}
+
+.param-item.has-desc {
+  padding: 10px 14px 8px;
+}
+
+.param-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .param-label {
@@ -276,6 +367,16 @@ function onConfirm() {
 .param-range {
   font-size: 11px;
   color: #999;
+}
+
+/* ── 参数描述 ── */
+.param-description {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e0e0e0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #666;
 }
 
 /* ── 步进输入框 ── */
@@ -332,6 +433,7 @@ function onConfirm() {
   color: #1a1a1a;
   background: transparent;
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 .param-input::-webkit-inner-spin-button,
@@ -450,5 +552,20 @@ function onConfirm() {
 .modal-leave-to {
   opacity: 0;
   transform: scale(0.94) translateY(8px);
+}
+
+.slide-enter-active,
+.slide-leave-active {
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.slide-enter-from,
+.slide-leave-to {
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
 }
 </style>

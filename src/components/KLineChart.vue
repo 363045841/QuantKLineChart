@@ -73,7 +73,6 @@ import { createPaneTitleRendererPlugin } from '@/core/renderers/paneTitle'
 import { createBOLLRendererPlugin } from '@/core/renderers/Indicator/boll'
 import { createBOLLLegendRendererPlugin } from '@/core/renderers/Indicator/bollLegend'
 import { createMACDRendererPlugin } from '@/core/renderers/Indicator/macd'
-import { createMACDLegendRendererPlugin } from '@/core/renderers/Indicator/macdLegend'
 import { createRSIRendererPlugin } from '@/core/renderers/Indicator/rsi'
 import { createCCIRendererPlugin } from '@/core/renderers/Indicator/cci'
 import { createSTOCHRendererPlugin } from '@/core/renderers/Indicator/stoch'
@@ -81,6 +80,15 @@ import { createMOMRendererPlugin } from '@/core/renderers/Indicator/mom'
 import { createWMSRRendererPlugin } from '@/core/renderers/Indicator/wmsr'
 import { createKSTRendererPlugin } from '@/core/renderers/Indicator/kst'
 import { createFASTKRendererPlugin } from '@/core/renderers/Indicator/fastk'
+import { getMACDTitleInfo } from '@/core/renderers/Indicator/macd'
+import { getRSITitleInfo } from '@/core/renderers/Indicator/rsi'
+import { getCCITitleInfo } from '@/core/renderers/Indicator/cci'
+import { getSTOCHTitleInfo } from '@/core/renderers/Indicator/stoch'
+import { getMOMTitleInfo } from '@/core/renderers/Indicator/mom'
+import { getWMSRTitleInfo } from '@/core/renderers/Indicator/wmsr'
+import { getKSTTitleInfo } from '@/core/renderers/Indicator/kst'
+import { getFASTKTitleInfo } from '@/core/renderers/Indicator/fastk'
+import type { TitleInfo } from '@/core/renderers/paneTitle'
 
 type MAFlags = {
   ma5?: boolean
@@ -261,6 +269,55 @@ const indicatorParams = ref<Record<string, Record<string, number>>>({})
 // 副图指标列表（互斥）
 const SUB_PANE_INDICATORS = ['MACD', 'RSI', 'CCI', 'STOCH', 'MOM', 'WMSR', 'KST', 'FASTK'] as const
 
+// 当前激活的副图指标
+const currentSubIndicator = ref<string>('')
+
+// 获取副图标题信息的函数
+function getSubPaneTitleInfo(): TitleInfo | null {
+    const data = props.data
+    if (!data || data.length === 0) return null
+
+    const lastIndex = data.length - 1
+    const params = indicatorParams.value
+
+    switch (currentSubIndicator.value) {
+        case 'MACD': {
+            const p = params.MACD || {}
+            return getMACDTitleInfo(data, lastIndex, p.fastPeriod ?? 12, p.slowPeriod ?? 26, p.signalPeriod ?? 9)
+        }
+        case 'RSI': {
+            const p = params.RSI || {}
+            return getRSITitleInfo(data, lastIndex, p.period1 ?? 6, p.period2 ?? 12, p.period3 ?? 24)
+        }
+        case 'CCI': {
+            const p = params.CCI || {}
+            return getCCITitleInfo(data, lastIndex, p.period ?? 14)
+        }
+        case 'STOCH': {
+            const p = params.STOCH || {}
+            return getSTOCHTitleInfo(data, lastIndex, p.n ?? 9, p.m ?? 3)
+        }
+        case 'MOM': {
+            const p = params.MOM || {}
+            return getMOMTitleInfo(data, lastIndex, p.period ?? 10)
+        }
+        case 'WMSR': {
+            const p = params.WMSR || {}
+            return getWMSRTitleInfo(data, lastIndex, p.period ?? 14)
+        }
+        case 'KST': {
+            const p = params.KST || {}
+            return getKSTTitleInfo(data, lastIndex, p.roc1 ?? 10, p.roc2 ?? 15, p.roc3 ?? 20, p.roc4 ?? 30, p.signalPeriod ?? 9)
+        }
+        case 'FASTK': {
+            const p = params.FASTK || {}
+            return getFASTKTitleInfo(data, lastIndex, p.period ?? 9)
+        }
+        default:
+            return null
+    }
+}
+
 // 指标切换处理
 function handleIndicatorToggle(indicatorId: string, active: boolean) {
   if (active) {
@@ -300,11 +357,11 @@ function handleIndicatorToggle(indicatorId: string, active: boolean) {
     if (active) {
       // 禁用成交量，启用当前指标
       chartRef.value?.setRendererEnabled('volume', false)
+      currentSubIndicator.value = indicatorId
 
       // 根据指标 ID 启用对应的渲染器
       const rendererName = indicatorId.toLowerCase()
       chartRef.value?.setRendererEnabled(rendererName, true)
-      chartRef.value?.updateRendererConfig('paneTitle_sub', { title: indicatorId })
     } else {
       // 如果没有其他副图指标启用，恢复成交量
       const hasOtherSubIndicator = activeIndicators.value.some(id =>
@@ -312,7 +369,7 @@ function handleIndicatorToggle(indicatorId: string, active: boolean) {
       )
       if (!hasOtherSubIndicator) {
         chartRef.value?.setRendererEnabled('volume', true)
-        chartRef.value?.updateRendererConfig('paneTitle_sub', { title: 'VOL' })
+        currentSubIndicator.value = ''
       }
     }
   }
@@ -334,7 +391,41 @@ function handleUpdateParams(indicatorId: string, params: Record<string, number>)
   // 更新 MACD 参数
   if (indicatorId === 'MACD') {
     chartRef.value?.updateRendererConfig('macd', params)
-    chartRef.value?.updateRendererConfig('macdLegend', params)
+  }
+
+  // 更新 RSI 参数
+  if (indicatorId === 'RSI') {
+    chartRef.value?.updateRendererConfig('rsi', params)
+  }
+
+  // 更新 CCI 参数
+  if (indicatorId === 'CCI') {
+    chartRef.value?.updateRendererConfig('cci', params)
+  }
+
+  // 更新 STOCH 参数
+  if (indicatorId === 'STOCH') {
+    chartRef.value?.updateRendererConfig('stoch', params)
+  }
+
+  // 更新 MOM 参数
+  if (indicatorId === 'MOM') {
+    chartRef.value?.updateRendererConfig('mom', params)
+  }
+
+  // 更新 WMSR 参数
+  if (indicatorId === 'WMSR') {
+    chartRef.value?.updateRendererConfig('wmsr', params)
+  }
+
+  // 更新 KST 参数
+  if (indicatorId === 'KST') {
+    chartRef.value?.updateRendererConfig('kst', params)
+  }
+
+  // 更新 FASTK 参数
+  if (indicatorId === 'FASTK') {
+    chartRef.value?.updateRendererConfig('fastk', params)
   }
 
   scheduleRender()
@@ -451,6 +542,13 @@ onMounted(() => {
   chart.useRenderer(createPaneTitleRendererPlugin({
     paneId: 'sub',
     title: 'VOL',
+    getTitleInfo: () => {
+        // 如果有副图指标激活，返回其标题信息
+        const info = getSubPaneTitleInfo()
+        if (info) return info
+        // 否则返回 null，显示静态标题 'VOL'
+        return null
+    },
   }))
 
   // 系统渲染器插件
@@ -468,10 +566,7 @@ onMounted(() => {
   chart.setRendererEnabled('bollLegend', false) // 默认禁用，点击按钮启用
   chart.useRenderer(createMACDRendererPlugin())
   chart.setRendererEnabled('macd', false) // 默认禁用，点击按钮启用
-  chart.useRenderer(createMACDLegendRendererPlugin({
-    yPaddingPx: props.yPaddingPx,
-  }))
-  chart.setRendererEnabled('macdLegend', false) // 默认禁用，点击按钮启用
+  // MACD 图例已合并到 paneTitle_sub 中，不再需要单独的图例渲染器
 
   // 其他副图指标渲染器（默认禁用）
   chart.useRenderer(createRSIRendererPlugin())
@@ -595,8 +690,8 @@ watch(
   position: relative;
   overflow-x: auto;
   overflow-y: hidden;
-  height: 80%;
-  width: 80%;
+  height: 85%;
+  width: 95%;
   scrollbar-width: none;
   -ms-overflow-style: none;
 

@@ -172,3 +172,25 @@ export function calcMOMAtIndex(
     const momData = calcMOMData(data, period)
     return momData[index]
 }
+
+/**
+ * 获取 MOM 标题信息（供 paneTitle 使用）
+ */
+export function getMOMTitleInfo(
+    data: KLineData[],
+    index: number,
+    period: number = 10
+): { name: string; params: number[]; values: Array<{ label: string; value: number; color: string }> } | null {
+    if (index < period || index >= data.length) return null
+
+    const momValue = calcMOMAtIndex(data, index, period)
+    if (momValue === undefined) return null
+
+    return {
+        name: 'MOM',
+        params: [period],
+        values: [
+            { label: 'MOM', value: momValue, color: MOM_COLORS.MOM },
+        ],
+    }
+}

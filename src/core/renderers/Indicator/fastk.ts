@@ -172,3 +172,25 @@ export function calcFASTKAtIndex(
     const fastkData = calcFASTKData(data, period)
     return fastkData[index]
 }
+
+/**
+ * 获取 FASTK 标题信息（供 paneTitle 使用）
+ */
+export function getFASTKTitleInfo(
+    data: KLineData[],
+    index: number,
+    period: number = 9
+): { name: string; params: number[]; values: Array<{ label: string; value: number; color: string }> } | null {
+    if (index < period || index >= data.length) return null
+
+    const fastkValue = calcFASTKAtIndex(data, index, period)
+    if (fastkValue === undefined) return null
+
+    return {
+        name: 'FASTK',
+        params: [period],
+        values: [
+            { label: 'FASTK', value: fastkValue, color: KDJ_COLORS.K },
+        ],
+    }
+}

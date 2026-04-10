@@ -321,3 +321,31 @@ export function calcKSTAtIndex(
     const kstData = calcKSTData(data, roc1, roc2, roc3, roc4, signalPeriod)
     return kstData[index]
 }
+
+/**
+ * 获取 KST 标题信息（供 paneTitle 使用）
+ */
+export function getKSTTitleInfo(
+    data: KLineData[],
+    index: number,
+    roc1: number = 10,
+    roc2: number = 15,
+    roc3: number = 20,
+    roc4: number = 30,
+    signalPeriod: number = 9
+): { name: string; params: number[]; values: Array<{ label: string; value: number; color: string }> } | null {
+    const minIndex = roc4 + 15 + signalPeriod
+    if (index < minIndex || index >= data.length) return null
+
+    const kstValue = calcKSTAtIndex(data, index, roc1, roc2, roc3, roc4, signalPeriod)
+    if (!kstValue) return null
+
+    return {
+        name: 'KST',
+        params: [roc1, roc2, roc3, roc4, signalPeriod],
+        values: [
+            { label: 'KST', value: kstValue.kst, color: KST_COLORS.KST },
+            { label: 'Signal', value: kstValue.signal, color: KST_COLORS.SIGNAL },
+        ],
+    }
+}

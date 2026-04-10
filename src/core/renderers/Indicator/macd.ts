@@ -323,3 +323,27 @@ export function calcMACDAtIndex(
     const macdData = calcMACDData(data, fastPeriod, slowPeriod, signalPeriod)
     return macdData[index] ?? null
 }
+
+/**
+ * 获取 MACD 标题信息（供 paneTitle 使用）
+ */
+export function getMACDTitleInfo(
+    data: KLineData[],
+    index: number,
+    fastPeriod: number = 12,
+    slowPeriod: number = 26,
+    signalPeriod: number = 9
+): { name: string; params: number[]; values: Array<{ label: string; value: number; color: string }> } | null {
+    const macdValue = calcMACDAtIndex(data, index, fastPeriod, slowPeriod, signalPeriod)
+    if (!macdValue) return null
+
+    return {
+        name: 'MACD',
+        params: [fastPeriod, slowPeriod, signalPeriod],
+        values: [
+            { label: 'DIF', value: macdValue.dif, color: MACD_COLORS.DIF },
+            { label: 'DEA', value: macdValue.dea, color: MACD_COLORS.DEA },
+            { label: 'MACD', value: macdValue.macd, color: macdValue.macd >= 0 ? MACD_COLORS.BAR_UP : MACD_COLORS.BAR_DOWN },
+        ],
+    }
+}

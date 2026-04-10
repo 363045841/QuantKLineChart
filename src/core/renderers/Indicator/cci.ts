@@ -206,3 +206,25 @@ export function calcCCIAtIndex(
     const cciData = calcCCIData(data, period)
     return cciData[index]
 }
+
+/**
+ * 获取 CCI 标题信息（供 paneTitle 使用）
+ */
+export function getCCITitleInfo(
+    data: KLineData[],
+    index: number,
+    period: number = 14
+): { name: string; params: number[]; values: Array<{ label: string; value: number; color: string }> } | null {
+    if (index < period || index >= data.length) return null
+
+    const cciValue = calcCCIAtIndex(data, index, period)
+    if (cciValue === undefined) return null
+
+    return {
+        name: 'CCI',
+        params: [period],
+        values: [
+            { label: 'CCI', value: cciValue, color: CCI_COLORS.CCI },
+        ],
+    }
+}

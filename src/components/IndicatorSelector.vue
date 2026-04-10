@@ -37,6 +37,7 @@
       :visible="paramsVisible"
       :indicator-id="currentIndicator.id"
       :indicator-name="currentIndicator.name"
+      :indicator-description="currentIndicator.description"
       :params="currentIndicator.params || []"
       :values="getParamValues(currentIndicator.id)"
       @close="paramsVisible = false"
@@ -54,6 +55,8 @@ export interface Indicator {
   label: string
   name: string
   pane: 'main' | 'sub'
+  /** 指标描述 */
+  description?: string
   params?: ParamConfig[]
 }
 
@@ -64,9 +67,10 @@ const indicators: Indicator[] = [
     label: 'BOLL',
     name: '布林带',
     pane: 'main',
+    description: '布林带由三条轨道线组成，用于判断价格的波动范围和趋势强度。价格触及上轨可能超买，触及下轨可能超卖。',
     params: [
-      { key: 'period', label: '周期', type: 'number', min: 2, max: 100, step: 1 },
-      { key: 'multiplier', label: '倍数', type: 'number', min: 0.1, max: 5, step: 0.1 },
+      { key: 'period', label: '周期', type: 'number', min: 2, max: 100, step: 1, description: '计算移动平均线的周期数，周期越长轨道越平滑' },
+      { key: 'multiplier', label: '倍数', type: 'number', min: 0.1, max: 5, step: 0.1, description: '标准差倍数，决定轨道宽度，通常为 2' },
     ],
   },
   {
@@ -74,19 +78,90 @@ const indicators: Indicator[] = [
     label: 'MACD',
     name: '指数平滑异同移动平均线',
     pane: 'sub',
+    description: 'MACD 通过快慢均线的交叉判断趋势方向和动量。DIF 上穿 DEA 为金叉看涨，下穿为死叉看跌。',
     params: [
-      { key: 'fastPeriod', label: '快线', type: 'number', min: 2, max: 50, step: 1 },
-      { key: 'slowPeriod', label: '慢线', type: 'number', min: 2, max: 100, step: 1 },
-      { key: 'signalPeriod', label: '信号', type: 'number', min: 2, max: 50, step: 1 },
+      { key: 'fastPeriod', label: '快线', type: 'number', min: 2, max: 50, step: 1, description: '快线 EMA 周期，对价格变化更敏感' },
+      { key: 'slowPeriod', label: '慢线', type: 'number', min: 2, max: 100, step: 1, description: '慢线 EMA 周期，用于计算 DIF' },
+      { key: 'signalPeriod', label: '信号', type: 'number', min: 2, max: 50, step: 1, description: 'DEA 的 EMA 周期，用于生成买卖信号' },
     ],
   },
-  { id: 'RSI', label: 'RSI', name: '相对强弱指标', pane: 'sub' },
-  { id: 'CCI', label: 'CCI', name: '顺势指标', pane: 'sub' },
-  { id: 'STOCH', label: 'STOCH', name: '随机指标', pane: 'sub' },
-  { id: 'MOM', label: 'MOM', name: '动量指标', pane: 'sub' },
-  { id: 'WMSR', label: 'WMSR', name: '威廉指标', pane: 'sub' },
-  { id: 'KST', label: 'KST', name: '确然指标', pane: 'sub' },
-  { id: 'FASTK', label: 'FASTK', name: '快速随机指标', pane: 'sub' },
+  {
+    id: 'RSI',
+    label: 'RSI',
+    name: '相对强弱指标',
+    pane: 'sub',
+    description: 'RSI 衡量价格变动的速度和幅度，判断超买超卖状态。RSI > 70 超买，RSI < 30 超卖。',
+    params: [
+      { key: 'period1', label: '周期 1', type: 'number', min: 2, max: 100, step: 1, description: '第一条 RSI 周期，通常为 6（快线）' },
+      { key: 'period2', label: '周期 2', type: 'number', min: 2, max: 100, step: 1, description: '第二条 RSI 周期，通常为 12（中线）' },
+      { key: 'period3', label: '周期 3', type: 'number', min: 2, max: 100, step: 1, description: '第三条 RSI 周期，通常为 24（慢线）' },
+    ],
+  },
+  {
+    id: 'CCI',
+    label: 'CCI',
+    name: '顺势指标',
+    pane: 'sub',
+    description: 'CCI 衡量价格与统计平均值的偏离程度。CCI > 100 超买，CCI < -100 超卖，适合捕捉趋势反转。',
+    params: [
+      { key: 'period', label: '周期', type: 'number', min: 2, max: 100, step: 1, description: '计算周期，周期越短信号越灵敏' },
+    ],
+  },
+  {
+    id: 'STOCH',
+    label: 'STOCH',
+    name: '随机指标',
+    pane: 'sub',
+    description: 'KDJ 随机指标通过比较收盘价与价格区间判断超买超卖。K > 80 超买，K < 20 超卖，K 上穿 D 金叉。',
+    params: [
+      { key: 'n', label: 'K 周期', type: 'number', min: 2, max: 100, step: 1, description: '计算 K 值的周期，统计 N 日内价格区间' },
+      { key: 'm', label: 'D 周期', type: 'number', min: 1, max: 50, step: 1, description: 'D 值是 K 的 M 日移动平均，使信号更平滑' },
+    ],
+  },
+  {
+    id: 'MOM',
+    label: 'MOM',
+    name: '动量指标',
+    pane: 'sub',
+    description: '动量指标衡量价格变化的速度，MOM > 0 表示上涨动能，MOM < 0 表示下跌动能。适合判断趋势强度。',
+    params: [
+      { key: 'period', label: '周期', type: 'number', min: 2, max: 100, step: 1, description: '与多少日前价格比较，周期越短越灵敏' },
+    ],
+  },
+  {
+    id: 'WMSR',
+    label: 'WMSR',
+    name: '威廉指标',
+    pane: 'sub',
+    description: '威廉指标衡量超买超卖程度，范围为 -100 到 0。WMSR > -20 超买，WMSR < -80 超卖。',
+    params: [
+      { key: 'period', label: '周期', type: 'number', min: 2, max: 100, step: 1, description: '回溯周期，统计周期内最高最低价' },
+    ],
+  },
+  {
+    id: 'KST',
+    label: 'KST',
+    name: '确然指标',
+    pane: 'sub',
+    description: 'KST 综合多个 ROC 判断长期趋势，KST 上穿信号线看涨，下穿看跌。适合捕捉主要趋势转换。',
+    params: [
+      { key: 'roc1', label: 'ROC1', type: 'number', min: 2, max: 100, step: 1, description: '短期变化率周期' },
+      { key: 'roc2', label: 'ROC2', type: 'number', min: 2, max: 100, step: 1, description: '中短期变化率周期' },
+      { key: 'roc3', label: 'ROC3', type: 'number', min: 2, max: 100, step: 1, description: '中长期变化率周期' },
+      { key: 'roc4', label: 'ROC4', type: 'number', min: 2, max: 100, step: 1, description: '长期变化率周期' },
+      { key: 'signalPeriod', label: '信号', type: 'number', min: 2, max: 50, step: 1, description: '信号线的 SMA 周期' },
+    ],
+  },
+  {
+    id: 'FASTK',
+    label: 'FASTK',
+    name: '快速随机指标',
+    pane: 'sub',
+    description: 'FASTK 是未经过平滑处理的随机指标，比普通 KDJ 更敏感，能更快捕捉价格转折点，但假信号也更多。',
+    params: [
+      { key: 'period', label: '周期', type: 'number', min: 2, max: 100, step: 1, description: '计算周期，周期越短越敏感' },
+    ],
+  },
 ]
 
 const props = defineProps<{
@@ -142,11 +217,34 @@ function getParamValues(indicatorId: string): Record<string, number> {
   const indicator = indicators.find((i) => i.id === indicatorId)
   if (indicator?.params) {
     for (const p of indicator.params) {
-      if (p.key === 'period') defaultParams[p.key] = 20
+      // BOLL
+      if (p.key === 'period' && indicatorId === 'BOLL') defaultParams[p.key] = 20
       else if (p.key === 'multiplier') defaultParams[p.key] = 2
+      // MACD
       else if (p.key === 'fastPeriod') defaultParams[p.key] = 12
       else if (p.key === 'slowPeriod') defaultParams[p.key] = 26
-      else if (p.key === 'signalPeriod') defaultParams[p.key] = 9
+      else if (p.key === 'signalPeriod' && indicatorId === 'MACD') defaultParams[p.key] = 9
+      // RSI
+      else if (p.key === 'period1') defaultParams[p.key] = 6
+      else if (p.key === 'period2') defaultParams[p.key] = 12
+      else if (p.key === 'period3') defaultParams[p.key] = 24
+      // CCI
+      else if (p.key === 'period' && indicatorId === 'CCI') defaultParams[p.key] = 14
+      // STOCH
+      else if (p.key === 'n') defaultParams[p.key] = 9
+      else if (p.key === 'm') defaultParams[p.key] = 3
+      // MOM
+      else if (p.key === 'period' && indicatorId === 'MOM') defaultParams[p.key] = 10
+      // WMSR
+      else if (p.key === 'period' && indicatorId === 'WMSR') defaultParams[p.key] = 14
+      // KST
+      else if (p.key === 'roc1') defaultParams[p.key] = 10
+      else if (p.key === 'roc2') defaultParams[p.key] = 15
+      else if (p.key === 'roc3') defaultParams[p.key] = 20
+      else if (p.key === 'roc4') defaultParams[p.key] = 30
+      else if (p.key === 'signalPeriod' && indicatorId === 'KST') defaultParams[p.key] = 9
+      // FASTK
+      else if (p.key === 'period' && indicatorId === 'FASTK') defaultParams[p.key] = 9
     }
   }
   return {

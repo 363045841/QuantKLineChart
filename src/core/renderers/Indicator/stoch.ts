@@ -250,3 +250,27 @@ export function calcSTOCHAtIndex(
     const stochData = calcSTOCHData(data, n, m)
     return stochData[index]
 }
+
+/**
+ * 获取 STOCH 标题信息（供 paneTitle 使用）
+ */
+export function getSTOCHTitleInfo(
+    data: KLineData[],
+    index: number,
+    n: number = 9,
+    m: number = 3
+): { name: string; params: number[]; values: Array<{ label: string; value: number; color: string }> } | null {
+    if (index < n + m - 1 || index >= data.length) return null
+
+    const stochValue = calcSTOCHAtIndex(data, index, n, m)
+    if (!stochValue) return null
+
+    return {
+        name: 'STOCH',
+        params: [n, m],
+        values: [
+            { label: 'K', value: stochValue.k, color: KDJ_COLORS.K },
+            { label: 'D', value: stochValue.d, color: KDJ_COLORS.D },
+        ],
+    }
+}

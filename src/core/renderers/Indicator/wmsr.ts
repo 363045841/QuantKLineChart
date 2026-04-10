@@ -183,3 +183,25 @@ export function calcWMSRAtIndex(
     const wmsrData = calcWMSRData(data, period)
     return wmsrData[index]
 }
+
+/**
+ * 获取 WMSR 标题信息（供 paneTitle 使用）
+ */
+export function getWMSRTitleInfo(
+    data: KLineData[],
+    index: number,
+    period: number = 14
+): { name: string; params: number[]; values: Array<{ label: string; value: number; color: string }> } | null {
+    if (index < period || index >= data.length) return null
+
+    const wmsrValue = calcWMSRAtIndex(data, index, period)
+    if (wmsrValue === undefined) return null
+
+    return {
+        name: 'WMSR',
+        params: [period],
+        values: [
+            { label: 'WMSR', value: wmsrValue, color: WMSR_COLORS.WMSR },
+        ],
+    }
+}

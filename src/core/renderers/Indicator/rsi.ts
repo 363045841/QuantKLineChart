@@ -236,3 +236,33 @@ export function calcRSIAtIndex(
     const rsiData = calcRSIData(data, period)
     return rsiData[index]
 }
+
+/**
+ * 获取 RSI 标题信息（供 paneTitle 使用）
+ */
+export function getRSITitleInfo(
+    data: KLineData[],
+    index: number,
+    period1: number = 6,
+    period2: number = 12,
+    period3: number = 24
+): { name: string; params: number[]; values: Array<{ label: string; value: number; color: string }> } | null {
+    if (index < period1 + 1 || index >= data.length) return null
+
+    const rsi1 = calcRSIData(data, period1)[index]
+    const rsi2 = calcRSIData(data, period2)[index]
+    const rsi3 = calcRSIData(data, period3)[index]
+
+    const values: Array<{ label: string; value: number; color: string }> = []
+    if (rsi1 !== undefined) values.push({ label: `RSI${period1}`, value: rsi1, color: RSI_COLORS.RSI1 })
+    if (rsi2 !== undefined) values.push({ label: `RSI${period2}`, value: rsi2, color: RSI_COLORS.RSI2 })
+    if (rsi3 !== undefined) values.push({ label: `RSI${period3}`, value: rsi3, color: RSI_COLORS.RSI3 })
+
+    if (values.length === 0) return null
+
+    return {
+        name: 'RSI',
+        params: [period1, period2, period3],
+        values,
+    }
+}
