@@ -382,7 +382,8 @@ function onConfirm() {
 /* ── 步进输入框 ── */
 .input-wrapper {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  height: 32px;
   border: 1px solid #d0d0d0;
   border-radius: 7px;
   overflow: hidden;
@@ -396,7 +397,6 @@ function onConfirm() {
 
 .stepper-btn {
   width: 28px;
-  height: 32px;
   background: #f0f0f0;
   border: none;
   cursor: pointer;
@@ -423,7 +423,6 @@ function onConfirm() {
 
 .param-input {
   width: 60px;
-  height: 32px;
   border: none;
   border-left: 1px solid #e8e8e8;
   border-right: 1px solid #e8e8e8;
