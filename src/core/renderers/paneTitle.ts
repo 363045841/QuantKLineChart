@@ -59,7 +59,7 @@ export function createPaneTitleRendererPlugin(options: PaneTitleOptions): Render
             const { ctx, pane } = context
             if (pane.id !== currentOptions.paneId) return
 
-            const fontSize = 11
+            const fontSize = 12
             const x = 12
             const y = currentOptions.yOffset ?? fontSize
             const gap = 8

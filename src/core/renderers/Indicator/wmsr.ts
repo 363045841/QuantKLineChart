@@ -43,10 +43,19 @@ function calcWMSRData(data: KLineData[], period: number): (number | undefined)[]
     return result
 }
 
+export interface WMSRRendererOptions {
+    /** 目标 pane ID（默认 'sub'） */
+    paneId?: string
+    /** 初始配置 */
+    config?: WMSRConfig
+}
+
 /**
  * 创建 WMSR 渲染器插件
  */
-export function createWMSRRendererPlugin(initialConfig: WMSRConfig = {}): RendererPlugin {
+export function createWMSRRendererPlugin(options: WMSRRendererOptions = {}): RendererPlugin {
+    const { paneId = 'sub', config: initialConfig = {} } = options
+
     const config: Required<WMSRConfig> = {
         period: 14,
         showWMSR: true,
@@ -68,11 +77,11 @@ export function createWMSRRendererPlugin(initialConfig: WMSRConfig = {}): Render
     }
 
     return {
-        name: 'wmsr',
+        name: `wmsr_${paneId}`,
         version: '1.0.0',
         description: 'WMSR 威廉指标渲染器',
         debugName: 'WMSR',
-        paneId: 'sub',
+        paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
         draw(context: RenderContext) {

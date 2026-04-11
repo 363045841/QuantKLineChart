@@ -3,16 +3,23 @@ import { RENDERER_PRIORITY } from '@/plugin'
 import type { KLineData } from '@/types/price'
 import { PRICE_COLORS } from '@/core/theme/colors'
 
+export interface VolumeRendererOptions {
+    /** 目标 pane ID（默认 'sub'） */
+    paneId?: string
+}
+
 /**
  * 创建副图成交量渲染器插件
  */
-export function createVolumeRendererPlugin(): RendererPlugin {
+export function createVolumeRendererPlugin(options: VolumeRendererOptions = {}): RendererPlugin {
+    const { paneId = 'sub' } = options
+
     return {
-        name: 'volume',
+        name: `volume_${paneId}`,
         version: '1.0.0',
         description: '成交量渲染器',
         debugName: '成交量',
-        paneId: 'sub',
+        paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
         draw(context: RenderContext) {

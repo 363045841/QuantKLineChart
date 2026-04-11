@@ -196,10 +196,13 @@ function toggleIndicator(indicatorId: string) {
   const active = !isActive(indicatorId)
 
   if (active) {
-    // 同类型指标互斥：取消同 pane 的其他指标
-    indicators
-      .filter((i) => i.pane === indicator.pane && i.id !== indicatorId && isActive(i.id))
-      .forEach((i) => emit('toggle', i.id, false))
+    // 主图指标互斥：取消主图的其他指标
+    if (indicator.pane === 'main') {
+      indicators
+        .filter((i) => i.pane === 'main' && i.id !== indicatorId && isActive(i.id))
+        .forEach((i) => emit('toggle', i.id, false))
+    }
+    // 副图指标不互斥，可以同时显示多个
 
     emit('toggle', indicatorId, true)
   } else {

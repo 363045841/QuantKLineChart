@@ -82,10 +82,19 @@ function calcRSIData(data: KLineData[], period: number): (number | undefined)[] 
     return result
 }
 
+export interface RSIRendererOptions {
+    /** 目标 pane ID（默认 'sub'） */
+    paneId?: string
+    /** 初始配置 */
+    config?: RSIConfig
+}
+
 /**
  * 创建 RSI 渲染器插件
  */
-export function createRSIRendererPlugin(initialConfig: RSIConfig = {}): RendererPlugin {
+export function createRSIRendererPlugin(options: RSIRendererOptions = {}): RendererPlugin {
+    const { paneId = 'sub', config: initialConfig = {} } = options
+
     const config: Required<RSIConfig> = {
         period1: 6,
         period2: 12,
@@ -124,11 +133,11 @@ export function createRSIRendererPlugin(initialConfig: RSIConfig = {}): Renderer
     }
 
     return {
-        name: 'rsi',
+        name: `rsi_${paneId}`,
         version: '1.0.0',
         description: 'RSI 相对强弱指标渲染器',
         debugName: 'RSI',
-        paneId: 'sub',
+        paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
         draw(context: RenderContext) {

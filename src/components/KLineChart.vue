@@ -61,34 +61,28 @@ import { getPhysicalKLineConfig } from '@/core/utils/klineConfig'
 import { createCandleRenderer } from '@/core/renderers/candle'
 import { createGridLinesRendererPlugin } from '@/core/renderers/gridLines'
 import { createLastPriceLineRendererPlugin } from '@/core/renderers/lastPrice'
-import { createMARendererPlugin } from '@/core/renderers/Indicator/ma'
+import {
+  createMARendererPlugin,
+  createMALegendRendererPlugin,
+  createBOLLRendererPlugin,
+  createBOLLLegendRendererPlugin,
+  createSubIndicatorRenderer,
+  type SubIndicatorType,
+  getMACDTitleInfo,
+  getRSITitleInfo,
+  getCCITitleInfo,
+  getSTOCHTitleInfo,
+  getMOMTitleInfo,
+  getWMSRTitleInfo,
+  getKSTTitleInfo,
+  getFASTKTitleInfo,
+} from '@/core/renderers/Indicator'
 import { createExtremaMarkersRendererPlugin } from '@/core/renderers/extremaMarkers'
-import { createVolumeRendererPlugin } from '@/core/renderers/subVolume'
 import { createYAxisRendererPlugin } from '@/core/renderers/yAxis'
 import { createTimeAxisRendererPlugin } from '@/core/renderers/timeAxis'
 import { createCrosshairRendererPlugin } from '@/core/renderers/crosshair'
-import { createMALegendRendererPlugin } from '@/core/renderers/Indicator/maLegend'
 import { createGlobalBordersRendererPlugin } from '@/core/renderers/globalBorders'
-import { createPaneTitleRendererPlugin } from '@/core/renderers/paneTitle'
-import { createBOLLRendererPlugin } from '@/core/renderers/Indicator/boll'
-import { createBOLLLegendRendererPlugin } from '@/core/renderers/Indicator/bollLegend'
-import { createMACDRendererPlugin } from '@/core/renderers/Indicator/macd'
-import { createRSIRendererPlugin } from '@/core/renderers/Indicator/rsi'
-import { createCCIRendererPlugin } from '@/core/renderers/Indicator/cci'
-import { createSTOCHRendererPlugin } from '@/core/renderers/Indicator/stoch'
-import { createMOMRendererPlugin } from '@/core/renderers/Indicator/mom'
-import { createWMSRRendererPlugin } from '@/core/renderers/Indicator/wmsr'
-import { createKSTRendererPlugin } from '@/core/renderers/Indicator/kst'
-import { createFASTKRendererPlugin } from '@/core/renderers/Indicator/fastk'
-import { getMACDTitleInfo } from '@/core/renderers/Indicator/macd'
-import { getRSITitleInfo } from '@/core/renderers/Indicator/rsi'
-import { getCCITitleInfo } from '@/core/renderers/Indicator/cci'
-import { getSTOCHTitleInfo } from '@/core/renderers/Indicator/stoch'
-import { getMOMTitleInfo } from '@/core/renderers/Indicator/mom'
-import { getWMSRTitleInfo } from '@/core/renderers/Indicator/wmsr'
-import { getKSTTitleInfo } from '@/core/renderers/Indicator/kst'
-import { getFASTKTitleInfo } from '@/core/renderers/Indicator/fastk'
-import type { TitleInfo } from '@/core/renderers/paneTitle'
+import { createPaneTitleRendererPlugin, type TitleInfo } from '@/core/renderers/paneTitle'
 
 type MAFlags = {
   ma5?: boolean
@@ -167,6 +161,7 @@ const isDragging = ref(false)
 
 // tooltip/hover 必须是 Vue 可追踪的响应式状态（Chart 内部普通属性 Vue 不会自动追踪）
 const hoveredIdx = ref<number | null>(null)
+const crosshairIdx = ref<number | null>(null)
 const tooltipPosition = ref({ x: 0, y: 0 })
 
 const hovered = computed(() => {
@@ -181,13 +176,15 @@ function syncHoverState() {
   const interaction = chartRef.value?.interaction
   if (!interaction) {
     hoveredIdx.value = null
+    crosshairIdx.value = null
     hoveredMarker.value = null
     return
   }
 
   hoveredIdx.value = interaction.hoveredIndex ?? null
+  crosshairIdx.value = interaction.crosshairIndex ?? null
   hoveredMarker.value = (interaction as any).hoveredMarkerData ?? null
-  
+
   const pos = interaction.tooltipPos
   if (pos) tooltipPosition.value = { x: pos.x, y: pos.y }
 }
@@ -266,115 +263,249 @@ const activeIndicators = ref<string[]>(['MA'])
 // 指标参数配置
 const indicatorParams = ref<Record<string, Record<string, number>>>({})
 
-// 副图指标列表（互斥）
-const SUB_PANE_INDICATORS = ['MACD', 'RSI', 'CCI', 'STOCH', 'MOM', 'WMSR', 'KST', 'FASTK'] as const
+// 副图槽位状态
+interface SubPaneSlot {
+  id: string                  // pane ID: 'sub_0', 'sub_1', ...
+  indicatorId: SubIndicatorType
+  rendererName: string
+  paneTitleRendererName: string  // paneTitle 渲染器名称
+  params: Record<string, number>
+}
 
-// 当前激活的副图指标
-const currentSubIndicator = ref<string>('')
+// 副图槽位数组（支持多副图）
+const subPanes = ref<SubPaneSlot[]>([])
 
-// 获取副图标题信息的函数
-function getSubPaneTitleInfo(): TitleInfo | null {
-    const data = props.data
-    if (!data || data.length === 0) return null
+// 最大副图数量
+const maxSubPanes = 4
 
-    const lastIndex = data.length - 1
-    const params = indicatorParams.value
+// 副图指标列表
+const SUB_PANE_INDICATORS: SubIndicatorType[] = ['VOLUME', 'MACD', 'RSI', 'CCI', 'STOCH', 'MOM', 'WMSR', 'KST', 'FASTK']
 
-    switch (currentSubIndicator.value) {
-        case 'MACD': {
-            const p = params.MACD || {}
-            return getMACDTitleInfo(data, lastIndex, p.fastPeriod ?? 12, p.slowPeriod ?? 26, p.signalPeriod ?? 9)
-        }
-        case 'RSI': {
-            const p = params.RSI || {}
-            return getRSITitleInfo(data, lastIndex, p.period1 ?? 6, p.period2 ?? 12, p.period3 ?? 24)
-        }
-        case 'CCI': {
-            const p = params.CCI || {}
-            return getCCITitleInfo(data, lastIndex, p.period ?? 14)
-        }
-        case 'STOCH': {
-            const p = params.STOCH || {}
-            return getSTOCHTitleInfo(data, lastIndex, p.n ?? 9, p.m ?? 3)
-        }
-        case 'MOM': {
-            const p = params.MOM || {}
-            return getMOMTitleInfo(data, lastIndex, p.period ?? 10)
-        }
-        case 'WMSR': {
-            const p = params.WMSR || {}
-            return getWMSRTitleInfo(data, lastIndex, p.period ?? 14)
-        }
-        case 'KST': {
-            const p = params.KST || {}
-            return getKSTTitleInfo(data, lastIndex, p.roc1 ?? 10, p.roc2 ?? 15, p.roc3 ?? 20, p.roc4 ?? 30, p.signalPeriod ?? 9)
-        }
-        case 'FASTK': {
-            const p = params.FASTK || {}
-            return getFASTKTitleInfo(data, lastIndex, p.period ?? 9)
-        }
-        default:
-            return null
-    }
+// 布局配置（ratio 由 Chart 内部的指数退避策略计算，此处仅提供 pane 顺序）
+const layoutPanes = computed<PaneSpec[]>(() => {
+  if (subPanes.value.length === 0) {
+    return [{ id: 'main', ratio: 1, visible: true }]
+  }
+  return [
+    { id: 'main', ratio: 1, visible: true },
+    ...subPanes.value.map(pane => ({ id: pane.id, ratio: 1, visible: true }))
+  ]
+})
+
+// 监听布局变化，更新 Chart
+watch(layoutPanes, (newPanes) => {
+  chartRef.value?.updatePaneLayout(newPanes)
+}, { flush: 'post' })
+
+// 获取指标默认参数
+function getDefaultParams(indicatorId: SubIndicatorType): Record<string, number> {
+  switch (indicatorId) {
+    case 'MACD': return { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 }
+    case 'RSI': return { period1: 6, period2: 12, period3: 24 }
+    case 'CCI': return { period: 14 }
+    case 'STOCH': return { n: 9, m: 3 }
+    case 'MOM': return { period: 10 }
+    case 'WMSR': return { period: 14 }
+    case 'KST': return { roc1: 10, roc2: 15, roc3: 20, roc4: 30, signalPeriod: 9 }
+    case 'FASTK': return { period: 9 }
+    default: return {}
+  }
+}
+
+// 添加副图
+function addSubPane(indicatorId: SubIndicatorType = 'VOLUME'): boolean {
+  if (subPanes.value.length >= maxSubPanes) {
+    return false
+  }
+
+  const paneId = `sub_${Date.now()}`
+  const renderer = createSubIndicatorRenderer({ indicatorId, paneId })
+
+  // 先添加 pane
+  chartRef.value?.addPane(paneId)
+
+  // 注册指标渲染器
+  chartRef.value?.useRenderer(renderer)
+
+  // 创建 paneTitle 渲染器
+  const paneTitleRenderer = createPaneTitleRendererPlugin({
+    paneId,
+    title: indicatorId,
+    getTitleInfo: () => getSubPaneTitleInfo(paneId)
+  })
+  chartRef.value?.useRenderer(paneTitleRenderer)
+
+  // 更新状态
+  subPanes.value.push({
+    id: paneId,
+    indicatorId,
+    rendererName: renderer.name,
+    paneTitleRendererName: paneTitleRenderer.name,
+    params: getDefaultParams(indicatorId)
+  })
+
+  // 更新 activeIndicators
+  if (!activeIndicators.value.includes(indicatorId)) {
+    activeIndicators.value.push(indicatorId)
+  }
+
+  return true
+}
+
+// 移除副图
+function removeSubPane(paneId: string): void {
+  const index = subPanes.value.findIndex(p => p.id === paneId)
+  if (index === -1) return
+
+  const pane = subPanes.value[index]
+  if (!pane) return
+
+  // 注销指标渲染器
+  chartRef.value?.removeRenderer(pane.rendererName)
+
+  // 注销 paneTitle 渲染器
+  chartRef.value?.removeRenderer(pane.paneTitleRendererName)
+
+  // 移除 pane
+  chartRef.value?.removePane(paneId)
+
+  // 更新状态
+  const indicatorId = pane.indicatorId
+  subPanes.value.splice(index, 1)
+
+  // 更新 activeIndicators
+  const hasOtherPane = subPanes.value.some(p => p.indicatorId === indicatorId)
+  if (!hasOtherPane) {
+    activeIndicators.value = activeIndicators.value.filter(id => id !== indicatorId)
+  }
+}
+
+// 切换副图指标
+function switchSubIndicator(paneId: string, newIndicatorId: SubIndicatorType): void {
+  const pane = subPanes.value.find(p => p.id === paneId)
+  if (!pane) return
+
+  // 注销旧渲染器
+  chartRef.value?.removeRenderer(pane.rendererName)
+
+  // 创建新渲染器
+  const renderer = createSubIndicatorRenderer({ indicatorId: newIndicatorId, paneId })
+  chartRef.value?.useRenderer(renderer)
+
+  // 更新状态
+  pane.indicatorId = newIndicatorId
+  pane.rendererName = renderer.name
+  pane.params = getDefaultParams(newIndicatorId)
+
+  // 更新 activeIndicators
+  if (!activeIndicators.value.includes(newIndicatorId)) {
+    activeIndicators.value.push(newIndicatorId)
+  }
+}
+
+// 获取副图标题信息
+function getSubPaneTitleInfo(paneId: string): TitleInfo | null {
+  const pane = subPanes.value.find(p => p.id === paneId)
+  if (!pane) return null
+
+  const data = props.data
+  if (!data || data.length === 0) return null
+
+  const p = pane.params
+
+  // VOLUME 不依赖十字线，始终显示
+  if (pane.indicatorId === 'VOLUME') {
+    return { name: 'VOL', params: [], values: [] }
+  }
+
+  // 其他指标需要十字线位置
+  const index = crosshairIdx.value
+  if (index === null) return null
+
+  switch (pane.indicatorId) {
+    case 'MACD':
+      return getMACDTitleInfo(data, index, p.fastPeriod ?? 12, p.slowPeriod ?? 26, p.signalPeriod ?? 9)
+    case 'RSI':
+      return getRSITitleInfo(data, index, p.period1 ?? 6, p.period2 ?? 12, p.period3 ?? 24)
+    case 'CCI':
+      return getCCITitleInfo(data, index, p.period ?? 14)
+    case 'STOCH':
+      return getSTOCHTitleInfo(data, index, p.n ?? 9, p.m ?? 3)
+    case 'MOM':
+      return getMOMTitleInfo(data, index, p.period ?? 10)
+    case 'WMSR':
+      return getWMSRTitleInfo(data, index, p.period ?? 14)
+    case 'KST':
+      return getKSTTitleInfo(data, index, p.roc1 ?? 10, p.roc2 ?? 15, p.roc3 ?? 20, p.roc4 ?? 30, p.signalPeriod ?? 9)
+    case 'FASTK':
+      return getFASTKTitleInfo(data, index, p.period ?? 9)
+    default:
+      return null
+  }
 }
 
 // 指标切换处理
 function handleIndicatorToggle(indicatorId: string, active: boolean) {
-  if (active) {
-    if (!activeIndicators.value.includes(indicatorId)) {
-      activeIndicators.value.push(indicatorId)
-    }
-  } else {
-    activeIndicators.value = activeIndicators.value.filter((id) => id !== indicatorId)
-  }
-
-  // 更新 MA 显示配置
+  // 主图指标处理
   if (indicatorId === 'MA') {
-    chartRef.value?.updateRendererConfig('ma', {
-      ma5: active,
-      ma10: active,
-      ma20: active,
-      ma30: active,
-      ma60: active,
-    })
-    chartRef.value?.setRendererEnabled('maLegend', active)
+    if (active) {
+      if (!activeIndicators.value.includes(indicatorId)) {
+        activeIndicators.value.push(indicatorId)
+      }
+      chartRef.value?.updateRendererConfig('ma', {
+        ma5: true, ma10: true, ma20: true, ma30: true, ma60: true
+      })
+      chartRef.value?.setRendererEnabled('maLegend', true)
+    } else {
+      activeIndicators.value = activeIndicators.value.filter(id => id !== indicatorId)
+      chartRef.value?.updateRendererConfig('ma', {
+        ma5: false, ma10: false, ma20: false, ma30: false, ma60: false
+      })
+      chartRef.value?.setRendererEnabled('maLegend', false)
+    }
+    scheduleRender()
+    return
   }
 
-  // 更新 BOLL 显示配置
   if (indicatorId === 'BOLL') {
+    if (active) {
+      if (!activeIndicators.value.includes(indicatorId)) {
+        activeIndicators.value.push(indicatorId)
+      }
+    } else {
+      activeIndicators.value = activeIndicators.value.filter(id => id !== indicatorId)
+    }
     chartRef.value?.setRendererEnabled('boll', active)
     chartRef.value?.setRendererEnabled('bollLegend', active)
+    scheduleRender()
+    return
   }
 
-  // 副图指标互斥处理
-  if (SUB_PANE_INDICATORS.includes(indicatorId as any)) {
-    // 先禁用所有副图指标
-    const allSubIndicators = ['macd', 'rsi', 'cci', 'stoch', 'mom', 'wmsr', 'kst', 'fastk']
-    allSubIndicators.forEach(name => {
-      chartRef.value?.setRendererEnabled(name, false)
-    })
-
+  // 副图指标处理
+  if (SUB_PANE_INDICATORS.includes(indicatorId as SubIndicatorType)) {
     if (active) {
-      // 禁用成交量，启用当前指标
-      chartRef.value?.setRendererEnabled('volume', false)
-      currentSubIndicator.value = indicatorId
-
-      // 根据指标 ID 启用对应的渲染器
-      const rendererName = indicatorId.toLowerCase()
-      chartRef.value?.setRendererEnabled(rendererName, true)
-    } else {
-      // 如果没有其他副图指标启用，恢复成交量
-      const hasOtherSubIndicator = activeIndicators.value.some(id =>
-        SUB_PANE_INDICATORS.includes(id as any)
-      )
-      if (!hasOtherSubIndicator) {
-        chartRef.value?.setRendererEnabled('volume', true)
-        currentSubIndicator.value = ''
+      // 检查是否已有该指标的 pane
+      const existingPane = subPanes.value.find(p => p.indicatorId === indicatorId)
+      if (existingPane) {
+        // 已存在，无需再添加
+        return
       }
-    }
-  }
 
-  scheduleRender()
+      // 尝试添加新副图
+      if (!addSubPane(indicatorId as SubIndicatorType)) {
+        // 达到上限，替换最后一个
+        const lastPane = subPanes.value[subPanes.value.length - 1]
+        if (lastPane) {
+          switchSubIndicator(lastPane.id, indicatorId as SubIndicatorType)
+        }
+      }
+    } else {
+      // 找到并移除该指标的所有 pane
+      const panesToRemove = subPanes.value.filter(p => p.indicatorId === indicatorId)
+      panesToRemove.forEach(pane => removeSubPane(pane.id))
+    }
+    scheduleRender()
+  }
 }
 
 // 指标参数更新处理
@@ -382,50 +513,23 @@ function handleUpdateParams(indicatorId: string, params: Record<string, number>)
   // 保存参数配置
   indicatorParams.value[indicatorId] = params
 
-  // 更新 BOLL 参数
+  // 主图指标参数更新
   if (indicatorId === 'BOLL') {
     chartRef.value?.updateRendererConfig('boll', params)
     chartRef.value?.updateRendererConfig('bollLegend', params)
+    scheduleRender()
+    return
   }
 
-  // 更新 MACD 参数
-  if (indicatorId === 'MACD') {
-    chartRef.value?.updateRendererConfig('macd', params)
-  }
-
-  // 更新 RSI 参数
-  if (indicatorId === 'RSI') {
-    chartRef.value?.updateRendererConfig('rsi', params)
-  }
-
-  // 更新 CCI 参数
-  if (indicatorId === 'CCI') {
-    chartRef.value?.updateRendererConfig('cci', params)
-  }
-
-  // 更新 STOCH 参数
-  if (indicatorId === 'STOCH') {
-    chartRef.value?.updateRendererConfig('stoch', params)
-  }
-
-  // 更新 MOM 参数
-  if (indicatorId === 'MOM') {
-    chartRef.value?.updateRendererConfig('mom', params)
-  }
-
-  // 更新 WMSR 参数
-  if (indicatorId === 'WMSR') {
-    chartRef.value?.updateRendererConfig('wmsr', params)
-  }
-
-  // 更新 KST 参数
-  if (indicatorId === 'KST') {
-    chartRef.value?.updateRendererConfig('kst', params)
-  }
-
-  // 更新 FASTK 参数
-  if (indicatorId === 'FASTK') {
-    chartRef.value?.updateRendererConfig('fastk', params)
+  // 副图指标参数更新
+  if (SUB_PANE_INDICATORS.includes(indicatorId as SubIndicatorType)) {
+    // 更新所有使用该指标的 pane
+    subPanes.value
+      .filter(p => p.indicatorId === indicatorId)
+      .forEach(pane => {
+        pane.params = { ...params }
+        chartRef.value?.updateRendererConfig(pane.rendererName, params)
+      })
   }
 
   scheduleRender()
@@ -461,6 +565,9 @@ function scrollToRight() {
 defineExpose({
   scheduleRender,
   scrollToRight,
+  addSubPane,
+  removeSubPane,
+  switchSubIndicator,
   get plugin() {
     return chartRef.value?.plugin
   },
@@ -472,12 +579,6 @@ onMounted(() => {
   const xAxisCanvas = xAxisCanvasRef.value
   if (!container || !canvasLayer || !xAxisCanvas) return
 
-  // 注册 marker hover 回调
-  chartRef.value?.interaction.setOnMarkerHover((marker: MarkerEntity | null) => {
-    hoveredMarker.value = marker
-    scheduleRender()
-  })
-
   // 手动添加 wheel 事件监听器，设置 passive: false 以允许 preventDefault()
   const onWheelHandler = (e: WheelEvent) => {
     chartRef.value?.interaction.onWheel(e)
@@ -485,11 +586,7 @@ onMounted(() => {
   }
   container.addEventListener('wheel', onWheelHandler, { passive: false })
 
-  const panes: PaneSpec[] = [
-    { id: 'main', ratio: props.paneRatios[0] },
-    { id: 'sub', ratio: props.paneRatios[1] },
-  ]
-
+  // 初始只有主图，副图通过 addSubPane 动态添加
   const chart = new Chart(
     { container, canvasLayer, xAxisCanvas },
     {
@@ -501,7 +598,7 @@ onMounted(() => {
       priceLabelWidth: props.priceLabelWidth,
       minKWidth: props.minKWidth,
       maxKWidth: props.maxKWidth,
-      panes,
+      panes: [{ id: 'main', ratio: 1 }],  // 初始只有主图
 
       // 主/副图之间真实留白，形成视觉断开
       paneGap: 0,
@@ -530,7 +627,7 @@ onMounted(() => {
     chart.applyZoom(kWidth, kGap)
   })
 
-  // 注册渲染器插件
+  // 注册主图渲染器插件
   chart.useRenderer(createGridLinesRendererPlugin()) // 网格线渲染到所有 pane
   chart.useRenderer(createExtremaMarkersRendererPlugin())
   chart.useRenderer(createMARendererPlugin(props.showMA))
@@ -538,18 +635,6 @@ onMounted(() => {
   chart.setRendererEnabled('boll', false) // 默认禁用，点击按钮启用
   chart.useRenderer(createCandleRenderer())
   chart.useRenderer(createLastPriceLineRendererPlugin())
-  chart.useRenderer(createVolumeRendererPlugin())
-  chart.useRenderer(createPaneTitleRendererPlugin({
-    paneId: 'sub',
-    title: 'VOL',
-    getTitleInfo: () => {
-        // 如果有副图指标激活，返回其标题信息
-        const info = getSubPaneTitleInfo()
-        if (info) return info
-        // 否则返回 null，显示静态标题 'VOL'
-        return null
-    },
-  }))
 
   // 系统渲染器插件
   chart.useRenderer(createYAxisRendererPlugin({
@@ -564,25 +649,6 @@ onMounted(() => {
     yPaddingPx: props.yPaddingPx,
   }))
   chart.setRendererEnabled('bollLegend', false) // 默认禁用，点击按钮启用
-  chart.useRenderer(createMACDRendererPlugin())
-  chart.setRendererEnabled('macd', false) // 默认禁用，点击按钮启用
-  // MACD 图例已合并到 paneTitle_sub 中，不再需要单独的图例渲染器
-
-  // 其他副图指标渲染器（默认禁用）
-  chart.useRenderer(createRSIRendererPlugin())
-  chart.setRendererEnabled('rsi', false)
-  chart.useRenderer(createCCIRendererPlugin())
-  chart.setRendererEnabled('cci', false)
-  chart.useRenderer(createSTOCHRendererPlugin())
-  chart.setRendererEnabled('stoch', false)
-  chart.useRenderer(createMOMRendererPlugin())
-  chart.setRendererEnabled('mom', false)
-  chart.useRenderer(createWMSRRendererPlugin())
-  chart.setRendererEnabled('wmsr', false)
-  chart.useRenderer(createKSTRendererPlugin())
-  chart.setRendererEnabled('kst', false)
-  chart.useRenderer(createFASTKRendererPlugin())
-  chart.setRendererEnabled('fastk', false)
 
   chart.useRenderer(createCrosshairRendererPlugin({
     getCrosshairState: () => ({
@@ -613,16 +679,13 @@ onMounted(() => {
   chart.updateData(props.data)
   chart.resize()
 
-  // 测试插件
-  chart.plugin.use({
-    name: 'debug',
-    version: '1.0.0',
-    install(host) {
-      console.log('[Debug Plugin] 已安装')
-      host.events.on('chart:draw', () => {
-        console.log('[Debug Plugin] chart draw event')
-      })
-    }
+  // 初始添加成交量副图
+  addSubPane('VOLUME')
+
+  // 注册 marker hover 回调
+  chart.interaction.setOnMarkerHover((marker: MarkerEntity | null) => {
+    hoveredMarker.value = marker
+    scheduleRender()
   })
 
   const onResize = () => chart.resize()

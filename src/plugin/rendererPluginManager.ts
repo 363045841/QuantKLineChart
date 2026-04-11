@@ -42,6 +42,9 @@ export class RendererPluginManager {
   // 合并缓存：paneId -> pane+global 合并后的渲染器列表
   private mergedCache: Map<string | symbol, RendererPlugin[]> = new Map()
 
+  // 已知的 paneId 集合（用于动态 pane 管理）
+  private knownPaneIds: Set<string> = new Set(['main'])
+
   private cacheInvalid = true
   private onInvalidate: (() => void) | null = null
 
@@ -53,6 +56,23 @@ export class RendererPluginManager {
   /** 设置 PluginHost（用于支持 RendererPluginWithHost） */
   setPluginHost(host: PluginHost): void {
     this.pluginHost = host
+  }
+
+  /** 添加已知的 paneId */
+  addKnownPaneId(paneId: string): void {
+    this.knownPaneIds.add(paneId)
+    this.cacheInvalid = true
+  }
+
+  /** 移除 paneId */
+  removeKnownPaneId(paneId: string): void {
+    this.knownPaneIds.delete(paneId)
+    this.cacheInvalid = true
+  }
+
+  /** 获取所有已知的 paneId */
+  getKnownPaneIds(): string[] {
+    return Array.from(this.knownPaneIds)
   }
 
   /** 注册渲染器插件 */
@@ -163,16 +183,8 @@ export class RendererPluginManager {
     // 预构建合并缓存
     const globalRenderers = this.groupCache.get(GLOBAL_CACHE_KEY) ?? []
 
-    // 收集所有已知 paneId
-    const knownPaneIds = new Set<string>()
-    for (const [key] of this.groupCache) {
-      if (key !== GLOBAL_CACHE_KEY) {
-        knownPaneIds.add(key as string)
-      }
-    }
-
     // 为每个已知 paneId 构建合并缓存
-    for (const paneId of knownPaneIds) {
+    for (const paneId of this.knownPaneIds) {
       const paneRenderers = this.groupCache.get(paneId) ?? []
       const merged = this.mergeSorted(paneRenderers, globalRenderers)
       this.mergedCache.set(paneId, merged)

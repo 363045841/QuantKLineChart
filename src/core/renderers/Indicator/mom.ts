@@ -32,10 +32,19 @@ function calcMOMData(data: KLineData[], period: number): (number | undefined)[] 
     return result
 }
 
+export interface MOMRendererOptions {
+    /** 目标 pane ID（默认 'sub'） */
+    paneId?: string
+    /** 初始配置 */
+    config?: MOMConfig
+}
+
 /**
  * 创建 MOM 渲染器插件
  */
-export function createMOMRendererPlugin(initialConfig: MOMConfig = {}): RendererPlugin {
+export function createMOMRendererPlugin(options: MOMRendererOptions = {}): RendererPlugin {
+    const { paneId = 'sub', config: initialConfig = {} } = options
+
     const config: Required<MOMConfig> = {
         period: 10,
         showMOM: true,
@@ -57,11 +66,11 @@ export function createMOMRendererPlugin(initialConfig: MOMConfig = {}): Renderer
     }
 
     return {
-        name: 'mom',
+        name: `mom_${paneId}`,
         version: '1.0.0',
         description: 'MOM 动量指标渲染器',
         debugName: 'MOM',
-        paneId: 'sub',
+        paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
         draw(context: RenderContext) {

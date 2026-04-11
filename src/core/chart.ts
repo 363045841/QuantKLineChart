@@ -36,8 +36,9 @@ export type ChartDom = {
  * Pane 面板配置
  * @property id Pane 标识符
  * @property ratio Pane 高度占比
+ * @property visible 是否可见（默认 true）
  */
-export type PaneSpec = { id: string; ratio: number }
+export type PaneSpec = { id: string; ratio: number; visible?: boolean }
 
 export type PaneRendererDom = {
     plotCanvas: HTMLCanvasElement
@@ -425,6 +426,99 @@ export class Chart {
     }
 
     /**
+     * 更新 pane 布局配置
+     * @param panes 新的 pane 配置数组
+     */
+    updatePaneLayout(panes: PaneSpec[]): void {
+        this.opt.panes = panes
+        this.layoutPanes()
+        this.scheduleDraw()
+    }
+
+    /**
+     * 动态添加 pane
+     * @param paneId pane 标识符
+     */
+    addPane(paneId: string): void {
+        // 检查是否已存在
+        if (this.paneRenderers.some(r => r.getPane().id === paneId)) {
+            console.warn(`Pane "${paneId}" already exists`)
+            return
+        }
+
+        const pane = new Pane(paneId)
+
+        const plotCanvas = document.createElement('canvas')
+        const yAxisCanvas = document.createElement('canvas')
+
+        plotCanvas.id = `${paneId}-plot`
+        yAxisCanvas.id = `${paneId}-yAxis`
+
+        plotCanvas.style.position = 'absolute'
+        plotCanvas.style.left = '0'
+        plotCanvas.style.top = '0'
+
+        yAxisCanvas.style.position = 'absolute'
+        yAxisCanvas.style.top = '0'
+        yAxisCanvas.style.left = '0'
+
+        const renderer = new PaneRenderer(
+            { plotCanvas, yAxisCanvas },
+            pane,
+            {
+                rightAxisWidth: this.opt.rightAxisWidth,
+                yPaddingPx: 0, // 副图无 padding
+                priceLabelWidth: this.opt.priceLabelWidth,
+                isLast: false,
+            }
+        )
+
+        this.paneRenderers.push(renderer)
+
+        // 添加到 DOM
+        const canvasLayer = this.dom.canvasLayer
+        if (canvasLayer) {
+            canvasLayer.insertBefore(plotCanvas, this.dom.borderCanvas || null)
+            canvasLayer.insertBefore(yAxisCanvas, this.dom.borderCanvas || null)
+        }
+
+        // 通知渲染器管理器
+        this.rendererPluginManager.addKnownPaneId(paneId)
+    }
+
+    /**
+     * 动态移除 pane
+     * @param paneId pane 标识符
+     */
+    removePane(paneId: string): void {
+        const index = this.paneRenderers.findIndex(r => r.getPane().id === paneId)
+        if (index === -1) return
+
+        const renderer = this.paneRenderers[index]
+        if (!renderer) return
+
+        const dom = renderer.getDom()
+
+        // 从 DOM 移除
+        dom.plotCanvas.remove()
+        dom.yAxisCanvas.remove()
+
+        // 从数组移除
+        this.paneRenderers.splice(index, 1)
+
+        // 通知渲染器管理器
+        this.rendererPluginManager.removeKnownPaneId(paneId)
+    }
+
+    /**
+     * 检查 pane 是否存在
+     * @param paneId pane 标识符
+     */
+    hasPane(paneId: string): boolean {
+        return this.paneRenderers.some(r => r.getPane().id === paneId)
+    }
+
+    /**
      * 更新数据并请求重绘
      * @param data K 线数据数组
      */
@@ -543,24 +637,49 @@ export class Chart {
         const vp = this.viewport
         if (!vp) return
 
-        const totalRatio = this.opt.panes.reduce((s, p) => s + (p.ratio ?? 0), 0) || 1
+        // 过滤出可见的 pane
+        const visibleSpecs = this.opt.panes.filter(p => p.visible !== false)
         const gap = Math.max(0, this.opt.paneGap ?? 0)
         let y = 0
 
-        const n = Math.min(this.paneRenderers.length, this.opt.panes.length)
-        const totalGaps = gap * Math.max(0, n - 1)
+        const totalGaps = gap * Math.max(0, visibleSpecs.length - 1)
         const availableH = Math.max(1, vp.plotHeight - totalGaps)
-        for (let i = 0; i < n; i++) {
-            const spec = this.opt.panes[i]
-            const renderer = this.paneRenderers[i]
-            if (!spec || !renderer) continue
+
+        // 指数退避 + 副图等分策略
+        // 主图比例随副图数量递减，参考 TradingView 行为
+        // subCount=0: 100%, subCount=1: 85%, subCount=2: 72%, subCount=3: 61%...
+        const DECAY_FACTOR = 0.85
+
+        const subCount = Math.max(0, visibleSpecs.length - 1)
+        const mainRatio = subCount === 0 ? 1.0 : Math.pow(DECAY_FACTOR, subCount)
+        const subRatioEach = subCount > 0 ? (1 - mainRatio) / subCount : 0
+
+        // 计算每个 pane 的高度
+        const paneHeights: number[] = visibleSpecs.map((spec, i) => {
+            const isFirst = i === 0
+            const ratio = isFirst ? mainRatio : subRatioEach
+            return Math.round(availableH * ratio)
+        })
+
+        // 修正最后一个 pane 的高度，确保总和等于 availableH（消除舍入误差）
+        const totalHeight = paneHeights.reduce((s, h) => s + h, 0)
+        if (paneHeights.length > 0) {
+            paneHeights[paneHeights.length - 1] += availableH - totalHeight
+        }
+
+        for (let i = 0; i < visibleSpecs.length; i++) {
+            const spec = visibleSpecs[i]
+            if (!spec) continue
+
+            const renderer = this.paneRenderers.find(r => r.getPane().id === spec.id)
+            if (!renderer) continue
 
             const pane = renderer.getPane()
-            const h = i === n - 1 ? availableH - y : Math.round(availableH * (spec.ratio / totalRatio))
+            const h = paneHeights[i]!
 
             pane.setLayout(y, h)
-            // 1. 副图不设置 padding，主图使用配置的 yPaddingPx
-            if (pane.id === 'sub') {
+            // 副图（非 main）不设置 padding，主图使用配置的 yPaddingPx
+            if (pane.id !== 'main') {
                 pane.setPadding(0, 0)
             } else {
                 pane.setPadding(this.opt.yPaddingPx, this.opt.yPaddingPx)

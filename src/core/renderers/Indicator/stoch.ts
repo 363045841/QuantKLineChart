@@ -79,10 +79,19 @@ function calcSTOCHData(data: KLineData[], n: number, m: number): STOCHPoint[] {
     return result
 }
 
+export interface STOCHRendererOptions {
+    /** 目标 pane ID（默认 'sub'） */
+    paneId?: string
+    /** 初始配置 */
+    config?: STOCHConfig
+}
+
 /**
  * 创建 STOCH 渲染器插件
  */
-export function createSTOCHRendererPlugin(initialConfig: STOCHConfig = {}): RendererPlugin {
+export function createSTOCHRendererPlugin(options: STOCHRendererOptions = {}): RendererPlugin {
+    const { paneId = 'sub', config: initialConfig = {} } = options
+
     const config: Required<STOCHConfig> = {
         n: 9,
         m: 3,
@@ -112,11 +121,11 @@ export function createSTOCHRendererPlugin(initialConfig: STOCHConfig = {}): Rend
     }
 
     return {
-        name: 'stoch',
+        name: `stoch_${paneId}`,
         version: '1.0.0',
         description: 'STOCH 随机指标渲染器',
         debugName: 'STOCH',
-        paneId: 'sub',
+        paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
         draw(context: RenderContext) {

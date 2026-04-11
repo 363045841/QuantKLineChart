@@ -43,10 +43,19 @@ function calcFASTKData(data: KLineData[], period: number): (number | undefined)[
     return result
 }
 
+export interface FASTKRendererOptions {
+    /** 目标 pane ID（默认 'sub'） */
+    paneId?: string
+    /** 初始配置 */
+    config?: FASTKConfig
+}
+
 /**
  * 创建 FASTK 渲染器插件
  */
-export function createFASTKRendererPlugin(initialConfig: FASTKConfig = {}): RendererPlugin {
+export function createFASTKRendererPlugin(options: FASTKRendererOptions = {}): RendererPlugin {
+    const { paneId = 'sub', config: initialConfig = {} } = options
+
     const config: Required<FASTKConfig> = {
         period: 9,
         showFASTK: true,
@@ -68,11 +77,11 @@ export function createFASTKRendererPlugin(initialConfig: FASTKConfig = {}): Rend
     }
 
     return {
-        name: 'fastk',
+        name: `fastk_${paneId}`,
         version: '1.0.0',
         description: 'FASTK 快速随机指标渲染器',
         debugName: 'FASTK',
-        paneId: 'sub',
+        paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
         draw(context: RenderContext) {

@@ -5,7 +5,11 @@
       "Bash(pnpm demo:*)",
       "Bash(pnpm dev:*)",
       "Bash(pnpm type-check:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(npm run:*)"
     ]
   }
 }

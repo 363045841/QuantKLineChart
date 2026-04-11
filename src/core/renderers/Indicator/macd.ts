@@ -116,10 +116,19 @@ function calcMACDData(
     return result
 }
 
+export interface MACDRendererOptions {
+    /** 目标 pane ID（默认 'sub'） */
+    paneId?: string
+    /** 初始配置 */
+    config?: MACDConfig
+}
+
 /**
  * 创建 MACD 渲染器插件
  */
-export function createMACDRendererPlugin(initialConfig: MACDConfig = {}): RendererPlugin {
+export function createMACDRendererPlugin(options: MACDRendererOptions = {}): RendererPlugin {
+    const { paneId = 'sub', config: initialConfig = {} } = options
+
     const config: Required<MACDConfig> = {
         fastPeriod: 12,
         slowPeriod: 26,
@@ -155,11 +164,11 @@ export function createMACDRendererPlugin(initialConfig: MACDConfig = {}): Render
     }
 
     return {
-        name: 'macd',
+        name: `macd_${paneId}`,
         version: '1.0.0',
         description: 'MACD 指标渲染器',
         debugName: 'MACD',
-        paneId: 'sub',
+        paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
         draw(context: RenderContext) {

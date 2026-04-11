@@ -134,10 +134,19 @@ function calcKSTData(
     return result
 }
 
+export interface KSTRendererOptions {
+    /** 目标 pane ID（默认 'sub'） */
+    paneId?: string
+    /** 初始配置 */
+    config?: KSTConfig
+}
+
 /**
  * 创建 KST 渲染器插件
  */
-export function createKSTRendererPlugin(initialConfig: KSTConfig = {}): RendererPlugin {
+export function createKSTRendererPlugin(options: KSTRendererOptions = {}): RendererPlugin {
+    const { paneId = 'sub', config: initialConfig = {} } = options
+
     const config: Required<KSTConfig> = {
         roc1: 10,
         roc2: 15,
@@ -172,11 +181,11 @@ export function createKSTRendererPlugin(initialConfig: KSTConfig = {}): Renderer
     }
 
     return {
-        name: 'kst',
+        name: `kst_${paneId}`,
         version: '1.0.0',
         description: 'KST 确知指标渲染器',
         debugName: 'KST',
-        paneId: 'sub',
+        paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
         draw(context: RenderContext) {

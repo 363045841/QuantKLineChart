@@ -49,10 +49,19 @@ function calcCCIData(data: KLineData[], period: number): (number | undefined)[] 
     return result
 }
 
+export interface CCIRendererOptions {
+    /** 目标 pane ID（默认 'sub'） */
+    paneId?: string
+    /** 初始配置 */
+    config?: CCIConfig
+}
+
 /**
  * 创建 CCI 渲染器插件
  */
-export function createCCIRendererPlugin(initialConfig: CCIConfig = {}): RendererPlugin {
+export function createCCIRendererPlugin(options: CCIRendererOptions = {}): RendererPlugin {
+    const { paneId = 'sub', config: initialConfig = {} } = options
+
     const config: Required<CCIConfig> = {
         period: 14,
         showCCI: true,
@@ -74,11 +83,11 @@ export function createCCIRendererPlugin(initialConfig: CCIConfig = {}): Renderer
     }
 
     return {
-        name: 'cci',
+        name: `cci_${paneId}`,
         version: '1.0.0',
         description: 'CCI 顺势指标渲染器',
         debugName: 'CCI',
-        paneId: 'sub',
+        paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
         draw(context: RenderContext) {
