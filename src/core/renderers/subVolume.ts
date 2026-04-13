@@ -23,7 +23,7 @@ export function createVolumeRendererPlugin(options: VolumeRendererOptions = {}):
         priority: RENDERER_PRIORITY.MAIN,
 
         draw(context: RenderContext) {
-            const { ctx, pane, data, range, scrollLeft, kWidth, kLinePositions } = context
+            const { ctx, pane, data, range, scrollLeft, kWidth, kGap, kLinePositions } = context
             const klineData = data as KLineData[]
             if (!klineData.length) return
 
@@ -48,7 +48,7 @@ export function createVolumeRendererPlugin(options: VolumeRendererOptions = {}):
                 const color = judgeColor(item)
                 const x = kLinePositions[i - start]
                 if (!x) continue
-                drawVolume(ctx, x, color, volume, maxVolume, kWidth, pane.height)
+                drawVolume(ctx, x, color, volume, maxVolume, kWidth, kGap, pane.height)
             }
 
             ctx.restore()
@@ -58,11 +58,14 @@ export function createVolumeRendererPlugin(options: VolumeRendererOptions = {}):
 
 /**
  * 绘制成交量柱
+ * 柱宽度 = kWidth，柱间距 = kGap（与K线间距相同）
  */
-function drawVolume(ctx: CanvasRenderingContext2D, x: number, color: string, volume: number, maxVolume: number, width: number, paneHeight: number) {
+function drawVolume(ctx: CanvasRenderingContext2D, x: number, color: string, volume: number, maxVolume: number, kWidth: number, kGap: number, paneHeight: number) {
     const y = volumeToY(volume, maxVolume, paneHeight)
+    // 柱宽度等于K线宽度，间距与K线相同
+    const barWidth = kWidth
     ctx.fillStyle = color
-    ctx.fillRect(x, y, width, paneHeight - y)
+    ctx.fillRect(x, y, barWidth, paneHeight - y)
 }
 
 /**

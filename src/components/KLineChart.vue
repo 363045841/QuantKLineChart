@@ -385,19 +385,33 @@ function switchSubIndicator(paneId: string, newIndicatorId: SubIndicatorType): v
   const pane = subPanes.value.find(p => p.id === paneId)
   if (!pane) return
 
+  const oldIndicatorId = pane.indicatorId
+
   // 注销旧渲染器
   chartRef.value?.removeRenderer(pane.rendererName)
+  // 注销旧的 paneTitle 渲染器
+  chartRef.value?.removeRenderer(pane.paneTitleRendererName)
 
-  // 创建新渲染器
+  // 创建新指标渲染器
   const renderer = createSubIndicatorRenderer({ indicatorId: newIndicatorId, paneId })
   chartRef.value?.useRenderer(renderer)
+
+  // 创建新的 paneTitle 渲染器
+  const paneTitleRenderer = createPaneTitleRendererPlugin({
+    paneId,
+    title: newIndicatorId,
+    getTitleInfo: () => getSubPaneTitleInfo(paneId)
+  })
+  chartRef.value?.useRenderer(paneTitleRenderer)
 
   // 更新状态
   pane.indicatorId = newIndicatorId
   pane.rendererName = renderer.name
+  pane.paneTitleRendererName = paneTitleRenderer.name
   pane.params = getDefaultParams(newIndicatorId)
 
-  // 更新 activeIndicators
+  // 更新 activeIndicators：移除旧指标，添加新指标
+  activeIndicators.value = activeIndicators.value.filter(id => id !== oldIndicatorId)
   if (!activeIndicators.value.includes(newIndicatorId)) {
     activeIndicators.value.push(newIndicatorId)
   }

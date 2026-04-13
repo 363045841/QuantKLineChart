@@ -207,7 +207,10 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
 
             // 绘制 MACD 柱状图
             if (config.showBAR) {
-                const barWidth = Math.max(1, kWidth - 2)
+                // 柱宽度：让柱间距固定为1像素
+                // 柱间距 = (kWidth + kGap) - barWidth = 1
+                // 所以 barWidth = kWidth + kGap - 1
+                const barWidth = kWidth + kGap - 1
                 for (let i = drawStart; i < drawEnd; i++) {
                     const point = macdData[i]
                     if (!point) continue
@@ -215,14 +218,38 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
                     const x = kLinePositions[i - range.start]
                     if (x === undefined) continue
 
-                    const barY = pane.height - (point.macd - valueMin) / valueRange * pane.height
-                    const isUp = point.macd >= 0
-                    ctx.fillStyle = isUp ? MACD_COLORS.BAR_UP : MACD_COLORS.BAR_DOWN
+                    // 居中对齐：柱子中心与K线中心对齐
+                    const barX = x + (kWidth - barWidth) / 2
 
-                    if (isUp) {
-                        ctx.fillRect(x, barY, barWidth, zeroY - barY)
+                    const barY = pane.height - (point.macd - valueMin) / valueRange * pane.height
+                    const isPositive = point.macd >= 0
+
+                    // TradingView风格：比较当前柱与前一根柱的高度
+                    // 上升趋势（当前 > 前一根）：深色
+                    // 下降趋势（当前 < 前一根）：淡色
+                    const prevPoint = i > 0 ? macdData[i - 1] : null
+                    let isRising: boolean
+                    if (prevPoint) {
+                        // 比较柱子高度（绝对值方向）
+                        isRising = point.macd >= prevPoint.macd
                     } else {
-                        ctx.fillRect(x, zeroY, barWidth, barY - zeroY)
+                        // 第一根柱子默认使用深色
+                        isRising = true
+                    }
+
+                    // 根据正负值和趋势选择颜色
+                    let color: string
+                    if (isPositive) {
+                        color = isRising ? MACD_COLORS.BAR_UP : MACD_COLORS.BAR_UP_LIGHT
+                    } else {
+                        color = isRising ? MACD_COLORS.BAR_DOWN_LIGHT : MACD_COLORS.BAR_DOWN
+                    }
+                    ctx.fillStyle = color
+
+                    if (isPositive) {
+                        ctx.fillRect(barX, barY, barWidth, zeroY - barY)
+                    } else {
+                        ctx.fillRect(barX, zeroY, barWidth, barY - zeroY)
                     }
                 }
             }

@@ -142,10 +142,14 @@ export const MACD_COLORS = {
     DIF: 'rgba(69, 112, 249, 1)',
     /** DEA 线颜色（慢线）- 橙色 */
     DEA: 'rgba(255, 152, 0, 1)',
-    /** MACD 柱上涨颜色 */
-    BAR_UP: 'rgba(214, 10, 34, 1)',
-    /** MACD 柱下跌颜色 */
-    BAR_DOWN: 'rgba(3, 123, 102, 1)',
+    /** MACD 柱红色（正值上升） */
+    BAR_UP: '#ff5252',
+    /** MACD 柱淡红色（正值下降） */
+    BAR_UP_LIGHT: '#fccbcd',
+    /** MACD 柱绿色（负值下降） */
+    BAR_DOWN: '#22ab94',
+    /** MACD 柱淡绿色（负值上升） */
+    BAR_DOWN_LIGHT: '#ace5dc',
 } as const
 
 /**
