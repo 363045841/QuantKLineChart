@@ -36,25 +36,25 @@
     "vue": "^3.5.0"
   },
   "dependencies": {
-    "axios": "^1.13.4"
+    "axios": "^1.15.0"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.4",
     "@types/jsdom": "^27.0.0",
-    "@types/node": "^24.10.9",
-    "@vitejs/plugin-vue": "^6.0.3",
-    "@vitest/coverage-v8": "^4.0.18",
+    "@types/node": "^24.12.2",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "@vitest/coverage-v8": "^4.1.4",
     "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.8.1",
     "jsdom": "^27.4.0",
     "npm-run-all2": "^8.0.4",
     "prettier": "3.7.4",
-    "typedoc": "^0.28.16",
+    "typedoc": "^0.28.19",
     "typescript": "~5.9.3",
-    "vite": "npm:rolldown-vite@^7.3.1",
+    "vite": "^8.0.0",
     "vite-plugin-dts": "^4.5.4",
-    "vite-plugin-vue-devtools": "^8.0.5",
-    "vitest": "^4.0.18",
-    "vue-tsc": "^3.2.4"
+    "vite-plugin-vue-devtools": "^8.1.1",
+    "vitest": "^4.1.4",
+    "vue-tsc": "^3.2.6"
   }
 }

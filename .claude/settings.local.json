@@ -9,7 +9,11 @@
       "Bash(npx tsc:*)",
       "Bash(npx vue-tsc:*)",
       "Bash(git commit -m ':*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "WebSearch",
+      "Bash(npm view:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm run:*)"
     ]
   }
 }

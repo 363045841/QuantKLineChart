@@ -7,7 +7,6 @@ export type PaneRendererOptions = {
     rightAxisWidth: number
     yPaddingPx: number
     priceLabelWidth?: number
-    isLast?: boolean
 }
 
 /**

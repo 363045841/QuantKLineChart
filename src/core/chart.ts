@@ -162,7 +162,7 @@ export class Chart {
         if (!vp) return
 
         // 2. 计算可视 K 线数据范围
-        let { start, end } = getVisibleRange(
+        const { start, end } = getVisibleRange(
             vp.scrollLeft,
             vp.plotWidth,
             this.opt.kWidth,
@@ -406,15 +406,6 @@ export class Chart {
     }
 
     /**
-     * 获取 K 线渲染使用的物理像素配置，确保渲染器和交互逻辑使用一致的坐标计算
-     * @returns 物理像素配置对象
-     */
-    getKLinePhysicalConfig() {
-        const dpr = this.viewport?.dpr || window.devicePixelRatio || 1
-        return getPhysicalKLineConfig(this.opt.kWidth, this.opt.kGap, dpr)
-    }
-
-    /**
      * 更新配置并触发布局/重绘
      * @param partial 部分配置项
      */
@@ -469,7 +460,6 @@ export class Chart {
                 rightAxisWidth: this.opt.rightAxisWidth,
                 yPaddingPx: 0, // 副图无 padding
                 priceLabelWidth: this.opt.priceLabelWidth,
-                isLast: false,
             }
         )
 
@@ -579,7 +569,7 @@ export class Chart {
 
     /** 初始化所有 pane */
     private initPanes() {
-        this.paneRenderers = this.opt.panes.map((spec, index) => {
+        this.paneRenderers = this.opt.panes.map((spec) => {
             const pane = new Pane(spec.id)
 
             const plotCanvas = document.createElement('canvas')
@@ -603,7 +593,6 @@ export class Chart {
                     rightAxisWidth: this.opt.rightAxisWidth,
                     yPaddingPx: this.opt.yPaddingPx,
                     priceLabelWidth: this.opt.priceLabelWidth,
-                    isLast: index === this.opt.panes.length - 1,
                 }
             )
 
