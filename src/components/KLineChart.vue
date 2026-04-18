@@ -28,13 +28,13 @@
             v-if="hovered"
             :k="hovered"
             :index="hoveredIndex"
-            :data="props.data"
+            :data="chartData"
             :pos="tooltipPos"
             :set-el="setTooltipEl"
           />
           <MarkerTooltip
-            v-if="hoveredMarker"
-            :marker="hoveredMarker"
+            v-if="hoveredMarker || hoveredCustomMarker"
+            :marker="hoveredMarker || hoveredCustomMarker"
             :pos="mousePos"
           />
         </div>
@@ -50,9 +50,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick, shallowRef } from 'vue'
-import type { KLineData } from '@/types/price'
-import type { MarkerEntity } from '@/core/marker/registry'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, shallowRef, type Ref } from 'vue'
+import type { MarkerEntity, CustomMarkerEntity } from '@/core/marker/registry'
+import { SemanticChartController, type SemanticChartConfig } from '@/semantic'
+import { createCustomMarkersRenderer } from '@/core/renderers/customMarkers'
 import KLineTooltip from './KLineTooltip.vue'
 import MarkerTooltip from './MarkerTooltip.vue'
 import IndicatorSelector from './IndicatorSelector.vue'
@@ -66,7 +67,6 @@ import {
   createMALegendRendererPlugin,
   createBOLLRendererPlugin,
   createBOLLLegendRendererPlugin,
-  createSubIndicatorRenderer,
   type SubIndicatorType,
   getMACDTitleInfo,
   getRSITitleInfo,
@@ -84,22 +84,14 @@ import { createCrosshairRendererPlugin } from '@/core/renderers/crosshair'
 import { createGlobalBordersRendererPlugin } from '@/core/renderers/globalBorders'
 import { createPaneTitleRendererPlugin, type TitleInfo } from '@/core/renderers/paneTitle'
 
-type MAFlags = {
-  ma5?: boolean
-  ma10?: boolean
-  ma20?: boolean
-  ma30?: boolean
-  ma60?: boolean
-}
-
 const props = withDefaults(
   defineProps<{
-    data: KLineData[]
+    /** 语义化配置（必需，唯一控制源） */
+    semanticConfig: SemanticChartConfig
+
     kWidth?: number
     kGap?: number
     yPaddingPx?: number
-    showMA?: MAFlags
-    autoScrollToRight?: boolean
     minKWidth?: number
     maxKWidth?: number
     /** 右侧价格轴宽度 */
@@ -108,23 +100,16 @@ const props = withDefaults(
     bottomAxisHeight?: number
     /** 价格标签额外宽度（用于显示涨跌幅，默认 60px） */
     priceLabelWidth?: number
-
-    /** Pane 高度比例（主/副），默认 [0.85, 0.15] */
-    paneRatios?: [number, number]
   }>(),
   {
     kWidth: 10,
     kGap: 2,
     yPaddingPx: 0,
-    showMA: () => ({ ma5: true, ma10: true, ma20: true, ma30: true, ma60: true }),
-    autoScrollToRight: true,
     minKWidth: 2,
     maxKWidth: 50,
     rightAxisWidth: 70,
     bottomAxisHeight: 24,
     priceLabelWidth: 60,
-
-    paneRatios: () => [0.75, 0.25],
   },
 )
 
@@ -138,6 +123,12 @@ const currentKGap = ref(props.kGap)
 
 /* ========== 十字线（鼠标悬停位置） ========== */
 const chartRef = shallowRef<Chart | null>(null)
+
+/* ========== 语义化控制器 ========== */
+const semanticController = shallowRef<SemanticChartController | null>(null)
+
+/* ========== 数据长度（响应式，用于计算 totalWidth） ========== */
+const dataLength = ref(0)
 
 function scheduleRender() {
   chartRef.value?.scheduleDraw()
@@ -154,6 +145,7 @@ function setTooltipEl(el: HTMLDivElement | null) {
 
 // ===== Marker tooltip 状态 =====
 const hoveredMarker = ref<MarkerEntity | null>(null)
+const hoveredCustomMarker = ref<CustomMarkerEntity | null>(null)
 const mousePos = ref({ x: 0, y: 0 })
 
 // ===== 交互状态（先保留最小：拖拽时样式） =====
@@ -167,10 +159,19 @@ const tooltipPosition = ref({ x: 0, y: 0 })
 const hovered = computed(() => {
   const idx = hoveredIdx.value
   if (typeof idx !== 'number') return null
-  return props.data?.[idx] ?? null
+  const data = chartRef.value?.getData()
+  if (data && idx >= 0 && idx < data.length) {
+    return data[idx]
+  }
+  return null
 })
 const hoveredIndex = computed(() => hoveredIdx.value)
 const tooltipPos = computed(() => tooltipPosition.value)
+
+// 获取当前图表数据
+const chartData = computed(() => {
+  return chartRef.value?.getData() ?? []
+})
 
 function syncHoverState() {
   const interaction = chartRef.value?.interaction
@@ -178,12 +179,14 @@ function syncHoverState() {
     hoveredIdx.value = null
     crosshairIdx.value = null
     hoveredMarker.value = null
+    hoveredCustomMarker.value = null
     return
   }
 
   hoveredIdx.value = interaction.hoveredIndex ?? null
   crosshairIdx.value = interaction.crosshairIndex ?? null
   hoveredMarker.value = (interaction as any).hoveredMarkerData ?? null
+  hoveredCustomMarker.value = (interaction as any).hoveredCustomMarker ?? null
 
   const pos = interaction.tooltipPos
   if (pos) tooltipPosition.value = { x: pos.x, y: pos.y }
@@ -312,22 +315,24 @@ function getDefaultParams(indicatorId: SubIndicatorType): Record<string, number>
   }
 }
 
-// 添加副图
-function addSubPane(indicatorId: SubIndicatorType = 'VOLUME'): boolean {
+// 添加副图（使用 Chart API）
+function addSubPane(indicatorId: SubIndicatorType = 'VOLUME', params?: Record<string, number>): boolean {
   if (subPanes.value.length >= maxSubPanes) {
     return false
   }
 
-  const paneId = `sub_${Date.now()}`
-  const renderer = createSubIndicatorRenderer({ indicatorId, paneId })
+  const paneId = `sub_${indicatorId}`
 
-  // 先添加 pane
-  chartRef.value?.addPane(paneId)
+  // 已存在则跳过
+  if (subPanes.value.some(p => p.id === paneId)) {
+    return true
+  }
 
-  // 注册指标渲染器
-  chartRef.value?.useRenderer(renderer)
+  // 使用 Chart API 创建副图（pane + 指标渲染器）
+  const success = chartRef.value?.createSubPane(indicatorId, params ?? getDefaultParams(indicatorId))
+  if (!success) return false
 
-  // 创建 paneTitle 渲染器
+  // 创建 paneTitle 渲染器（UI 层职责）
   const paneTitleRenderer = createPaneTitleRendererPlugin({
     paneId,
     title: indicatorId,
@@ -335,13 +340,13 @@ function addSubPane(indicatorId: SubIndicatorType = 'VOLUME'): boolean {
   })
   chartRef.value?.useRenderer(paneTitleRenderer)
 
-  // 更新状态
+  // 更新本地状态
   subPanes.value.push({
     id: paneId,
     indicatorId,
-    rendererName: renderer.name,
+    rendererName: `${indicatorId.toLowerCase()}_${paneId}`,
     paneTitleRendererName: paneTitleRenderer.name,
-    params: getDefaultParams(indicatorId)
+    params: params ?? getDefaultParams(indicatorId)
   })
 
   // 更新 activeIndicators
@@ -352,7 +357,7 @@ function addSubPane(indicatorId: SubIndicatorType = 'VOLUME'): boolean {
   return true
 }
 
-// 移除副图
+// 移除副图（使用 Chart API）
 function removeSubPane(paneId: string): void {
   const index = subPanes.value.findIndex(p => p.id === paneId)
   if (index === -1) return
@@ -360,55 +365,107 @@ function removeSubPane(paneId: string): void {
   const pane = subPanes.value[index]
   if (!pane) return
 
-  // 注销指标渲染器
-  chartRef.value?.removeRenderer(pane.rendererName)
-
-  // 注销 paneTitle 渲染器
+  // 移除 paneTitle 渲染器
   chartRef.value?.removeRenderer(pane.paneTitleRendererName)
 
-  // 移除 pane
-  chartRef.value?.removePane(paneId)
+  // 使用 Chart API 移除副图（pane + 指标渲染器）
+  chartRef.value?.removeSubPane(pane.indicatorId)
 
-  // 更新状态
-  const indicatorId = pane.indicatorId
+  // 更新本地状态
   subPanes.value.splice(index, 1)
 
   // 更新 activeIndicators
-  const hasOtherPane = subPanes.value.some(p => p.indicatorId === indicatorId)
+  const hasOtherPane = subPanes.value.some(p => p.indicatorId === pane.indicatorId)
   if (!hasOtherPane) {
-    activeIndicators.value = activeIndicators.value.filter(id => id !== indicatorId)
+    activeIndicators.value = activeIndicators.value.filter(id => id !== pane.indicatorId)
   }
 }
 
-// 切换副图指标
+// 清除所有副图（使用 Chart API）
+function clearAllSubPanes(): void {
+  // 移除所有 paneTitle 渲染器
+  for (const pane of subPanes.value) {
+    chartRef.value?.removeRenderer(pane.paneTitleRendererName)
+  }
+
+  // 使用 Chart API 清除所有副图
+  chartRef.value?.clearSubPanes()
+
+  // 清空本地状态
+  subPanes.value = []
+  activeIndicators.value = activeIndicators.value.filter(id => !SUB_PANE_INDICATORS.includes(id as SubIndicatorType))
+}
+
+// 从 Chart 同步副图状态到本地（语义化配置后调用）
+function syncSubPanesFromChart(): void {
+  const chartSubPanes = chartRef.value?.getSubPaneIndicators() ?? []
+
+  // 清空本地状态
+  subPanes.value = []
+
+  for (const indicatorId of chartSubPanes) {
+    const paneId = `sub_${indicatorId}`
+
+    // 创建 paneTitle 渲染器
+    const paneTitleRenderer = createPaneTitleRendererPlugin({
+      paneId,
+      title: indicatorId,
+      getTitleInfo: () => getSubPaneTitleInfo(paneId)
+    })
+    chartRef.value?.useRenderer(paneTitleRenderer)
+
+    // 更新本地状态
+    subPanes.value.push({
+      id: paneId,
+      indicatorId,
+      rendererName: `${indicatorId.toLowerCase()}_${paneId}`,
+      paneTitleRendererName: paneTitleRenderer.name,
+      params: getDefaultParams(indicatorId)
+    })
+
+    // 更新 activeIndicators
+    if (!activeIndicators.value.includes(indicatorId)) {
+      activeIndicators.value.push(indicatorId)
+    }
+  }
+}
+
+// 切换副图指标（使用 Chart API）
 function switchSubIndicator(paneId: string, newIndicatorId: SubIndicatorType): void {
   const pane = subPanes.value.find(p => p.id === paneId)
   if (!pane) return
 
   const oldIndicatorId = pane.indicatorId
 
-  // 注销旧渲染器
-  chartRef.value?.removeRenderer(pane.rendererName)
-  // 注销旧的 paneTitle 渲染器
+  // 移除旧的 paneTitle 渲染器
   chartRef.value?.removeRenderer(pane.paneTitleRendererName)
 
-  // 创建新指标渲染器
-  const renderer = createSubIndicatorRenderer({ indicatorId: newIndicatorId, paneId })
-  chartRef.value?.useRenderer(renderer)
+  // 使用 Chart API 移除旧副图
+  chartRef.value?.removeSubPane(oldIndicatorId)
+
+  // 使用 Chart API 创建新副图
+  chartRef.value?.createSubPane(newIndicatorId, getDefaultParams(newIndicatorId))
 
   // 创建新的 paneTitle 渲染器
+  const newPaneId = `sub_${newIndicatorId}`
   const paneTitleRenderer = createPaneTitleRendererPlugin({
-    paneId,
+    paneId: newPaneId,
     title: newIndicatorId,
-    getTitleInfo: () => getSubPaneTitleInfo(paneId)
+    getTitleInfo: () => getSubPaneTitleInfo(newPaneId)
   })
   chartRef.value?.useRenderer(paneTitleRenderer)
 
-  // 更新状态
-  pane.indicatorId = newIndicatorId
-  pane.rendererName = renderer.name
-  pane.paneTitleRendererName = paneTitleRenderer.name
-  pane.params = getDefaultParams(newIndicatorId)
+  // 更新本地状态
+  const index = subPanes.value.findIndex(p => p.id === paneId)
+  if (index !== -1) {
+    subPanes.value[index] = {
+      id: newPaneId,
+      indicatorId: newIndicatorId,
+      rendererName: `${newIndicatorId.toLowerCase()}_${newPaneId}`,
+      paneTitleRendererName: paneTitleRenderer.name,
+      params: getDefaultParams(newIndicatorId)
+    }
+  }
 
   // 更新 activeIndicators：移除旧指标，添加新指标
   activeIndicators.value = activeIndicators.value.filter(id => id !== oldIndicatorId)
@@ -422,7 +479,7 @@ function getSubPaneTitleInfo(paneId: string): TitleInfo | null {
   const pane = subPanes.value.find(p => p.id === paneId)
   if (!pane) return null
 
-  const data = props.data
+  const data = chartRef.value?.getData()
   if (!data || data.length === 0) return null
 
   const p = pane.params
@@ -551,7 +608,7 @@ function handleUpdateParams(indicatorId: string, params: Record<string, number>)
 
 /* 计算总宽度：使用物理像素对齐后的值，确保与渲染一致 */
 const totalWidth = computed(() => {
-  const n = props.data?.length ?? 0
+  const n = dataLength.value
   const dpr = window.devicePixelRatio || 1
 
   // 使用物理像素对齐后的配置
@@ -582,6 +639,7 @@ defineExpose({
   addSubPane,
   removeSubPane,
   switchSubIndicator,
+  clearAllSubPanes,
   get plugin() {
     return chartRef.value?.plugin
   },
@@ -644,11 +702,12 @@ onMounted(() => {
   // 注册主图渲染器插件
   chart.useRenderer(createGridLinesRendererPlugin()) // 网格线渲染到所有 pane
   chart.useRenderer(createExtremaMarkersRendererPlugin())
-  chart.useRenderer(createMARendererPlugin(props.showMA))
+  chart.useRenderer(createMARendererPlugin({ ma5: true, ma10: true, ma20: true, ma30: true, ma60: true }))
   chart.useRenderer(createBOLLRendererPlugin())
-  chart.setRendererEnabled('boll', false) // 默认禁用，点击按钮启用
+  chart.setRendererEnabled('boll', false) // 默认禁用，由语义化配置控制
   chart.useRenderer(createCandleRenderer())
   chart.useRenderer(createLastPriceLineRendererPlugin())
+  chart.useRenderer(createCustomMarkersRenderer()) // 自定义标记渲染器
 
   // 系统渲染器插件
   chart.useRenderer(createYAxisRendererPlugin({
@@ -657,7 +716,7 @@ onMounted(() => {
   }))
   chart.useRenderer(createMALegendRendererPlugin({
     yPaddingPx: props.yPaddingPx,
-    showMA: props.showMA,
+    showMA: { ma5: true, ma10: true, ma20: true, ma30: true, ma60: true },
   }))
   chart.useRenderer(createBOLLLegendRendererPlugin({
     yPaddingPx: props.yPaddingPx,
@@ -690,15 +749,39 @@ onMounted(() => {
   }))
 
   chartRef.value = chart
-  chart.updateData(props.data)
   chart.resize()
 
-  // 初始添加成交量副图
-  addSubPane('VOLUME')
+  // 初始化语义化控制器
+  semanticController.value = new SemanticChartController(chart)
+  semanticController.value.on('config:error', (error) => {
+    console.error('Semantic config error:', error)
+  })
+  semanticController.value.on('config:ready', () => {
+    // 数据加载完成，更新响应式数据长度
+    dataLength.value = chart.getData()?.length ?? 0
+
+    // 同步 Chart 副图状态到本地（用于 UI 显示）
+    syncSubPanesFromChart()
+
+    nextTick(() => scrollToRight())
+  })
+
+  // 应用语义化配置（必需，会创建副图）
+  semanticController.value.applyConfig(props.semanticConfig).then(result => {
+    if (result && !result.success) {
+      console.error('Semantic config apply failed:', result.errors)
+    }
+  })
 
   // 注册 marker hover 回调
   chart.interaction.setOnMarkerHover((marker: MarkerEntity | null) => {
     hoveredMarker.value = marker
+    scheduleRender()
+  })
+
+  // 注册自定义标记 hover 回调
+  chart.interaction.setOnCustomMarkerHover((marker: CustomMarkerEntity | null) => {
+    hoveredCustomMarker.value = marker
     scheduleRender()
   })
 
@@ -735,17 +818,24 @@ watch(
   },
 )
 
+// 监听 yPaddingPx 变化
 watch(
-  () => [props.data, props.yPaddingPx, props.showMA],
-  async () => {
-    chartRef.value?.updateOptions({ yPaddingPx: props.yPaddingPx })
-    chartRef.value?.updateData(props.data)
+  () => props.yPaddingPx,
+  (newVal) => {
+    chartRef.value?.updateOptions({ yPaddingPx: newVal })
+    scheduleRender()
+  },
+)
 
-    if (props.autoScrollToRight) {
-      await nextTick()
-      scrollToRight()
-    } else {
-      scheduleRender()
+// 监听 semanticConfig 变化（唯一数据源）
+watch(
+  () => props.semanticConfig,
+  async (newConfig, oldConfig) => {
+    if (newConfig && newConfig !== oldConfig) {
+      const result = await semanticController.value?.applyConfig(newConfig)
+      if (result && !result.success) {
+        console.error('Semantic config apply failed:', result.errors)
+      }
     }
   },
   { deep: true },

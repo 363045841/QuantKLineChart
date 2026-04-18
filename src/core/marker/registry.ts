@@ -1,3 +1,5 @@
+import { hitTestShape } from '@/semantic/drawShape'
+
 /**
  * 标记类型
  */
@@ -49,6 +51,49 @@ export interface MarkerEntity {
     metadata: Record<string, any>
 }
 
+// ============ 自定义标记类型（语义化配置） ============
+
+/** 自定义标记形状 */
+export type CustomMarkerShape = 'arrow_up' | 'arrow_down' | 'flag' | 'circle' | 'rectangle' | 'diamond'
+
+/** 自定义标记样式 */
+export interface CustomMarkerStyle {
+    fillColor?: string
+    strokeColor?: string
+    textColor?: string
+    size?: number
+    lineWidth?: number
+    opacity?: number
+}
+
+/** 自定义标记标签 */
+export interface CustomMarkerLabel {
+    text: string
+    position?: 'left' | 'right' | 'top' | 'bottom' | 'inside'
+    align?: 'start' | 'center' | 'end'
+    fontSize?: number
+    offset?: { x?: number; y?: number }
+}
+
+/** 自定义标记实体 */
+export interface CustomMarkerEntity {
+    id: string
+    /**
+     * 日期时间字符串
+     * - 日K/周K/月K: "YYYY-MM-DD"
+     * - 分钟K: "YYYY-MM-DD HH:mm"
+     */
+    date: string
+    /** Unix 毫秒时间戳（由 date 解析生成，用于二分查找） */
+    timestamp: number
+    shape: CustomMarkerShape
+    groupKey?: string
+    offset?: { x?: number; y?: number }
+    style?: CustomMarkerStyle
+    label?: CustomMarkerLabel
+    metadata?: Record<string, unknown>
+}
+
 /**
  * 标记 Manager
  */
@@ -59,6 +104,12 @@ export class MarkerManager {
     private hoveredMarkerId: string | null = null
     /** 上一帧 hover 的标记 ID（用于触发 enter/leave 事件） */
     private lastHoveredId: string | null = null
+
+    // ============ 自定义标记状态管理 ============
+    /** 自定义标记集合 */
+    private customMarkers: Map<string, CustomMarkerEntity> = new Map()
+    /** 自定义标记位置缓存（用于 hitTest） */
+    private customMarkerPositions: Map<string, { x: number; y: number; size: number; shape: CustomMarkerShape }> = new Map()
 
     /**
      * 清空标记集合
@@ -151,5 +202,65 @@ export class MarkerManager {
      */
     getAllMarkers(): MarkerEntity[] {
         return Array.from(this.markers.values())
+    }
+
+    // ============ 自定义标记管理方法 ============
+
+    /**
+     * 注册自定义标记
+     */
+    registerCustomMarker(marker: CustomMarkerEntity): void {
+        this.customMarkers.set(marker.id, marker)
+    }
+
+    /**
+     * 批量设置自定义标记
+     */
+    setCustomMarkers(markers: CustomMarkerEntity[]): void {
+        this.clearCustomMarkers()
+        for (const marker of markers) {
+            this.customMarkers.set(marker.id, marker)
+        }
+    }
+
+    /**
+     * 清空自定义标记（含位置缓存）
+     */
+    clearCustomMarkers(): void {
+        this.customMarkers.clear()
+        this.customMarkerPositions.clear()
+    }
+
+    /**
+     * 获取所有自定义标记
+     */
+    getCustomMarkers(): CustomMarkerEntity[] {
+        return Array.from(this.customMarkers.values())
+    }
+
+    /**
+     * 记录自定义标记位置（render 时调用）
+     */
+    setCustomMarkerPosition(id: string, x: number, y: number, size: number, shape: CustomMarkerShape): void {
+        this.customMarkerPositions.set(id, { x, y, size, shape })
+    }
+
+    /**
+     * 自定义标记点击测试
+     * @param x 鼠标 x 坐标
+     * @param y 鼠标 y 坐标
+     * @returns 命中的自定义标记，未命中返回 null
+     */
+    hitTestCustomMarker(x: number, y: number): CustomMarkerEntity | null {
+        for (const marker of this.customMarkers.values()) {
+            const pos = this.customMarkerPositions.get(marker.id)
+            if (pos) {
+                // 使用实际渲染的大小进行命中测试
+                if (hitTestShape(x, y, pos.shape, pos.x, pos.y, pos.size)) {
+                    return marker
+                }
+            }
+        }
+        return null
     }
 }

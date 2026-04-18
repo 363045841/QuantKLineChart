@@ -1,5 +1,11 @@
 import type { Chart } from '../chart'
-import type { MarkerEntity } from '@/core/marker/registry'
+import type { MarkerEntity, CustomMarkerEntity } from '@/core/marker/registry'
+
+/** 标记 hover 事件数据 */
+export interface MarkerHoverEvent {
+    type: 'volume-price' | 'custom'
+    marker: MarkerEntity | CustomMarkerEntity
+}
 
 /**
  * 交互控制器，处理拖拽滚动、缩放、十字线 hover 等交互逻辑
@@ -38,6 +44,13 @@ export class InteractionController {
     private onMarkerHoverCallback?: (marker: MarkerEntity | null) => void
     /** marker click 回调函数 */
     private onMarkerClickCallback?: (marker: MarkerEntity) => void
+
+    /** 当前 hover 的自定义标记 */
+    hoveredCustomMarker: CustomMarkerEntity | null = null
+    /** 自定义标记 hover 回调 */
+    private onCustomMarkerHoverCallback?: (marker: CustomMarkerEntity | null) => void
+    /** 自定义标记 click 回调 */
+    private onCustomMarkerClickCallback?: (marker: CustomMarkerEntity) => void
 
     /** 当前帧的 K 线起始 x 坐标数组 */
     private kLinePositions: number[] | null = null
@@ -267,6 +280,16 @@ export class InteractionController {
         this.onMarkerClickCallback = callback
     }
 
+    /** 设置自定义标记 hover 回调 */
+    setOnCustomMarkerHover(callback: (marker: CustomMarkerEntity | null) => void) {
+        this.onCustomMarkerHoverCallback = callback
+    }
+
+    /** 设置自定义标记 click 回调 */
+    setOnCustomMarkerClick(callback: (marker: CustomMarkerEntity) => void) {
+        this.onCustomMarkerClickCallback = callback
+    }
+
     /** 清除 hover 状态 */
     private clearHover() {
         this.crosshairPos = null
@@ -279,6 +302,14 @@ export class InteractionController {
             this.hoveredMarkerId = null
             if (this.onMarkerHoverCallback) {
                 this.onMarkerHoverCallback(null)
+            }
+        }
+
+        // 清除自定义标记 hover 状态
+        if (this.hoveredCustomMarker !== null) {
+            this.hoveredCustomMarker = null
+            if (this.onCustomMarkerHoverCallback) {
+                this.onCustomMarkerHoverCallback(null)
             }
         }
     }
@@ -317,7 +348,7 @@ export class InteractionController {
         const scrollLeft = container.scrollLeft
         const dpr = window.devicePixelRatio || 1
 
-        // 2. 优先检查 marker 命中（marker 在 world 坐标系）
+        // 2. 优先检查量价关系 marker 命中（marker 在 world 坐标系）
         const markerManager = this.chart.getMarkerManager()
         const worldX = scrollLeft + mouseX
         const hitMarker = markerManager.hitTest(worldX, mouseY, 3)
@@ -349,7 +380,32 @@ export class InteractionController {
             }
         }
 
-        // 3. kLinePositions 未就绪时不显示十字线
+        // 3. 检查自定义标记命中（屏幕坐标）
+        const hitCustomMarker = markerManager.hitTestCustomMarker(mouseX, mouseY)
+        if (hitCustomMarker) {
+            // 命中自定义标记，更新 hover 状态
+            if (this.hoveredCustomMarker?.id !== hitCustomMarker.id) {
+                this.hoveredCustomMarker = hitCustomMarker
+                if (this.onCustomMarkerHoverCallback) {
+                    this.onCustomMarkerHoverCallback(hitCustomMarker)
+                }
+            }
+            // marker hover 时不显示十字线和 tooltip
+            this.crosshairPos = null
+            this.crosshairIndex = null
+            this.hoveredIndex = null
+            return
+        } else {
+            // 没有命中自定义标记，清除 hover 状态
+            if (this.hoveredCustomMarker !== null) {
+                this.hoveredCustomMarker = null
+                if (this.onCustomMarkerHoverCallback) {
+                    this.onCustomMarkerHoverCallback(null)
+                }
+            }
+        }
+
+        // 4. kLinePositions 未就绪时不显示十字线
         if (!this.kLinePositions || !this.visibleRange || !this.kWidthPx) {
             this.clearHover()
             return
@@ -466,5 +522,26 @@ export class InteractionController {
             x: Math.min(Math.max(desiredX, padding), maxX),
             y: Math.min(Math.max(desiredY, padding), maxY),
         }
+    }
+
+    /**
+     * 重置所有交互状态（数据更新时调用）
+     */
+    reset(): void {
+        this.isDragging = false
+        this.dragStartX = 0
+        this.scrollStartX = 0
+        this.isTouchSession = false
+        this.crosshairPos = null
+        this.crosshairIndex = null
+        this.hoveredIndex = null
+        this.activePaneId = null
+        this.hoveredMarkerId = null
+        this.clickedMarkerId = null
+        this.hoveredMarkerData = null
+        this.clickedMarkerData = null
+        this.kLinePositions = null
+        this.visibleRange = null
+        this.kWidthPx = null
     }
 }
