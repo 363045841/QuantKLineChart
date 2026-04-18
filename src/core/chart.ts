@@ -3,17 +3,18 @@ import { getVisibleRange } from '@/core/viewport/viewport'
 import { Pane, type VisibleRange } from '@/core/layout/pane'
 import { InteractionController } from '@/core/controller/interaction'
 import { PaneRenderer } from '@/core/paneRenderer'
-import { MarkerManager } from './marker/registry'
+import { MarkerManager, type CustomMarkerEntity } from './marker/registry'
 import { getPhysicalKLineConfig, calcKWidthPx } from '@/core/utils/klineConfig'
 import {
-  createPluginHost,
-  type PluginHostImpl,
-  RendererPluginManager,
-  type RendererPlugin,
-  type RendererPluginWithHost,
-  type RenderContext,
-  wrapPaneInfo,
+    createPluginHost,
+    type PluginHostImpl,
+    RendererPluginManager,
+    type RendererPlugin,
+    type RendererPluginWithHost,
+    type RenderContext,
+    wrapPaneInfo,
 } from '@/plugin'
+import { createSubIndicatorRenderer, type SubIndicatorType } from '@/core/renderers/Indicator'
 
 // 重新导出以保持向后兼容
 export { getPhysicalKLineConfig, calcKWidthPx }
@@ -159,7 +160,16 @@ export class Chart {
 
         // 1. 计算视口信息
         const vp = this.computeViewport()
-        if (!vp) return
+        if (!vp) {
+            console.log('[Chart] draw aborted: no viewport')
+            return
+        }
+
+        // 数据为空时跳过渲染
+        if (this.data.length === 0) {
+            console.log('[Chart] draw aborted: no data')
+            return
+        }
 
         // 2. 计算可视 K 线数据范围
         const { start, end } = getVisibleRange(
@@ -371,6 +381,18 @@ export class Chart {
         return this.markerManager
     }
 
+    /** 更新自定义标记 */
+    updateCustomMarkers(markers: CustomMarkerEntity[]): void {
+        this.markerManager.setCustomMarkers(markers)
+        this.scheduleDraw()
+    }
+
+    /** 清除自定义标记 */
+    clearCustomMarkers(): void {
+        this.markerManager.clearCustomMarkers()
+        this.scheduleDraw()
+    }
+
     /** 获取 ChartDom（供 InteractionController 使用） */
     getDom() {
         return this.dom
@@ -389,6 +411,12 @@ export class Chart {
     calcKLinePositions(range: VisibleRange): KLinePositions {
         const { start, end } = range
         const count = end - start
+
+        // 边界检查：防止负数或零长度数组
+        if (count <= 0) {
+            return []
+        }
+
         const dpr = this.viewport?.dpr || window.devicePixelRatio || 1
 
         // 统一使用 getPhysicalKLineConfig，确保与渲染完全一致
@@ -508,12 +536,113 @@ export class Chart {
         return this.paneRenderers.some(r => r.getPane().id === paneId)
     }
 
+    // ========== 副图管理 API ==========
+
+    /** 副图渲染器名称前缀 */
+    private static readonly SUB_PANE_PREFIX = 'sub_'
+
+    /**
+     * 创建副图面板并注册指标渲染器
+     * @param indicatorId 指标类型
+     * @param params 指标参数
+     * @returns 是否创建成功
+     */
+    createSubPane(indicatorId: SubIndicatorType, params?: Record<string, number>): boolean {
+        const paneId = `${Chart.SUB_PANE_PREFIX}${indicatorId}`
+
+        // 已存在则更新参数
+        if (this.hasPane(paneId)) {
+            const rendererName = `${indicatorId.toLowerCase()}_${paneId}`
+            if (params) {
+                this.updateRendererConfig(rendererName, params)
+            }
+            return true
+        }
+
+        // 创建 pane
+        this.addPane(paneId)
+
+        // 创建并注册渲染器
+        const renderer = createSubIndicatorRenderer({ indicatorId, paneId })
+        this.useRenderer(renderer, params)
+
+        // 重新布局
+        this.layoutPanes()
+        this.scheduleDraw()
+
+        return true
+    }
+
+    /**
+     * 移除副图面板及其渲染器
+     * @param indicatorId 指标类型
+     */
+    removeSubPane(indicatorId: SubIndicatorType): void {
+        const paneId = `${Chart.SUB_PANE_PREFIX}${indicatorId}`
+
+        if (!this.hasPane(paneId)) return
+
+        // 移除渲染器
+        const rendererName = `${indicatorId.toLowerCase()}_${paneId}`
+        this.removeRenderer(rendererName)
+
+        // 移除 pane
+        this.removePane(paneId)
+
+        // 重新布局
+        this.layoutPanes()
+        this.scheduleDraw()
+    }
+
+    /**
+     * 清除所有副图面板
+     */
+    clearSubPanes(): void {
+        const subPaneIds = this.paneRenderers
+            .map(r => r.getPane().id)
+            .filter(id => id.startsWith(Chart.SUB_PANE_PREFIX))
+
+        for (const paneId of subPaneIds) {
+            // 提取 indicatorId
+            const indicatorId = paneId.slice(Chart.SUB_PANE_PREFIX.length) as SubIndicatorType
+            this.removeSubPane(indicatorId)
+        }
+    }
+
+    /**
+     * 获取当前所有副图指标类型
+     */
+    getSubPaneIndicators(): SubIndicatorType[] {
+        return this.paneRenderers
+            .map(r => r.getPane().id)
+            .filter(id => id.startsWith(Chart.SUB_PANE_PREFIX))
+            .map(id => id.slice(Chart.SUB_PANE_PREFIX.length) as SubIndicatorType)
+    }
+
     /**
      * 更新数据并请求重绘
      * @param data K 线数据数组
      */
     updateData(data: KLineData[]) {
+        console.log('[Chart] updateData called, data length:', data?.length)
         this.data = data ?? []
+
+        // 重置 scrollLeft 到有效范围（防止数据减少后 scrollLeft 超出范围）
+        const container = this.dom.container
+        if (container) {
+            const contentWidth = this.getContentWidth()
+            const maxScrollLeft = Math.max(0, contentWidth - container.clientWidth)
+            if (container.scrollLeft > maxScrollLeft) {
+                container.scrollLeft = maxScrollLeft
+            }
+        }
+
+        // 通知所有渲染器数据已更新（清除缓存等）
+        this.rendererPluginManager.notifyDataUpdate(this.data, { start: 0, end: this.data.length })
+
+        // 重置交互状态
+        this.interaction.reset()
+
         this.scheduleDraw()
     }
 
@@ -652,8 +781,9 @@ export class Chart {
 
         // 修正最后一个 pane 的高度，确保总和等于 availableH（消除舍入误差）
         const totalHeight = paneHeights.reduce((s, h) => s + h, 0)
-        if (paneHeights.length > 0) {
-            paneHeights[paneHeights.length - 1] += availableH - totalHeight
+        const lastPaneHeightIndex = paneHeights.length - 1
+        if (lastPaneHeightIndex >= 0) {
+            paneHeights[lastPaneHeightIndex]! += availableH - totalHeight
         }
 
         for (let i = 0; i < visibleSpecs.length; i++) {

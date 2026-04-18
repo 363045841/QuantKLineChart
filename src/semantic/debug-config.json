@@ -1,0 +1,143 @@
+{
+  "version": "1.0.0",
+  "data": {
+    "source": "baostock",
+    "symbol": "601369",
+    "exchange": "SH",
+    "startDate": "2025-01-01",
+    "endDate": "2026-04-18",
+    "period": "daily",
+    "adjust": "qfq"
+  },
+  "indicators": {
+    "main": [
+      {
+        "type": "MA",
+        "enabled": true,
+        "params": {
+          "periods": [
+            5,
+            10,
+            20,
+            60
+          ]
+        }
+      },
+      {
+        "type": "BOLL",
+        "enabled": false,
+        "params": {
+          "period": 20,
+          "multiplier": 2
+        }
+      }
+    ],
+    "sub": [
+      {
+        "type": "MACD",
+        "enabled": false
+      }
+    ]
+  },
+  "markers": {
+    "showExtremaMarkers": true,
+    "customMarkers": [
+      {
+        "id": "buy_001",
+        "date": "2025-01-02",
+        "shape": "arrow_up",
+        "groupKey": "buy_signal",
+        "style": {
+          "fillColor": "#52c41a",
+          "size": 16
+        },
+        "label": {
+          "text": "买入",
+          "position": "top",
+          "fontSize": 12
+        },
+        "metadata": {
+          "reason": "MACD金叉",
+          "confidence": 0.85
+        }
+      },
+      {
+        "id": "sell_001",
+        "date": "2025-02-01",
+        "shape": "arrow_down",
+        "groupKey": "sell_signal",
+        "style": {
+          "fillColor": "#ff4d4f",
+          "size": 16
+        },
+        "label": {
+          "text": "卖出",
+          "position": "bottom",
+          "fontSize": 12
+        },
+        "metadata": {
+          "reason": "BOLL上轨压力",
+          "confidence": 0.72
+        }
+      },
+      {
+        "id": "event_001",
+        "date": "2025-03-01",
+        "shape": "flag",
+        "groupKey": "important_event",
+        "style": {
+          "fillColor": "#faad14",
+          "strokeColor": "#d48806"
+        },
+        "label": {
+          "text": "财报发布",
+          "position": "top"
+        }
+      },
+      {
+        "id": "target_001",
+        "date": "2025-04-01",
+        "shape": "circle",
+        "groupKey": "price_target",
+        "style": {
+          "fillColor": "#1890ff",
+          "size": 14
+        },
+        "label": {
+          "text": "目标价 ¥25"
+        }
+      },
+      {
+        "id": "signal_001",
+        "date": "2025-05-01",
+        "shape": "diamond",
+        "groupKey": "special_signal",
+        "style": {
+          "fillColor": "#722ed1",
+          "size": 14
+        },
+        "label": {
+          "text": "突破信号"
+        }
+      },
+      {
+        "id": "range_001",
+        "date": "2025-03-01",
+        "shape": "rectangle",
+        "groupKey": "support_level",
+        "style": {
+          "fillColor": "#13c2c2",
+          "opacity": 0.8
+        },
+        "label": {
+          "text": "支撑位"
+        }
+      }
+    ]
+  },
+  "chart": {
+    "kWidth": 10,
+    "kGap": 2,
+    "autoScrollToRight": false
+  }
+}

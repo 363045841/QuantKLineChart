@@ -4,11 +4,11 @@
     class="marker-tooltip"
     :style="{ left: `${pos.x + 12}px`, top: `${pos.y + 12}px` }"
   >
-    <div class="marker-tooltip__title">{{ markerTypeDescription }}</div>
-    <div class="marker-tooltip__content">
-      <div v-for="(value, key) in marker.metadata" :key="key" class="row">
+    <div class="marker-tooltip__title">{{ title }}</div>
+    <div v-if="hasMetadata" class="marker-tooltip__content">
+      <div v-for="(value, key) in metadata" :key="key" class="row">
         <span>{{ key }}</span>
-        <span>{{ value }}</span>
+        <span>{{ formatValue(value) }}</span>
       </div>
     </div>
   </div>
@@ -16,18 +16,50 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { MarkerEntity } from '@/core/marker/registry'
+import type { MarkerEntity, CustomMarkerEntity } from '@/core/marker/registry'
 import { MARKER_TYPE_DESCRIPTIONS } from '@/core/marker/registry'
 
 const props = defineProps<{
-  marker: MarkerEntity | null
+  marker: MarkerEntity | CustomMarkerEntity | null
   pos: { x: number; y: number }
 }>()
 
-const markerTypeDescription = computed(() => {
-  if (!props.marker) return ''
-  return MARKER_TYPE_DESCRIPTIONS[props.marker.markerType] || props.marker.markerType
+const isCustomMarker = computed(() => {
+  return props.marker && 'date' in props.marker
 })
+
+const title = computed(() => {
+  if (!props.marker) return ''
+  if (isCustomMarker.value) {
+    const custom = props.marker as CustomMarkerEntity
+    return custom.label?.text || custom.shape
+  }
+  const standard = props.marker as MarkerEntity
+  return MARKER_TYPE_DESCRIPTIONS[standard.markerType] || standard.markerType
+})
+
+const metadata = computed(() => {
+  if (!props.marker) return {}
+  if (isCustomMarker.value) {
+    const custom = props.marker as CustomMarkerEntity
+    return {
+      日期: custom.date,
+      ...custom.metadata,
+    }
+  }
+  return (props.marker as MarkerEntity).metadata
+})
+
+const hasMetadata = computed(() => {
+  return Object.keys(metadata.value).length > 0
+})
+
+function formatValue(value: unknown): string {
+  if (typeof value === 'number') {
+    return value.toFixed(2)
+  }
+  return String(value)
+}
 </script>
 
 <style scoped>

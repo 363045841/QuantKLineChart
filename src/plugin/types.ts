@@ -137,6 +137,12 @@ export function wrapPaneInfo(pane: {
 }
 
 /** 渲染上下文 */
+/** MarkerManager 接口（用于 RenderContext） */
+export interface MarkerManagerLike {
+  getCustomMarkers(): unknown[]
+  setCustomMarkerPosition(id: string, x: number, y: number, size: number, shape: string): void
+}
+
 export interface RenderContext {
   ctx: CanvasRenderingContext2D
   pane: PaneInfo
@@ -148,7 +154,7 @@ export interface RenderContext {
   dpr: number
   paneWidth: number
   kLinePositions: number[]
-  markerManager?: unknown
+  markerManager?: MarkerManagerLike
   // 可选的其他 Canvas 上下文
   yAxisCtx?: CanvasRenderingContext2D
   xAxisCtx?: CanvasRenderingContext2D

@@ -1,57 +1,93 @@
 <template>
-  <KLineChart
-    :data="kdata"
-    :kWidth="7"
-    :kGap="3"
-    :yPaddingPx="24"
-    :minKWidth="2"
-    :maxKWidth="50"
-    :showMA="{ ma5: true, ma10: true, ma20: true, ma30: true, ma60: true }"
-    :autoScrollToRight="true"
-  />
+  <div class="app-container">
+    <div class="debug-controls">
+      <button @click="toggleConfig">
+        切换配置（当前：{{ currentConfigName }}）
+      </button>
+    </div>
+    <KLineChart
+      :semanticConfig="currentConfig"
+      :kWidth="7"
+      :kGap="3"
+      :yPaddingPx="24"
+    />
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import KLineChart from '@/components/KLineChart.vue'
-import { fetchKLineData, type KLineDataSourceConfig } from '@/api/data'
-import type { KLineData } from '@/types/price'
-import { getCurrentDateYYYYMMDD } from './utils/dateFormat'
-import { cache } from './utils/cache'
+import type { SemanticChartConfig } from '@/semantic'
+import debugConfig from '@/semantic/debug-config.json'
 
-const kdata = ref<KLineData[]>([])
+// 默认配置（debug-config.json）
+const defaultConfig = debugConfig as SemanticChartConfig
 
-// 数据源配置（使用 'baostock' 或 'dongcai'）
-const DATA_SOURCE: 'baostock' | 'dongcai' = 'baostock'
-
-onMounted(async () => {
-  const nowdate = getCurrentDateYYYYMMDD()
-
-  const config: KLineDataSourceConfig = {
-    symbol: '601360',        // 统一格式：纯代码
-    startDate: '2024-01-01', // 统一格式：YYYY-MM-DD
-    endDate: nowdate,
+// 备用配置（演示切换）
+const alternativeConfig: SemanticChartConfig = {
+  version: '1.0.0',
+  data: {
+    source: 'baostock',
+    symbol: '600519',
+    exchange: 'SH',
+    startDate: '2024-06-01',
+    endDate: '2026-04-18',
     period: 'daily',
     adjust: 'qfq',
-  }
+  },
+  indicators: {
+    main: [
+      { type: 'MA', enabled: true, params: { periods: [5, 10, 20] } },
+    ],
+    sub: [
+      { type: 'MACD', enabled: true },
+    ],
+  },
+}
 
-  // 生成缓存键
-  const cacheKey = `kline:${DATA_SOURCE}:${config.symbol}:${config.startDate}:${config.endDate}:${config.period}:${config.adjust}`
+const useAlternative = ref(false)
 
-  // 先尝试从缓存获取
-  const cached = cache.get<KLineData[]>(cacheKey)
-  if (cached) {
-    kdata.value = cached
-    return
-  }
+const currentConfig = computed(() =>
+  useAlternative.value ? alternativeConfig : defaultConfig
+)
 
-  // 缓存未命中，从 API 获取
-  const data = await fetchKLineData(DATA_SOURCE, config)
-  kdata.value = data
+const currentConfigName = computed(() =>
+  useAlternative.value ? '600519 贵州茅台' : '601369 陕鼓动力'
+)
 
-  // 存入缓存（有效期 1 小时）
-  cache.set(cacheKey, data)
-})
+function toggleConfig() {
+  useAlternative.value = !useAlternative.value
+}
 </script>
 
-<style></style>
+<style>
+.app-container {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.debug-controls {
+  padding: 8px 16px;
+  background: #f5f5f5;
+  border-bottom: 1px solid #e8e8e8;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.debug-controls button {
+  padding: 6px 16px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.debug-controls button:hover {
+  border-color: #1890ff;
+  color: #1890ff;
+}
+</style>
