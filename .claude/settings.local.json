@@ -15,7 +15,8 @@
       "Bash(pnpm install:*)",
       "Bash(pnpm run:*)",
       "Bash(git commit --amend -m ':*)",
-      "Read(//d/Code/kmap/QuantChatFront/src/components/**)"
+      "Read(//d/Code/kmap/QuantChatFront/src/components/**)",
+      "Bash(git commit -m ' *)"
     ],
     "additionalDirectories": [
       "D:\\Code\\kmap\\QuantChatFront\\src\\components"
