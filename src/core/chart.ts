@@ -471,15 +471,15 @@ export class Chart {
         const yAxisCanvas = document.createElement('canvas')
 
         plotCanvas.id = `${paneId}-plot`
-        yAxisCanvas.id = `${paneId}-yAxis`
-
+        plotCanvas.className = 'plot-canvas'
         plotCanvas.style.position = 'absolute'
         plotCanvas.style.left = '0'
         plotCanvas.style.top = '0'
 
+        yAxisCanvas.id = `${paneId}-yAxis`
+        yAxisCanvas.className = 'y-axis-canvas'
         yAxisCanvas.style.position = 'absolute'
-        yAxisCanvas.style.top = '0'
-        yAxisCanvas.style.left = '0'
+        yAxisCanvas.style.right = '0'  // 用 right 定位，贴右边
 
         const renderer = new PaneRenderer(
             { plotCanvas, yAxisCanvas },
@@ -667,7 +667,11 @@ export class Chart {
 
     /** 容器尺寸变化时调用 */
     resize() {
-        this.computeViewport()
+        const vp = this.computeViewport()
+        // 防御性检查：容器尺寸无效时跳过布局
+        if (!vp || vp.viewWidth < 10 || vp.viewHeight < 10) {
+            return
+        }
         this.layoutPanes()
         this.scheduleDraw()
     }
@@ -705,15 +709,15 @@ export class Chart {
             const yAxisCanvas = document.createElement('canvas')
 
             plotCanvas.id = `${spec.id}-plot`
-            yAxisCanvas.id = `${spec.id}-yAxis`
-
+            plotCanvas.className = 'plot-canvas'
             plotCanvas.style.position = 'absolute'
             plotCanvas.style.left = '0'
             plotCanvas.style.top = '0'
 
+            yAxisCanvas.id = `${spec.id}-yAxis`
+            yAxisCanvas.className = 'y-axis-canvas'
             yAxisCanvas.style.position = 'absolute'
-            yAxisCanvas.style.top = '0'
-            yAxisCanvas.style.left = '0'
+            yAxisCanvas.style.right = '0'  // 用 right 定位，贴右边
 
             const renderer = new PaneRenderer(
                 { plotCanvas, yAxisCanvas },
@@ -806,9 +810,9 @@ export class Chart {
 
             renderer.resize(vp.plotWidth, h, vp.dpr)
             const dom = renderer.getDom()
+            // 只设置 top，left/right 由 CSS 自动处理
             dom.plotCanvas.style.top = `${y}px`
             dom.yAxisCanvas.style.top = `${y}px`
-            dom.yAxisCanvas.style.left = `${Math.floor(vp.plotWidth)}px`
 
             y += h + gap
         }
@@ -819,9 +823,11 @@ export class Chart {
         const container = this.dom.container
         if (!container) return null
 
-        const rect = container.getBoundingClientRect()
-        const viewWidth = Math.max(1, Math.ceil(rect.width))
-        const viewHeight = Math.max(1, Math.ceil(rect.height))
+        // 使用 clientWidth/clientHeight 而非 getBoundingClientRect()
+        // 原因：getBoundingClientRect() 受 CSS transform 影响
+        // 当父容器有 scale/rotate 等 transform 时会返回错误的尺寸
+        const viewWidth = Math.max(1, Math.ceil(container.clientWidth))
+        const viewHeight = Math.max(1, Math.ceil(container.clientHeight))
         const scrollLeft = container.scrollLeft
 
         const yAxisTotalWidth = this.opt.rightAxisWidth + (this.opt.priceLabelWidth || 60)
@@ -838,9 +844,9 @@ export class Chart {
         this.dom.canvasLayer.style.width = `${viewWidth}px`
         this.dom.canvasLayer.style.height = `${viewHeight}px`
 
+        // xAxisCanvas: 只设置宽度，位置由 CSS bottom: 0 自动处理
         this.dom.xAxisCanvas.style.width = `${plotWidth}px`
         this.dom.xAxisCanvas.style.height = `${this.opt.bottomAxisHeight}px`
-        this.dom.xAxisCanvas.style.top = `${Math.floor(plotHeight)}px`
         this.dom.xAxisCanvas.width = Math.round(plotWidth * dpr)
         this.dom.xAxisCanvas.height = Math.round(this.opt.bottomAxisHeight * dpr)
 

@@ -1,6 +1,6 @@
 {
   "name": "@363045841yyt/klinechart",
-  "version": "0.1.5",
+  "version": "0.2.8",
   "type": "module",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
@@ -27,7 +27,7 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
-    "./style.css": "./dist/kmap.css"
+    "./style.css": "./dist/klinechart.css"
   },
   "files": [
     "dist"

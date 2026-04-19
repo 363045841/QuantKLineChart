@@ -785,19 +785,33 @@ onMounted(() => {
     scheduleRender()
   })
 
-  const onResize = () => chart.resize()
-  window.addEventListener('resize', onResize, { passive: true })
+  // 使用 ResizeObserver 监听容器尺寸变化
+  // 注：chart.ts 使用 clientWidth/clientHeight 获取尺寸，不受 CSS transform 影响
+  let resizeTimeout: ReturnType<typeof setTimeout> | null = null
 
-  // 绑定到实例上，unmount 时移除（通过闭包变量）
-  ;(chart as any).__onResize = onResize
-  ;(chart as any).__onWheel = onWheelHandler
+  const resizeObserver = new ResizeObserver(() => {
+    // 简单防抖，避免频繁触发
+    if (resizeTimeout) clearTimeout(resizeTimeout)
+    resizeTimeout = setTimeout(() => {
+      chart.resize()
+      resizeTimeout = null
+    }, 50)
+  })
+  resizeObserver.observe(container)
+  ;(chart as any).__resizeObserver = resizeObserver
+  ;(chart as any).__resizeTimeout = resizeTimeout
 })
 
 onUnmounted(() => {
   const chart = chartRef.value
   if (chart) {
-    const onResize = (chart as any).__onResize as ((this: Window, ev: UIEvent) => any) | undefined
-    if (onResize) window.removeEventListener('resize', onResize)
+    // 清理 ResizeObserver 和防抖 timeout
+    const resizeObserver = (chart as any).__resizeObserver as ResizeObserver | undefined
+    const resizeTimeout = (chart as any).__resizeTimeout as ReturnType<typeof setTimeout> | null
+    if (resizeTimeout) clearTimeout(resizeTimeout)
+    if (resizeObserver) {
+      resizeObserver.disconnect()
+    }
     const onWheel = (chart as any).__onWheel as
       | ((this: HTMLElement, ev: WheelEvent) => any)
       | undefined
@@ -844,12 +858,17 @@ watch(
 
 <style scoped>
 .chart-wrapper {
+  /* CSS 变量支持自定义尺寸 */
+  --kmap-height: var(--kmap-chart-height, 100%);
+  --kmap-width: var(--kmap-chart-width, 100%);
+
   /* 让组件在父容器中居中显示 */
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 100%;
+  width: var(--kmap-width);
+  height: var(--kmap-height);
+  min-height: 300px; /* 默认最小高度，确保容器有有效尺寸 */
   flex-direction: column;
 }
 
@@ -859,6 +878,7 @@ watch(
   overflow-y: hidden;
   height: 85%;
   width: 95%;
+  min-height: 255px; /* 85% of 300px */
   scrollbar-width: none;
   -ms-overflow-style: none;
 
@@ -897,7 +917,7 @@ watch(
   pointer-events: none;
 }
 
-/* 三层 canvas 叠放 */
+/* plot canvas - 左侧绘图区 */
 .plot-canvas {
   position: absolute;
   left: 0;
@@ -905,17 +925,19 @@ watch(
   display: block;
 }
 
+/* yAxis canvas - 右侧价格轴，用 right: 0 自动贴右边 */
 .y-axis-canvas {
   position: absolute;
-  top: 0;
   right: 0;
   display: block;
+  /* top 由 JS 根据 pane 位置设置 */
 }
 
+/* xAxis canvas - 底部时间轴，用 bottom: 0 自动贴底边 */
 .x-axis-canvas {
   position: absolute;
   left: 0;
+  bottom: 0;
   display: block;
-  /* top 和 width 由 JS 动态设置 */
 }
 </style>

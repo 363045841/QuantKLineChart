@@ -70,6 +70,9 @@ export const TAG_BG_COLORS = {
     /** 纯白背景 */
     PURE_WHITE: '#ffffff',
 
+    /** 透明背景 */
+    TRANSPARENT: 'transparent',
+
     /** 激活状态背景 */
     ACTIVE: '#1890ff',
     ACTIVE_HOVER: '#40a9ff',

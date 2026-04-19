@@ -13,7 +13,12 @@
       "WebSearch",
       "Bash(npm view:*)",
       "Bash(pnpm install:*)",
-      "Bash(pnpm run:*)"
+      "Bash(pnpm run:*)",
+      "Bash(git commit --amend -m ':*)",
+      "Read(//d/Code/kmap/QuantChatFront/src/components/**)"
+    ],
+    "additionalDirectories": [
+      "D:\\Code\\kmap\\QuantChatFront\\src\\components"
     ]
   }
 }
