@@ -4,11 +4,9 @@ English | [简体中文](README.md)
 
 A financial charting library based on Vue 3 and Canvas, focusing on high-performance K-line (candlestick) chart rendering. The library supports horizontal scrolling, moving average (MA) display, and financial data retrieval from multiple sources including **BaoStock** and AKTools.
 
-![pasted-image-1775748542822.webp](https://files.seeusercontent.com/2026/04/09/u0nK/pasted-image-1775748542822.webp)
-
-![pasted-image-1776608418893.webp](https://files.seeusercontent.com/2026/04/19/h2bU/pasted-image-1776608418893.webp)
-
-![pasted-image-1776608811331.webp](https://files.seeusercontent.com/2026/04/19/L2do/pasted-image-1776608811331.webp)
+![YU8@~$21%{NBJLGIZ}KTKED.png](https://files.seeusercontent.com/2026/04/29/akQ8/YU821NBJLGIZKTKED.png)
+![(ZOS$O}EP(_NKI273RXBV17.png](https://files.seeusercontent.com/2026/04/29/olU0/ZOSOEP_NKI273RXBV17.png)
+![1TIVL2M~[(}TWFB_O}JZJ]6.png](https://files.seeusercontent.com/2026/04/29/a6rH/1TIVL2MTWFB_OJZJ6.png)
 
 ## Features
 

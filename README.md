@@ -4,11 +4,9 @@
 
 这是一个基于 Canvas 的金融图表绘制库，提供 Vue 组件封装。专注于高性能 K 线图渲染，支持**语义化 JSON 配置**，便于 AI Agent 直接控制图表渲染。特性包括横向滚动、多种技术指标（MA/BOLL/MACD/RSI 等）、自定义标记标注、多数据源支持（BaoStock、东方财富）。
 
-![pasted-image-1775748542822.webp](https://files.seeusercontent.com/2026/04/09/u0nK/pasted-image-1775748542822.webp)
-
-![pasted-image-1776608418893.webp](https://files.seeusercontent.com/2026/04/19/h2bU/pasted-image-1776608418893.webp)
-
-![pasted-image-1776608811331.webp](https://files.seeusercontent.com/2026/04/19/L2do/pasted-image-1776608811331.webp)
+![YU8@~$21%{NBJLGIZ}KTKED.png](https://files.seeusercontent.com/2026/04/29/akQ8/YU821NBJLGIZKTKED.png)
+![(ZOS$O}EP(_NKI273RXBV17.png](https://files.seeusercontent.com/2026/04/29/olU0/ZOSOEP_NKI273RXBV17.png)
+![1TIVL2M~[(}TWFB_O}JZJ]6.png](https://files.seeusercontent.com/2026/04/29/a6rH/1TIVL2MTWFB_OJZJ6.png)
 
 
 ## 功能特性
