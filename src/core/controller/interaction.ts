@@ -228,11 +228,17 @@ export class InteractionController {
     }
 
     /**
-     * [触屏]:处理 Pointer 移动事件
+     * 处理 Pointer 移动事件（支持鼠标和触屏）
      * @param e PointerEvent
      */
     onPointerMove(e: PointerEvent) {
-        if (!this.isTouchSession || !e.isPrimary) return
+        // 只处理主指针
+        if (!e.isPrimary) return
+
+        // 触屏会话标记
+        if (e.pointerType === 'touch') {
+            this.isTouchSession = true
+        }
 
         const container = this.chart.getDom().container
 

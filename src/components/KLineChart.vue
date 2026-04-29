@@ -5,10 +5,6 @@
       :class="{ 'is-dragging': isDragging }"
       ref="containerRef"
       @scroll.passive="onScroll"
-      @mousedown="onMouseDown"
-      @mousemove="onMouseMove"
-      @mouseup="onMouseUp"
-      @mouseleave="onMouseLeave"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
@@ -21,7 +17,10 @@
           <!-- plotCanvas 和 yAxisCanvas 由 Chart 自动创建 -->
 
           <!-- 底部时间轴（随 X 滚动，但画布不移动） -->
-          <canvas class="x-axis-canvas" ref="xAxisCanvasRef"></canvas>
+          <canvas class="x-axis-canvas bottom-axis" ref="xAxisCanvasRef"></canvas>
+
+          <!-- 时间轴右侧占位DOM（补齐右下角框线） -->
+          <div class="x-axis-corner right-axis-corner" :style="{ height: props.bottomAxisHeight + 'px', width: (props.rightAxisWidth + props.priceLabelWidth) + 'px' }"></div>
 
           <!-- 悬浮浮窗：放在 sticky 的 canvas-layer 内，避免随 scroll-content 横向滚动而偏移 -->
           <KLineTooltip
@@ -81,7 +80,6 @@ import { createExtremaMarkersRendererPlugin } from '@/core/renderers/extremaMark
 import { createYAxisRendererPlugin } from '@/core/renderers/yAxis'
 import { createTimeAxisRendererPlugin } from '@/core/renderers/timeAxis'
 import { createCrosshairRendererPlugin } from '@/core/renderers/crosshair'
-import { createGlobalBordersRendererPlugin } from '@/core/renderers/globalBorders'
 import { createPaneTitleRendererPlugin, type TitleInfo } from '@/core/renderers/paneTitle'
 
 const props = withDefaults(
@@ -107,7 +105,7 @@ const props = withDefaults(
     yPaddingPx: 0,
     minKWidth: 2,
     maxKWidth: 50,
-    rightAxisWidth: 70,
+    rightAxisWidth: 0,
     bottomAxisHeight: 24,
     priceLabelWidth: 60,
   },
@@ -156,9 +154,13 @@ const hoveredIdx = ref<number | null>(null)
 const crosshairIdx = ref<number | null>(null)
 const tooltipPosition = ref({ x: 0, y: 0 })
 
+// 数据版本号，用于强制 chartData computed 重新求值
+const dataVersion = ref(0)
+
 const hovered = computed(() => {
   const idx = hoveredIdx.value
   if (typeof idx !== 'number') return null
+  void dataVersion.value // 建立响应式依赖
   const data = chartRef.value?.getData()
   if (data && idx >= 0 && idx < data.length) {
     return data[idx]
@@ -170,8 +172,17 @@ const tooltipPos = computed(() => tooltipPosition.value)
 
 // 获取当前图表数据
 const chartData = computed(() => {
+  void dataVersion.value // 建立响应式依赖，确保数据变化时重新求值
   return chartRef.value?.getData() ?? []
 })
+
+// 通知数据变化（在数据更新后调用）
+function notifyDataChange() {
+  dataVersion.value++
+}
+
+// RAF 节流：避免高频 pointermove 触发过多响应式更新
+let hoverRafId: number | null = null
 
 function syncHoverState() {
   const interaction = chartRef.value?.interaction
@@ -192,29 +203,19 @@ function syncHoverState() {
   if (pos) tooltipPosition.value = { x: pos.x, y: pos.y }
 }
 
-function onMouseDown(e: MouseEvent) {
-  isDragging.value = true
-  chartRef.value?.interaction.onMouseDown(e)
-  syncHoverState()
+// 节流版本：用于 pointermove 高频调用
+function syncHoverStateThrottled() {
+  if (hoverRafId) return
+  hoverRafId = requestAnimationFrame(() => {
+    syncHoverState()
+    hoverRafId = null
+  })
 }
 
 function onPointerDown(e: PointerEvent) {
   // 触屏：手指一接触屏幕就触发十字线（避免必须长按才触发）
   isDragging.value = true
   chartRef.value?.interaction.onPointerDown(e)
-  syncHoverState()
-}
-
-function onMouseMove(e: MouseEvent) {
-  const container = containerRef.value
-  if (container) {
-    const rect = container.getBoundingClientRect()
-    mousePos.value = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    }
-  }
-  chartRef.value?.interaction.onMouseMove(e)
   syncHoverState()
 }
 
@@ -228,25 +229,13 @@ function onPointerMove(e: PointerEvent) {
     }
   }
   chartRef.value?.interaction.onPointerMove(e)
-  syncHoverState()
-}
-
-function onMouseUp() {
-  isDragging.value = false
-  chartRef.value?.interaction.onMouseUp()
-  syncHoverState()
+  syncHoverStateThrottled() // 使用节流版本避免高频更新
 }
 
 function onPointerUp(e: PointerEvent) {
   isDragging.value = false
   chartRef.value?.interaction.onPointerUp(e)
   syncHoverState()
-}
-
-function onMouseLeave() {
-  isDragging.value = false
-  chartRef.value?.interaction.onMouseLeave()
-  hoveredIdx.value = null
 }
 
 function onPointerLeave(e: PointerEvent) {
@@ -741,12 +730,6 @@ onMounted(() => {
       return null
     },
   }))
-  chart.useRenderer(createGlobalBordersRendererPlugin({
-    getPaneInfos: () => chart.getPaneRenderers().map(r => ({
-      top: r.getPane().top,
-      height: r.getPane().height,
-    })),
-  }))
 
   chartRef.value = chart
   chart.resize()
@@ -759,6 +742,8 @@ onMounted(() => {
   semanticController.value.on('config:ready', () => {
     // 数据加载完成，更新响应式数据长度
     dataLength.value = chart.getData()?.length ?? 0
+    // 通知数据变化，触发 chartData computed 重新求值
+    notifyDataChange()
 
     // 同步 Chart 副图状态到本地（用于 UI 显示）
     syncSubPanesFromChart()
@@ -800,6 +785,8 @@ onMounted(() => {
   resizeObserver.observe(container)
   ;(chart as any).__resizeObserver = resizeObserver
   ;(chart as any).__resizeTimeout = resizeTimeout
+  // 保存 wheel handler，确保 onUnmounted 能正确移除
+  ;(chart as any).__onWheel = onWheelHandler
 })
 
 onUnmounted(() => {
@@ -916,8 +903,11 @@ watch(
   /* width/height 由 JS 在 render() 中设置为视口大小 */
   pointer-events: none;
 }
+</style>
 
-/* plot canvas - 左侧绘图区 */
+<!-- 非 scoped 样式：用于动态创建的 canvas 元素 -->
+<style>
+/* plot canvas 基础样式 */
 .plot-canvas {
   position: absolute;
   left: 0;
@@ -925,19 +915,57 @@ watch(
   display: block;
 }
 
-/* yAxis canvas - 右侧价格轴，用 right: 0 自动贴右边 */
-.y-axis-canvas {
+/* 主图：左、上、右边框 */
+.main {
+  border-left: 1px solid #e0e0e0;
+  border-top: 1px solid #e0e0e0;
+  border-right: 1px solid #e0e0e0;
+}
+
+/* 副图：左、上、右边框 */
+.sub {
+  border-left: 1px solid #e0e0e0;
+  border-top: 1px solid #e0e0e0;
+  border-right: 1px solid #e0e0e0;
+}
+
+/* 右侧价格轴：上、右边框 */
+.right-axis {
   position: absolute;
   right: 0;
   display: block;
-  /* top 由 JS 根据 pane 位置设置 */
+  border-top: 1px solid #e0e0e0;
+  border-right: 1px solid #e0e0e0;
 }
 
-/* xAxis canvas - 底部时间轴，用 bottom: 0 自动贴底边 */
+/* 底部时间轴：左、右、下、上边框 */
 .x-axis-canvas {
   position: absolute;
   left: 0;
   bottom: 0;
   display: block;
+  z-index: 10;
+}
+
+.bottom-axis {
+  border-left: 1px solid #e0e0e0;
+  border-right: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+  border-top: 1px solid #e0e0e0;
+}
+
+.right-axis-corner {
+  border-top: 1px solid #e0e0e0;
+  border-right: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+/* 时间轴右侧占位DOM：定位到右下角 */
+.x-axis-corner {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: block;
+  z-index: 10;
 }
 </style>

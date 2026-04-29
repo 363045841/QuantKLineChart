@@ -1,6 +1,6 @@
 {
   "name": "@363045841yyt/klinechart",
-  "version": "0.2.8",
+  "version": "0.2.10",
   "type": "module",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

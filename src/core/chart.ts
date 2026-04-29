@@ -24,13 +24,11 @@ export { getPhysicalKLineConfig, calcKWidthPx }
  * @property container 图表容器 div
  * @property canvasLayer Canvas 层容器 div（包含所有绘制 canvas）
  * @property xAxisCanvas X 轴时间轴 canvas
- * @property borderCanvas 全局边框 canvas（可选，由 Chart 内部创建）
  */
 export type ChartDom = {
     container: HTMLDivElement
     canvasLayer: HTMLDivElement
     xAxisCanvas: HTMLCanvasElement
-    borderCanvas?: HTMLCanvasElement
 }
 
 /**
@@ -203,7 +201,8 @@ export class Chart {
             if (plotCtx) {
                 plotCtx.setTransform(1, 0, 0, 1, 0, 0)
                 plotCtx.scale(vp.dpr, vp.dpr)
-                plotCtx.clearRect(0, 0, vp.plotWidth, pane.height + 2 / vp.dpr)
+                // 多清除 1px 避免右边界残留
+                plotCtx.clearRect(0, 0, vp.plotWidth + 1, pane.height + 2 / vp.dpr)
             }
 
             // 清空 yAxisCanvas
@@ -260,41 +259,6 @@ export class Chart {
             const errors = this.rendererPluginManager.renderPlugin('timeAxis', timeAxisContext)
             if (errors.length > 0) {
                 this.pluginHost.events.emit('renderer:error', { paneId: 'timeAxis', errors })
-            }
-        }
-
-        // 7. 渲染全局边框（通过插件管理器）
-        const borderCanvas = this.dom.borderCanvas
-        if (borderCanvas) {
-            const borderCtx = borderCanvas.getContext('2d')
-            if (borderCtx) {
-                borderCtx.setTransform(1, 0, 0, 1, 0, 0)
-                borderCtx.scale(vp.dpr, vp.dpr)
-                borderCtx.clearRect(0, 0, vp.plotWidth, vp.plotHeight)
-
-                const borderContext: RenderContext = {
-                    ctx: borderCtx,
-                    pane: {
-                        id: 'globalBorders',
-                        top: 0,
-                        height: vp.plotHeight,
-                        yAxis: { priceToY: () => 0, yToPrice: () => 0, getPaddingTop: () => 0, getPaddingBottom: () => 0 },
-                        priceRange: { maxPrice: 0, minPrice: 0 },
-                    },
-                    data: this.data,
-                    range,
-                    scrollLeft: vp.scrollLeft,
-                    kWidth: this.opt.kWidth,
-                    kGap: this.opt.kGap,
-                    dpr: vp.dpr,
-                    paneWidth: vp.plotWidth,
-                    kLinePositions,
-                    borderCtx,
-                }
-                const errors = this.rendererPluginManager.renderPlugin('globalBorders', borderContext)
-                if (errors.length > 0) {
-                    this.pluginHost.events.emit('renderer:error', { paneId: 'globalBorders', errors })
-                }
             }
         }
     }
@@ -470,14 +434,15 @@ export class Chart {
         const plotCanvas = document.createElement('canvas')
         const yAxisCanvas = document.createElement('canvas')
 
+        const isMain = paneId === 'main'
         plotCanvas.id = `${paneId}-plot`
-        plotCanvas.className = 'plot-canvas'
+        plotCanvas.className = isMain ? 'plot-canvas main' : 'plot-canvas sub'
         plotCanvas.style.position = 'absolute'
         plotCanvas.style.left = '0'
         plotCanvas.style.top = '0'
 
         yAxisCanvas.id = `${paneId}-yAxis`
-        yAxisCanvas.className = 'y-axis-canvas'
+        yAxisCanvas.className = 'right-axis'
         yAxisCanvas.style.position = 'absolute'
         yAxisCanvas.style.right = '0'  // 用 right 定位，贴右边
 
@@ -496,8 +461,8 @@ export class Chart {
         // 添加到 DOM
         const canvasLayer = this.dom.canvasLayer
         if (canvasLayer) {
-            canvasLayer.insertBefore(plotCanvas, this.dom.borderCanvas || null)
-            canvasLayer.insertBefore(yAxisCanvas, this.dom.borderCanvas || null)
+            canvasLayer.appendChild(plotCanvas)
+            canvasLayer.appendChild(yAxisCanvas)
         }
 
         // 通知渲染器管理器
@@ -708,14 +673,15 @@ export class Chart {
             const plotCanvas = document.createElement('canvas')
             const yAxisCanvas = document.createElement('canvas')
 
+            const isMain = spec.id === 'main'
             plotCanvas.id = `${spec.id}-plot`
-            plotCanvas.className = 'plot-canvas'
+            plotCanvas.className = isMain ? 'plot-canvas main' : 'plot-canvas sub'
             plotCanvas.style.position = 'absolute'
             plotCanvas.style.left = '0'
             plotCanvas.style.top = '0'
 
             yAxisCanvas.id = `${spec.id}-yAxis`
-            yAxisCanvas.className = 'y-axis-canvas'
+            yAxisCanvas.className = 'right-axis'
             yAxisCanvas.style.position = 'absolute'
             yAxisCanvas.style.right = '0'  // 用 right 定位，贴右边
 
@@ -742,15 +708,6 @@ export class Chart {
                 canvasLayer.appendChild(dom.plotCanvas)
                 canvasLayer.appendChild(dom.yAxisCanvas)
             })
-
-            const borderCanvas = document.createElement('canvas')
-            borderCanvas.id = 'border'
-            borderCanvas.style.position = 'absolute'
-            borderCanvas.style.left = '0'
-            borderCanvas.style.top = '0'
-            borderCanvas.style.pointerEvents = 'none'
-            this.dom.borderCanvas = borderCanvas
-            canvasLayer.appendChild(borderCanvas)
         }
     }
 
@@ -849,13 +806,6 @@ export class Chart {
         this.dom.xAxisCanvas.style.height = `${this.opt.bottomAxisHeight}px`
         this.dom.xAxisCanvas.width = Math.round(plotWidth * dpr)
         this.dom.xAxisCanvas.height = Math.round(this.opt.bottomAxisHeight * dpr)
-
-        if (this.dom.borderCanvas) {
-            this.dom.borderCanvas.style.width = `${plotWidth}px`
-            this.dom.borderCanvas.style.height = `${plotHeight}px`
-            this.dom.borderCanvas.width = Math.ceil(plotWidth * dpr)
-            this.dom.borderCanvas.height = Math.ceil(plotHeight * dpr)
-        }
 
         const vp: Viewport = {
             viewWidth,

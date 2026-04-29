@@ -424,13 +424,6 @@ export function drawTimeAxis(ctx: CanvasRenderingContext2D, opts: TimeAxisOption
 
         if (screenX >= minX && screenX <= maxX) {
             const drawX = Math.min(Math.max(screenX, minX), maxX)
-            // 刻度短线
-            ctx.strokeStyle = lineColor
-            ctx.beginPath()
-            const lx = alignToPhysicalPixelCenter(drawX, dpr)
-            ctx.moveTo(lx, y)
-            ctx.lineTo(lx, y + 4)
-            ctx.stroke()
 
             const { text, isYear } = formatMonthOrYear(k.timestamp)
             ctx.fillStyle = textColor
