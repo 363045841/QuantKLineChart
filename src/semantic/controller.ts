@@ -167,8 +167,9 @@ export class SemanticChartController {
       period: indicator.params?.period || 20,
       multiplier: indicator.params?.multiplier || 2,
     }
+    // 只更新配置，不设置启用状态
+    // 启用状态由 UI 层 (activeIndicators watch) 控制
     this.chart.updateRendererConfig('boll', config)
-    this.chart.setRendererEnabled('boll', indicator.enabled)
   }
 
   private applySubIndicator(indicator: SubIndicatorConfig): void {

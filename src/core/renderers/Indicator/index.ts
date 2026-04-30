@@ -7,11 +7,12 @@ import { createVolumeRendererPlugin } from '../subVolume'
 
 // MA 均线
 export { createMARendererPlugin, type MAFlags } from './ma'
-export { createMALegendRendererPlugin } from './maLegend'
 
 // BOLL 布林带
 export { createBOLLRendererPlugin, calcBOLLAtIndex, type BOLLConfig } from './boll'
-export { createBOLLLegendRendererPlugin, type BOLLLegendConfig } from './bollLegend'
+
+// 主图指标图例（统一管理 MA、BOLL 等）
+export { createMainIndicatorLegendRendererPlugin } from './mainIndicatorLegend'
 
 // MACD
 export { createMACDRendererPlugin, calcMACDAtIndex, type MACDConfig, type MACDRendererOptions, getMACDTitleInfo } from './macd'

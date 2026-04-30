@@ -63,9 +63,8 @@ import { createGridLinesRendererPlugin } from '@/core/renderers/gridLines'
 import { createLastPriceLineRendererPlugin } from '@/core/renderers/lastPrice'
 import {
   createMARendererPlugin,
-  createMALegendRendererPlugin,
   createBOLLRendererPlugin,
-  createBOLLLegendRendererPlugin,
+  createMainIndicatorLegendRendererPlugin,
   type SubIndicatorType,
   getMACDTitleInfo,
   getRSITitleInfo,
@@ -249,11 +248,11 @@ function onScroll() {
   syncHoverState()
 }
 
-// 指标选择器状态
-const activeIndicators = ref<string[]>(['MA'])
+// 指标选择器状态（由 semanticConfig 初始化）
+const activeIndicators = ref<string[]>([])
 
-// 指标参数配置
-const indicatorParams = ref<Record<string, Record<string, number>>>({})
+// 指标参数配置（MA 的 periods 是数组，需要更宽松的类型）
+const indicatorParams = ref<Record<string, Record<string, unknown>>>({})
 
 // 副图槽位状态
 interface SubPaneSlot {
@@ -385,6 +384,54 @@ function clearAllSubPanes(): void {
   activeIndicators.value = activeIndicators.value.filter(id => !SUB_PANE_INDICATORS.includes(id as SubIndicatorType))
 }
 
+// 从语义化配置初始化指标状态（单向数据流：config → state）
+function initIndicatorsFromConfig(): void {
+  const config = props.semanticConfig
+
+  // 初始化主图指标
+  const mainIndicators = config.indicators?.main
+  if (mainIndicators) {
+    for (const indicator of mainIndicators) {
+      if (indicator.enabled) {
+        if (!activeIndicators.value.includes(indicator.type)) {
+          activeIndicators.value.push(indicator.type)
+        }
+        // 初始化参数
+        if (indicator.params) {
+          indicatorParams.value[indicator.type] = indicator.params as Record<string, unknown>
+        }
+      }
+    }
+  }
+
+  // 副图指标参数由 syncSubPanesFromChart 处理
+}
+
+// 监听主图指标状态变化，控制渲染器（单向数据流：state → chart）
+watch(activeIndicators, (indicators) => {
+  const chart = chartRef.value
+  if (!chart) return
+
+  // 更新 mainIndicatorLegend 渲染器配置
+  chart.updateRendererConfig('mainIndicatorLegend', {
+    indicators: {
+      MA: {
+        enabled: indicators.includes('MA'),
+        params: indicatorParams.value['MA'] || {},
+      },
+      BOLL: {
+        enabled: indicators.includes('BOLL'),
+        params: indicatorParams.value['BOLL'] || {},
+      },
+    },
+  })
+
+  // BOLL 线渲染器
+  chart.setRendererEnabled('boll', indicators.includes('BOLL'))
+
+  scheduleRender()
+}, { deep: true })
+
 // 从 Chart 同步副图状态到本地（语义化配置后调用）
 function syncSubPanesFromChart(): void {
   const chartSubPanes = chartRef.value?.getSubPaneIndicators() ?? []
@@ -504,30 +551,10 @@ function getSubPaneTitleInfo(paneId: string): TitleInfo | null {
   }
 }
 
-// 指标切换处理
+// 指标切换处理（只更新状态，渲染器由 watch 控制）
 function handleIndicatorToggle(indicatorId: string, active: boolean) {
   // 主图指标处理
-  if (indicatorId === 'MA') {
-    if (active) {
-      if (!activeIndicators.value.includes(indicatorId)) {
-        activeIndicators.value.push(indicatorId)
-      }
-      chartRef.value?.updateRendererConfig('ma', {
-        ma5: true, ma10: true, ma20: true, ma30: true, ma60: true
-      })
-      chartRef.value?.setRendererEnabled('maLegend', true)
-    } else {
-      activeIndicators.value = activeIndicators.value.filter(id => id !== indicatorId)
-      chartRef.value?.updateRendererConfig('ma', {
-        ma5: false, ma10: false, ma20: false, ma30: false, ma60: false
-      })
-      chartRef.value?.setRendererEnabled('maLegend', false)
-    }
-    scheduleRender()
-    return
-  }
-
-  if (indicatorId === 'BOLL') {
+  if (indicatorId === 'MA' || indicatorId === 'BOLL') {
     if (active) {
       if (!activeIndicators.value.includes(indicatorId)) {
         activeIndicators.value.push(indicatorId)
@@ -535,15 +562,18 @@ function handleIndicatorToggle(indicatorId: string, active: boolean) {
     } else {
       activeIndicators.value = activeIndicators.value.filter(id => id !== indicatorId)
     }
-    chartRef.value?.setRendererEnabled('boll', active)
-    chartRef.value?.setRendererEnabled('bollLegend', active)
-    scheduleRender()
+    // 渲染器状态由 watch activeIndicators 控制
     return
   }
 
   // 副图指标处理
   if (SUB_PANE_INDICATORS.includes(indicatorId as SubIndicatorType)) {
     if (active) {
+      // 更新 activeIndicators 状态
+      if (!activeIndicators.value.includes(indicatorId)) {
+        activeIndicators.value.push(indicatorId)
+      }
+
       // 检查是否已有该指标的 pane
       const existingPane = subPanes.value.find(p => p.indicatorId === indicatorId)
       if (existingPane) {
@@ -560,6 +590,9 @@ function handleIndicatorToggle(indicatorId: string, active: boolean) {
         }
       }
     } else {
+      // 更新 activeIndicators 状态
+      activeIndicators.value = activeIndicators.value.filter(id => id !== indicatorId)
+
       // 找到并移除该指标的所有 pane
       const panesToRemove = subPanes.value.filter(p => p.indicatorId === indicatorId)
       panesToRemove.forEach(pane => removeSubPane(pane.id))
@@ -569,14 +602,24 @@ function handleIndicatorToggle(indicatorId: string, active: boolean) {
 }
 
 // 指标参数更新处理
-function handleUpdateParams(indicatorId: string, params: Record<string, number>) {
+function handleUpdateParams(indicatorId: string, params: Record<string, unknown>) {
   // 保存参数配置
   indicatorParams.value[indicatorId] = params
 
-  // 主图指标参数更新
-  if (indicatorId === 'BOLL') {
-    chartRef.value?.updateRendererConfig('boll', params)
-    chartRef.value?.updateRendererConfig('bollLegend', params)
+  // 主图指标参数更新（通过事件通知渲染器）
+  if (indicatorId === 'MA' || indicatorId === 'BOLL') {
+    const pluginHost = chartRef.value?.getPluginHost()
+    if (pluginHost) {
+      pluginHost.events.emit('mainIndicator:update', {
+        id: indicatorId,
+        enabled: activeIndicators.value.includes(indicatorId),
+        params,
+      })
+    }
+    // BOLL 渲染器配置
+    if (indicatorId === 'BOLL') {
+      chartRef.value?.updateRendererConfig('boll', params)
+    }
     scheduleRender()
     return
   }
@@ -703,14 +746,10 @@ onMounted(() => {
     axisWidth: props.rightAxisWidth,
     yPaddingPx: props.yPaddingPx,
   }))
-  chart.useRenderer(createMALegendRendererPlugin({
-    yPaddingPx: props.yPaddingPx,
-    showMA: { ma5: true, ma10: true, ma20: true, ma30: true, ma60: true },
-  }))
-  chart.useRenderer(createBOLLLegendRendererPlugin({
+  // 主图指标图例（统一管理 MA、BOLL 等）
+  chart.useRenderer(createMainIndicatorLegendRendererPlugin({
     yPaddingPx: props.yPaddingPx,
   }))
-  chart.setRendererEnabled('bollLegend', false) // 默认禁用，点击按钮启用
 
   chart.useRenderer(createCrosshairRendererPlugin({
     getCrosshairState: () => ({
@@ -745,7 +784,10 @@ onMounted(() => {
     // 通知数据变化，触发 chartData computed 重新求值
     notifyDataChange()
 
-    // 同步 Chart 副图状态到本地（用于 UI 显示）
+    // 从语义化配置初始化指标状态（单向数据流：config → state → chart）
+    initIndicatorsFromConfig()
+
+    // 同步副图状态（副图由 Chart API 动态创建）
     syncSubPanesFromChart()
 
     nextTick(() => scrollToRight())
