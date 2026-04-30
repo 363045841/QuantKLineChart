@@ -64,6 +64,8 @@ import { createLastPriceLineRendererPlugin } from '@/core/renderers/lastPrice'
 import {
   createMARendererPlugin,
   createBOLLRendererPlugin,
+  createEXPMARendererPlugin,
+  createENERendererPlugin,
   createMainIndicatorLegendRendererPlugin,
   type SubIndicatorType,
   getMACDTitleInfo,
@@ -260,7 +262,7 @@ interface SubPaneSlot {
   indicatorId: SubIndicatorType
   rendererName: string
   paneTitleRendererName: string  // paneTitle 渲染器名称
-  params: Record<string, number>
+  params: Record<string, unknown>
 }
 
 // 副图槽位数组（支持多副图）
@@ -423,11 +425,28 @@ watch(activeIndicators, (indicators) => {
         enabled: indicators.includes('BOLL'),
         params: indicatorParams.value['BOLL'] || {},
       },
+      EXPMA: {
+        enabled: indicators.includes('EXPMA'),
+        params: indicatorParams.value['EXPMA'] || {},
+      },
+      ENE: {
+        enabled: indicators.includes('ENE'),
+        params: indicatorParams.value['ENE'] || {},
+      },
     },
   })
 
+  // MA 线渲染器
+  chart.setRendererEnabled('ma', indicators.includes('MA'))
+
   // BOLL 线渲染器
   chart.setRendererEnabled('boll', indicators.includes('BOLL'))
+
+  // EXPMA 线渲染器
+  chart.setRendererEnabled('expma', indicators.includes('EXPMA'))
+
+  // ENE 线渲染器
+  chart.setRendererEnabled('ene', indicators.includes('ENE'))
 
   scheduleRender()
 }, { deep: true })
@@ -518,7 +537,7 @@ function getSubPaneTitleInfo(paneId: string): TitleInfo | null {
   const data = chartRef.value?.getData()
   if (!data || data.length === 0) return null
 
-  const p = pane.params
+  const p = pane.params as Record<string, number>
 
   // VOLUME 不依赖十字线，始终显示
   if (pane.indicatorId === 'VOLUME') {
@@ -554,7 +573,7 @@ function getSubPaneTitleInfo(paneId: string): TitleInfo | null {
 // 指标切换处理（只更新状态，渲染器由 watch 控制）
 function handleIndicatorToggle(indicatorId: string, active: boolean) {
   // 主图指标处理
-  if (indicatorId === 'MA' || indicatorId === 'BOLL') {
+  if (indicatorId === 'MA' || indicatorId === 'BOLL' || indicatorId === 'EXPMA' || indicatorId === 'ENE') {
     if (active) {
       if (!activeIndicators.value.includes(indicatorId)) {
         activeIndicators.value.push(indicatorId)
@@ -606,19 +625,19 @@ function handleUpdateParams(indicatorId: string, params: Record<string, unknown>
   // 保存参数配置
   indicatorParams.value[indicatorId] = params
 
-  // 主图指标参数更新（通过事件通知渲染器）
-  if (indicatorId === 'MA' || indicatorId === 'BOLL') {
-    const pluginHost = chartRef.value?.getPluginHost()
-    if (pluginHost) {
-      pluginHost.events.emit('mainIndicator:update', {
-        id: indicatorId,
-        enabled: activeIndicators.value.includes(indicatorId),
-        params,
-      })
-    }
+  // 主图指标参数更新
+  if (indicatorId === 'MA' || indicatorId === 'BOLL' || indicatorId === 'EXPMA' || indicatorId === 'ENE') {
     // BOLL 渲染器配置
     if (indicatorId === 'BOLL') {
       chartRef.value?.updateRendererConfig('boll', params)
+    }
+    // EXPMA 渲染器配置
+    if (indicatorId === 'EXPMA') {
+      chartRef.value?.updateRendererConfig('expma', params)
+    }
+    // ENE 渲染器配置
+    if (indicatorId === 'ENE') {
+      chartRef.value?.updateRendererConfig('ene', params)
     }
     scheduleRender()
     return
@@ -737,6 +756,10 @@ onMounted(() => {
   chart.useRenderer(createMARendererPlugin({ ma5: true, ma10: true, ma20: true, ma30: true, ma60: true }))
   chart.useRenderer(createBOLLRendererPlugin())
   chart.setRendererEnabled('boll', false) // 默认禁用，由语义化配置控制
+  chart.useRenderer(createEXPMARendererPlugin())
+  chart.setRendererEnabled('expma', false) // 默认禁用，由语义化配置控制
+  chart.useRenderer(createENERendererPlugin())
+  chart.setRendererEnabled('ene', false) // 默认禁用，由语义化配置控制
   chart.useRenderer(createCandleRenderer())
   chart.useRenderer(createLastPriceLineRendererPlugin())
   chart.useRenderer(createCustomMarkersRenderer()) // 自定义标记渲染器

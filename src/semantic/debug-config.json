@@ -3,7 +3,7 @@
   "data": {
     "source": "baostock",
     "symbol": "601360",
-    "startDate": "2026-01-19",
+    "startDate": "2025-01-19",
     "endDate": "2026-04-19",
     "period": "daily",
     "adjust": "qfq"

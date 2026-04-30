@@ -54,10 +54,24 @@ export interface BOLLParams {
   multiplier?: number // 默认 2
 }
 
+/** EXPMA 指数平滑移动平均线参数 */
+export interface EXPMAParams {
+  fastPeriod?: number // 默认 12
+  slowPeriod?: number // 默认 50
+}
+
+/** ENE 轨道线参数 */
+export interface ENEParams {
+  period?: number // 默认 10
+  deviation?: number // 默认 11
+}
+
 /** 主图指标配置（判别联合） */
 export type MainIndicatorConfig =
   | { type: 'MA'; enabled: boolean; params?: MAParams }
   | { type: 'BOLL'; enabled: boolean; params?: BOLLParams }
+  | { type: 'EXPMA'; enabled: boolean; params?: EXPMAParams }
+  | { type: 'ENE'; enabled: boolean; params?: ENEParams }
 
 // ============ 副图指标 ============
 

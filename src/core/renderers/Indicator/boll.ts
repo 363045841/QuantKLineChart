@@ -1,8 +1,6 @@
 import type { RendererPlugin, RenderContext } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
 import type { KLineData } from '@/types/price'
-import type { PriceRange } from '@/core/scale/price'
-import { priceToY } from '@/utils/priceToY'
 import type { drawOption } from '@/utils/kLineDraw/kLine'
 import { alignToPhysicalPixelCenter } from '@/core/draw/pixelAlign'
 import { BOLL_COLORS } from '@/core/theme/colors'
@@ -134,33 +132,11 @@ export function createBOLLRendererPlugin(initialConfig: BOLLConfig = {}): Render
         priority: RENDERER_PRIORITY.INDICATOR,
 
         draw(context: RenderContext) {
-            const { ctx, pane, data, range, scrollLeft, kWidth, kGap, dpr, kLinePositions } = context
+            const { ctx, pane, data, range, scrollLeft, kWidth, dpr, kLinePositions } = context
             const klineData = data as KLineData[]
             if (klineData.length < config.period) return
 
             const bollData = getBollPoints(klineData)
-            const opt = { kWidth, kGap, yPaddingPx: 0 }
-            const priceRange: PriceRange = pane.priceRange
-
-            const height = pane.height
-            const wantPad = opt.yPaddingPx ?? 0
-            const pad = Math.max(0, Math.min(wantPad, Math.floor(height / 2) - 1))
-            const paddingTop = pad
-            const paddingBottom = pad
-
-            // 价格范围
-            let maxPrice = priceRange?.maxPrice ?? -Infinity
-            let minPrice = priceRange?.minPrice ?? Infinity
-            if (!priceRange) {
-                for (let i = range.start; i < range.end && i < klineData.length; i++) {
-                    const e = klineData[i]
-                    if (!e) continue
-                    if (e.high > maxPrice) maxPrice = e.high
-                    if (e.low < minPrice) minPrice = e.low
-                }
-            }
-
-            if (!Number.isFinite(maxPrice) || !Number.isFinite(minPrice)) return
 
             ctx.save()
             ctx.translate(-scrollLeft, 0)
@@ -179,8 +155,8 @@ export function createBOLLRendererPlugin(initialConfig: BOLLConfig = {}): Render
                     const boll = bollData[i]
                     if (!boll) continue
 
-                    const logicX = kLinePositions[i - range.start]! + opt.kWidth / 2
-                    const logicY = priceToY(boll.upper, maxPrice, minPrice, height, paddingTop, paddingBottom)
+                    const logicX = kLinePositions[i - range.start]! + kWidth / 2
+                    const logicY = pane.yAxis.priceToY(boll.upper)
                     const x = alignToPhysicalPixelCenter(logicX, dpr)
                     const y = alignToPhysicalPixelCenter(logicY, dpr)
 
@@ -197,8 +173,8 @@ export function createBOLLRendererPlugin(initialConfig: BOLLConfig = {}): Render
                     const boll = bollData[i]
                     if (!boll) continue
 
-                    const logicX = kLinePositions[i - range.start]! + opt.kWidth / 2
-                    const logicY = priceToY(boll.lower, maxPrice, minPrice, height, paddingTop, paddingBottom)
+                    const logicX = kLinePositions[i - range.start]! + kWidth / 2
+                    const logicY = pane.yAxis.priceToY(boll.lower)
                     const x = alignToPhysicalPixelCenter(logicX, dpr)
                     const y = alignToPhysicalPixelCenter(logicY, dpr)
 
@@ -223,8 +199,8 @@ export function createBOLLRendererPlugin(initialConfig: BOLLConfig = {}): Render
                     const boll = bollData[i]
                     if (!boll) continue
 
-                    const logicX = kLinePositions[i - range.start]! + opt.kWidth / 2
-                    const logicY = priceToY(boll[type], maxPrice, minPrice, height, paddingTop, paddingBottom)
+                    const logicX = kLinePositions[i - range.start]! + kWidth / 2
+                    const logicY = pane.yAxis.priceToY(boll[type])
                     const x = alignToPhysicalPixelCenter(logicX, dpr)
                     const y = alignToPhysicalPixelCenter(logicY, dpr)
 

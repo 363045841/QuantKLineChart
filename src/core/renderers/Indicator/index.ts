@@ -11,6 +11,12 @@ export { createMARendererPlugin, type MAFlags } from './ma'
 // BOLL 布林带
 export { createBOLLRendererPlugin, calcBOLLAtIndex, type BOLLConfig } from './boll'
 
+// EXPMA 指数平滑移动平均线
+export { createEXPMARendererPlugin, calcEXPMAAtIndex, type EXPMAConfig } from './expma'
+
+// ENE 轨道线
+export { createENERendererPlugin, calcENEAtIndex, type ENEConfig } from './ene'
+
 // 主图指标图例（统一管理 MA、BOLL 等）
 export { createMainIndicatorLegendRendererPlugin } from './mainIndicatorLegend'
 

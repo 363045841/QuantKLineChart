@@ -212,6 +212,30 @@ export const KST_COLORS = {
 } as const
 
 /**
+ * EXPMA 颜色
+ */
+export const EXPMA_COLORS = {
+    /** 快线颜色（黄色） */
+    FAST: '#FFD700',
+    /** 慢线颜色（蓝色） */
+    SLOW: 'rgba(69, 112, 249, 1)',
+} as const
+
+/**
+ * ENE 轨道线颜色
+ */
+export const ENE_COLORS = {
+    /** 上轨颜色（红色） */
+    UPPER: 'rgba(214, 10, 34, 1)',
+    /** 中轨颜色（蓝色） */
+    MIDDLE: 'rgba(69, 112, 249, 1)',
+    /** 下轨颜色（绿色） */
+    LOWER: 'rgba(3, 123, 102, 1)',
+    /** 带状区域填充 */
+    BAND_FILL: 'rgba(69, 112, 249, 0.08)',
+} as const
+
+/**
  * 十字线颜色
  */
 export const CROSSHAIR_COLORS = {

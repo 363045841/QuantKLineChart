@@ -1,8 +1,6 @@
 import type { RendererPlugin, RenderContext } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
 import type { KLineData } from '@/types/price'
-import type { PriceRange } from '@/core/scale/price'
-import { priceToY } from '@/utils/priceToY'
 import { alignToPhysicalPixelCenter } from '@/core/draw/pixelAlign'
 import { MA_COLORS } from '@/core/theme/colors'
 
@@ -93,21 +91,7 @@ export function createMARendererPlugin(showMA: MAFlags = {}): RendererPlugin {
         context: RenderContext,
         color: string
     ) {
-        const { pane, range, kWidth, kGap, dpr, kLinePositions } = context
-        const height = pane.height
-        const priceRange: PriceRange = pane.priceRange
-
-        const wantPad = 0
-        const pad = Math.max(0, Math.min(wantPad, Math.floor(height / 2) - 1))
-        const paddingTop = pad
-        const paddingBottom = pad
-
-        if (!priceRange) return
-
-        const maxPrice = priceRange.maxPrice
-        const minPrice = priceRange.minPrice
-
-        if (!Number.isFinite(maxPrice) || !Number.isFinite(minPrice)) return
+        const { pane, range, kWidth, dpr, kLinePositions } = context
 
         ctx.strokeStyle = color
         ctx.lineWidth = 1
@@ -122,7 +106,7 @@ export function createMARendererPlugin(showMA: MAFlags = {}): RendererPlugin {
             if (maValue === undefined) continue
 
             const logicX = kLinePositions[i - range.start]! + kWidth / 2
-            const logicY = priceToY(maValue, maxPrice, minPrice, height, paddingTop, paddingBottom)
+            const logicY = pane.yAxis.priceToY(maValue)
 
             const x = alignToPhysicalPixelCenter(logicX, dpr)
             const y = alignToPhysicalPixelCenter(logicY, dpr)

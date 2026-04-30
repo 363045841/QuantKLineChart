@@ -10,6 +10,9 @@ export class PriceScale {
     private paddingTop = 0
     private paddingBottom = 0
 
+    /** 价格偏移量（用于上下拖动平移价格轴） */
+    private priceOffset = 0
+
     setRange(r: PriceRange) {
         this.range = r
     }
@@ -35,10 +38,34 @@ export class PriceScale {
         return this.paddingBottom
     }
 
+    /**
+     * 设置价格偏移量
+     * @param offset 价格偏移（正数向上平移，负数向下平移）
+     */
+    setPriceOffset(offset: number): void {
+        this.priceOffset = offset
+    }
+
+    /**
+     * 获取当前价格偏移量
+     */
+    getPriceOffset(): number {
+        return this.priceOffset
+    }
+
+    /**
+     * 重置价格偏移量
+     */
+    resetPriceOffset(): void {
+        this.priceOffset = 0
+    }
+
     priceToY(price: number): number {
         const { maxPrice, minPrice } = this.range
+        // 应用价格偏移
+        const adjustedPrice = price - this.priceOffset
         const range = maxPrice - minPrice || 1
-        const ratio = (price - minPrice) / range
+        const ratio = (adjustedPrice - minPrice) / range
         const viewHeight = Math.max(1, this.height - this.paddingTop - this.paddingBottom)
         return this.paddingTop + viewHeight * (1 - ratio)
     }
@@ -48,7 +75,21 @@ export class PriceScale {
         const range = maxPrice - minPrice || 1
         const viewHeight = Math.max(1, this.height - this.paddingTop - this.paddingBottom)
         const ratio = 1 - (y - this.paddingTop) / viewHeight
-        return minPrice + ratio * range
+        // 应用价格偏移（反向）
+        return minPrice + ratio * range + this.priceOffset
+    }
+
+    /**
+     * 根据像素偏移计算价格偏移
+     * @param deltaY Y轴像素偏移（正数向下拖动）
+     * @returns 对应的价格偏移量
+     */
+    deltaYToPriceOffset(deltaY: number): number {
+        const range = this.range.maxPrice - this.range.minPrice || 1
+        const viewHeight = Math.max(1, this.height - this.paddingTop - this.paddingBottom)
+        // 向下拖动（deltaY > 0）应该让价格轴上移（看到更高的价格）
+        // 所以价格偏移 = deltaY * (价格范围 / 视口高度)
+        return deltaY * (range / viewHeight)
     }
 }
 

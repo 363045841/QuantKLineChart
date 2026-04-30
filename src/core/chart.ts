@@ -585,6 +585,22 @@ export class Chart {
     }
 
     /**
+     * 平移价格轴（用于上下拖动）
+     * @param paneId 目标 pane ID
+     * @param deltaY Y轴像素偏移（正数向下拖动）
+     */
+    translatePrice(paneId: string, deltaY: number): void {
+        const renderer = this.paneRenderers.find(r => r.getPane().id === paneId)
+        if (!renderer) return
+
+        const pane = renderer.getPane()
+        const priceOffset = pane.yAxis.deltaYToPriceOffset(deltaY)
+        const currentOffset = pane.yAxis.getPriceOffset()
+        pane.yAxis.setPriceOffset(currentOffset + priceOffset)
+        this.scheduleDraw()
+    }
+
+    /**
      * 更新数据并请求重绘
      * @param data K 线数据数组
      */

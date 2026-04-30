@@ -16,6 +16,10 @@ export class InteractionController {
     private dragStartX = 0
     private scrollStartX = 0
 
+    /** 垂直拖动相关 */
+    private dragStartY = 0
+    private activePaneIdOnDrag: string | null = null
+
     /** [触屏]:触摸会话标记，避免触摸触发的模拟 mouse 事件干扰 */
     private isTouchSession = false
 
@@ -109,11 +113,21 @@ export class InteractionController {
             return
         }
 
+        //3.5 确定鼠标落在哪个 pane
+        const paneRenderers = this.chart.getPaneRenderers()
+        const renderer = paneRenderers.find((r) => {
+            const pane = r.getPane()
+            return mouseY >= pane.top && mouseY <= pane.top + pane.height
+        })
+        const pane = renderer?.getPane() || null
+
         //4. 没有点击 marker，开始拖拽
         this.isDragging = true
         this.updateHoverFromPoint(e.clientX, e.clientY)
         this.dragStartX = e.clientX
+        this.dragStartY = e.clientY
         this.scrollStartX = container.scrollLeft
+        this.activePaneIdOnDrag = pane?.id || null
 
         this.chart.scheduleDraw()
     }
@@ -176,10 +190,20 @@ export class InteractionController {
             return
         }
 
-        // 3. 没有点击 marker，开始拖拽
+        // 3. 确定鼠标落在哪个 pane
+        const paneRenderers = this.chart.getPaneRenderers()
+        const renderer = paneRenderers.find((r) => {
+            const pane = r.getPane()
+            return mouseY >= pane.top && mouseY <= pane.top + pane.height
+        })
+        const pane = renderer?.getPane() || null
+
+        // 4. 没有点击 marker，开始拖拽
         this.isDragging = true
         this.dragStartX = e.clientX
+        this.dragStartY = e.clientY
         this.scrollStartX = container.scrollLeft
+        this.activePaneIdOnDrag = pane?.id || null
         this.updateHoverFromPoint(e.clientX, e.clientY)
         this.chart.scheduleDraw()
         e.preventDefault()
@@ -194,9 +218,16 @@ export class InteractionController {
         const container = this.chart.getDom().container
 
         if (this.isDragging) {
-            //1. 拖拽时更新滚动位置
+            // 1. 水平拖拽：更新滚动位置
             const deltaX = this.dragStartX - e.clientX
             container.scrollLeft = this.scrollStartX + deltaX
+
+            // 2. 垂直拖拽：平移价格轴
+            const deltaY = e.clientY - this.dragStartY
+            if (deltaY !== 0 && this.activePaneIdOnDrag) {
+                this.chart.translatePrice(this.activePaneIdOnDrag, deltaY)
+                this.dragStartY = e.clientY
+            }
             return
         }
 
@@ -243,9 +274,16 @@ export class InteractionController {
         const container = this.chart.getDom().container
 
         if (this.isDragging) {
-            // 1. 拖拽时更新滚动位置
+            // 1. 水平拖拽：更新滚动位置
             const deltaX = this.dragStartX - e.clientX
             container.scrollLeft = this.scrollStartX + deltaX
+
+            // 2. 垂直拖拽：平移价格轴
+            const deltaY = e.clientY - this.dragStartY
+            if (deltaY !== 0 && this.activePaneIdOnDrag) {
+                this.chart.translatePrice(this.activePaneIdOnDrag, deltaY)
+                this.dragStartY = e.clientY
+            }
             return
         }
 
@@ -536,7 +574,9 @@ export class InteractionController {
     reset(): void {
         this.isDragging = false
         this.dragStartX = 0
+        this.dragStartY = 0
         this.scrollStartX = 0
+        this.activePaneIdOnDrag = null
         this.isTouchSession = false
         this.crosshairPos = null
         this.crosshairIndex = null

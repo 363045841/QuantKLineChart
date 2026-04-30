@@ -3,7 +3,9 @@ import { RENDERER_PRIORITY } from '@/plugin'
 import type { KLineData } from '@/types/price'
 import { calcMAAtIndex } from '@/utils/kline/ma'
 import { calcBOLLAtIndex } from './boll'
-import { MA_COLORS, BOLL_COLORS, PRICE_COLORS } from '@/core/theme/colors'
+import { calcEXPMAAtIndex } from './expma'
+import { calcENEAtIndex } from './ene'
+import { MA_COLORS, BOLL_COLORS, EXPMA_COLORS, ENE_COLORS, PRICE_COLORS } from '@/core/theme/colors'
 
 /** 指标行数据 */
 interface IndicatorRow {
@@ -31,6 +33,8 @@ export function createMainIndicatorLegendRendererPlugin(options: {
     indicators: {
       MA: { enabled: true, params: {} },
       BOLL: { enabled: false, params: { period: 20, multiplier: 2 } },
+      EXPMA: { enabled: false, params: { fastPeriod: 12, slowPeriod: 50 } },
+      ENE: { enabled: false, params: { period: 10, deviation: 11 } },
     },
   }
 
@@ -136,6 +140,66 @@ export function createMainIndicatorLegendRendererPlugin(options: {
 
               ctx.fillStyle = BOLL_COLORS.LOWER
               ctx.fillText(`下轨:${boll.lower.toFixed(2)}`, x, y)
+            }
+          }
+        })
+      }
+
+      // EXPMA 行
+      const expmaIndicator = config.indicators.EXPMA
+      if (expmaIndicator?.enabled) {
+        rows.push({
+          draw: (rowIndex: number) => {
+            const fastPeriod = (expmaIndicator.params.fastPeriod as number) ?? 12
+            const slowPeriod = (expmaIndicator.params.slowPeriod as number) ?? 50
+            const expma = calcEXPMAAtIndex(klineData, lastIndex, fastPeriod, slowPeriod)
+
+            let x = legendX
+            const y = config.yPaddingPx / 2 + fontSize + rowIndex * lineHeight
+
+            ctx.fillStyle = PRICE_COLORS.NEUTRAL
+            ctx.fillText(`EXPMA(${fastPeriod},${slowPeriod})`, x, y)
+            x += ctx.measureText(`EXPMA(${fastPeriod},${slowPeriod})`).width + gap
+
+            if (expma) {
+              ctx.fillStyle = EXPMA_COLORS.FAST
+              ctx.fillText(`快:${expma.fast.toFixed(2)}`, x, y)
+              x += ctx.measureText(`快:${expma.fast.toFixed(2)}`).width + gap
+
+              ctx.fillStyle = EXPMA_COLORS.SLOW
+              ctx.fillText(`慢:${expma.slow.toFixed(2)}`, x, y)
+            }
+          }
+        })
+      }
+
+      // ENE 行
+      const eneIndicator = config.indicators.ENE
+      if (eneIndicator?.enabled) {
+        rows.push({
+          draw: (rowIndex: number) => {
+            const period = (eneIndicator.params.period as number) ?? 10
+            const deviation = (eneIndicator.params.deviation as number) ?? 11
+            const ene = calcENEAtIndex(klineData, lastIndex, period, deviation)
+
+            let x = legendX
+            const y = config.yPaddingPx / 2 + fontSize + rowIndex * lineHeight
+
+            ctx.fillStyle = PRICE_COLORS.NEUTRAL
+            ctx.fillText(`ENE(${period},${deviation})`, x, y)
+            x += ctx.measureText(`ENE(${period},${deviation})`).width + gap
+
+            if (ene) {
+              ctx.fillStyle = ENE_COLORS.UPPER
+              ctx.fillText(`上轨:${ene.upper.toFixed(2)}`, x, y)
+              x += ctx.measureText(`上轨:${ene.upper.toFixed(2)}`).width + gap
+
+              ctx.fillStyle = ENE_COLORS.MIDDLE
+              ctx.fillText(`中轨:${ene.middle.toFixed(2)}`, x, y)
+              x += ctx.measureText(`中轨:${ene.middle.toFixed(2)}`).width + gap
+
+              ctx.fillStyle = ENE_COLORS.LOWER
+              ctx.fillText(`下轨:${ene.lower.toFixed(2)}`, x, y)
             }
           }
         })

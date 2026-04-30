@@ -175,6 +175,28 @@ const allIndicators: Indicator[] = [
     ],
   },
   {
+    id: 'EXPMA',
+    label: 'EXPMA',
+    name: '指数平滑移动平均线',
+    pane: 'main',
+    description: 'EXPMA 对近期价格给予更高权重，比普通 MA 更敏感。快线上穿慢线为金叉看涨，下穿为死叉看跌。',
+    params: [
+      { key: 'fastPeriod', label: '快线', type: 'number', min: 2, max: 100, step: 1, default: 12, description: '快线周期，对价格变化更敏感' },
+      { key: 'slowPeriod', label: '慢线', type: 'number', min: 2, max: 200, step: 1, default: 50, description: '慢线周期，用于判断趋势方向' },
+    ],
+  },
+  {
+    id: 'ENE',
+    label: 'ENE',
+    name: '轨道线',
+    pane: 'main',
+    description: 'ENE 轨道线由三条轨道组成，价格突破上轨可能超买，突破下轨可能超卖，适合判断震荡行情的买卖点。',
+    params: [
+      { key: 'period', label: '周期', type: 'number', min: 2, max: 100, step: 1, default: 10, description: '计算中轨的周期数' },
+      { key: 'deviation', label: '偏离率', type: 'number', min: 1, max: 30, step: 0.5, default: 11, description: '轨道偏离率百分比，决定轨道宽度' },
+    ],
+  },
+  {
     id: 'MACD',
     label: 'MACD',
     name: '指数平滑异同移动平均线',
@@ -274,7 +296,7 @@ const subIndicators = allIndicators.filter((i) => i.pane === 'sub')
 // ─────────────────────────────────────────────────────────────────
 const props = defineProps<{
   activeIndicators?: string[]
-  indicatorParams?: Record<string, Record<string, number>>
+  indicatorParams?: Record<string, Record<string, unknown>>
 }>()
 
 const emit = defineEmits<{
@@ -354,10 +376,17 @@ function getParamValues(indicatorId: string): Record<string, number> {
     defaultParams[p.key] = p.default ?? p.min ?? 1
   }
 
-  return {
-    ...defaultParams,
-    ...(props.indicatorParams?.[indicatorId] || {}),
+  const userParams = props.indicatorParams?.[indicatorId] || {}
+  const result: Record<string, number> = { ...defaultParams }
+
+  // 合并用户参数，只接受 number 类型
+  for (const [key, value] of Object.entries(userParams)) {
+    if (typeof value === 'number') {
+      result[key] = value
+    }
   }
+
+  return result
 }
 
 function getParamDisplay(indicator: Indicator): string {

@@ -125,6 +125,12 @@ export class SemanticChartController {
           case 'BOLL':
             this.applyBOLLIndicator(indicator)
             break
+          case 'EXPMA':
+            this.applyEXPMAIndicator(indicator)
+            break
+          case 'ENE':
+            this.applyENEIndicator(indicator)
+            break
         }
       }
     }
@@ -170,6 +176,30 @@ export class SemanticChartController {
     // 只更新配置，不设置启用状态
     // 启用状态由 UI 层 (activeIndicators watch) 控制
     this.chart.updateRendererConfig('boll', config)
+  }
+
+  private applyEXPMAIndicator(indicator: {
+    type: 'EXPMA'
+    enabled: boolean
+    params?: { fastPeriod?: number; slowPeriod?: number }
+  }): void {
+    const config = {
+      fastPeriod: indicator.params?.fastPeriod || 12,
+      slowPeriod: indicator.params?.slowPeriod || 50,
+    }
+    this.chart.updateRendererConfig('expma', config)
+  }
+
+  private applyENEIndicator(indicator: {
+    type: 'ENE'
+    enabled: boolean
+    params?: { period?: number; deviation?: number }
+  }): void {
+    const config = {
+      period: indicator.params?.period || 10,
+      deviation: indicator.params?.deviation || 11,
+    }
+    this.chart.updateRendererConfig('ene', config)
   }
 
   private applySubIndicator(indicator: SubIndicatorConfig): void {
