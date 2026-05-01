@@ -766,7 +766,7 @@ onMounted(() => {
 
   // 系统渲染器插件
   chart.useRenderer(createYAxisRendererPlugin({
-    axisWidth: props.rightAxisWidth,
+    axisWidth: props.rightAxisWidth + props.priceLabelWidth,
     yPaddingPx: props.yPaddingPx,
     getCrosshair: () => {
       const pos = chart.interaction.crosshairPos
@@ -1006,11 +1006,10 @@ watch(
 /* 右侧价格轴：上、右边框 */
 .right-axis {
   position: absolute;
-  right: 0;
+  right: 1px;
   display: block;
   border-top: 1px solid #e0e0e0;
   border-right: 1px solid #e0e0e0;
-  box-sizing: border-box;
 }
 
 /* 底部时间轴：左、右、下、上边框 */
@@ -1020,7 +1019,6 @@ watch(
   bottom: 1px;
   display: block;
   z-index: 10;
-  box-sizing: border-box;
 }
 
 .bottom-axis {
@@ -1040,7 +1038,7 @@ watch(
 /* 时间轴右侧占位DOM：定位到右下角 */
 .x-axis-corner {
   position: absolute;
-  right: 0;
+  right: 1px;
   bottom: 1px;
   display: block;
   z-index: 10;

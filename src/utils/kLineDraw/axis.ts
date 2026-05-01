@@ -41,7 +41,6 @@ export function drawPriceAxis(ctx: CanvasRenderingContext2D, opts: PriceAxisOpti
         textColor = TEXT_COLORS.SECONDARY,
         lineColor = BORDER_COLORS.DARK,
         fontSize = 16,
-        paddingX = 12,
         drawLeftBorder = true,
         drawTickLines = true,
         priceOffset = 0,
@@ -70,10 +69,10 @@ export function drawPriceAxis(ctx: CanvasRenderingContext2D, opts: PriceAxisOpti
 
     ctx.font = `${fontSize}px -apple-system,BlinkMacSystemFont,Trebuchet MS,Roboto,Ubuntu,sans-serif`
     ctx.textBaseline = 'middle'
-    // 价格轴文字靠左对齐（文字从轴区域左侧往右绘制）
-    ctx.textAlign = 'left'
+    // 价格轴文字水平居中
+    ctx.textAlign = 'center'
 
-    const textX = x + paddingX
+    const centerX = x + width / 2
 
     for (let i = 0; i < Math.max(2, ticks); i++) {
         const p = range === 0 ? maxPrice : maxPrice - step * i
@@ -94,7 +93,7 @@ export function drawPriceAxis(ctx: CanvasRenderingContext2D, opts: PriceAxisOpti
         // 文字：显示平移后的价格
         const displayPrice = p + priceOffset
         ctx.fillStyle = textColor
-        ctx.fillText(displayPrice.toFixed(2), roundToPhysicalPixel(textX, dpr), roundToPhysicalPixel(yy, dpr))
+        ctx.fillText(displayPrice.toFixed(2), roundToPhysicalPixel(centerX, dpr), roundToPhysicalPixel(yy, dpr))
     }
 }
 
@@ -191,11 +190,8 @@ export function drawCrosshairTimeLabel(ctx: CanvasRenderingContext2D, opts: Cros
         crosshairX,
         timestamp,
         dpr,
-        bgColor = TAG_BG_COLORS.WHITE,
-        textColor = TEXT_COLORS.PRIMARY,
         fontSize = 16,
         paddingX = 8,
-        paddingY = 4,
     } = opts
 
     const text = formatYMDShanghai(timestamp)
@@ -207,23 +203,25 @@ export function drawCrosshairTimeLabel(ctx: CanvasRenderingContext2D, opts: Cros
 
     const tw = Math.round(ctx.measureText(text).width)
     const rectW = Math.min(width, tw + paddingX * 2)
-    const rectH = Math.min(height, fontSize + paddingY * 2)
+    const rectH = height
 
     const centerX = Math.min(Math.max(crosshairX, x + rectW / 2), x + width - rectW / 2)
     const centerY = y + height / 2
 
     const rectX = centerX - rectW / 2
-    const rectY = centerY - rectH / 2
+    const rectY = y
 
-    ctx.fillStyle = bgColor
+    // 背景条（黑色，占满整个时间轴高度）
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
     ctx.fillRect(
         roundToPhysicalPixel(rectX, dpr),
-        0,
+        roundToPhysicalPixel(rectY, dpr),
         roundToPhysicalPixel(rectW, dpr),
         roundToPhysicalPixel(rectH, dpr),
     )
 
-    ctx.fillStyle = textColor
+    // 文字（白色）
+    ctx.fillStyle = '#ffffff'
     ctx.fillText(text, roundToPhysicalPixel(centerX, dpr), roundToPhysicalPixel(centerY, dpr))
 
     ctx.restore()
@@ -243,10 +241,7 @@ export function drawCrosshairPriceLabel(ctx: CanvasRenderingContext2D, opts: Cro
         priceRange,
         yPaddingPx = 0,
         dpr,
-        bgColor = TAG_BG_COLORS.WHITE,
-        textColor = TEXT_COLORS.PRIMARY,
         fontSize = 16,
-        paddingX = 8,
     } = opts
 
     const pad = Math.max(0, Math.min(yPaddingPx, Math.floor(height / 2) - 1))
@@ -256,30 +251,30 @@ export function drawCrosshairPriceLabel(ctx: CanvasRenderingContext2D, opts: Cro
     const price = yToPrice(crosshairY - y, maxPrice, minPrice, height, pad, pad)
     const priceText = price.toFixed(2)
 
-    const text = priceText
-
     ctx.save()
     ctx.font = `${fontSize}px -apple-system,BlinkMacSystemFont,Trebuchet MS,Roboto,Ubuntu,sans-serif`
     ctx.textBaseline = 'middle'
-    ctx.textAlign = 'left'
+    ctx.textAlign = 'center'
 
-    const textMetrics = ctx.measureText(text)
-    const textH = fontSize + 6
-    const textW = Math.ceil(textMetrics.width + paddingX * 2)
+    const textH = fontSize + 4
     const rectH = textH
-    const rectW = Math.min(width, textW)
+    const rectW = width
 
     const yy = Math.min(Math.max(crosshairY, y + rectH / 2), y + height - rectH / 2)
     const rectY = yy - rectH / 2
 
-    // 背景条（靠左）
-    ctx.fillStyle = bgColor
-    ctx.fillRect(roundToPhysicalPixel(x, dpr), roundToPhysicalPixel(rectY, dpr), roundToPhysicalPixel(rectW, dpr), roundToPhysicalPixel(rectH, dpr))
+    // 背景条（黑色，占满整个轴宽度）
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
+    const rx = roundToPhysicalPixel(x, dpr)
+    const ry = roundToPhysicalPixel(rectY, dpr)
+    const rw = roundToPhysicalPixel(rectW, dpr)
+    const rh = roundToPhysicalPixel(rectH, dpr)
+    ctx.fillRect(rx, ry, rw, rh)
 
-    // 绘制价格文字
-    const tx = x + paddingX
-    ctx.fillStyle = textColor
-    ctx.fillText(priceText, roundToPhysicalPixel(tx, dpr), roundToPhysicalPixel(yy, dpr))
+    // 绘制价格文字（白色，水平居中）
+    const centerX = x + width / 2
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText(priceText, roundToPhysicalPixel(centerX, dpr), roundToPhysicalPixel(yy, dpr))
 
     ctx.restore()
 }
@@ -341,7 +336,7 @@ export function drawTimeAxis(ctx: CanvasRenderingContext2D, opts: TimeAxisOption
         bgColor = TAG_BG_COLORS.TRANSPARENT,
         textColor = TEXT_COLORS.SECONDARY,
         lineColor = BORDER_COLORS.DARK,
-        fontSize = 16,
+        fontSize = 12,
         paddingX = 8,
         drawTopBorder = true,
         drawBottomBorder = true,
@@ -385,7 +380,8 @@ export function drawTimeAxis(ctx: CanvasRenderingContext2D, opts: TimeAxisOption
 
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    const textY = y + height / 2
+    // 考虑底部边框 1px，文字往下移 1px
+    const textY = y + height / 2 + 1
 
     // 使用预计算的月边界
     const boundaries = findMonthBoundaries(data)

@@ -811,11 +811,10 @@ export class Chart {
         this.dom.canvasLayer.style.height = `${viewHeight}px`
 
         // xAxisCanvas: 只设置宽度，位置由 CSS bottom: 0 自动处理
-        // 宽度增加 2px 补偿 border-left + border-right（box-sizing: border-box）
-        const xAxisWidth = plotWidth + 2
-        this.dom.xAxisCanvas.style.width = `${xAxisWidth}px`
+        // 注意：CSS 宽度和 canvas 像素宽度比例必须等于 dpr，否则文本会模糊
+        this.dom.xAxisCanvas.style.width = `${plotWidth}px`
         this.dom.xAxisCanvas.style.height = `${this.opt.bottomAxisHeight}px`
-        this.dom.xAxisCanvas.width = Math.round(xAxisWidth * dpr)
+        this.dom.xAxisCanvas.width = Math.round(plotWidth * dpr)
         this.dom.xAxisCanvas.height = Math.round(this.opt.bottomAxisHeight * dpr)
 
         const vp: Viewport = {

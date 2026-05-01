@@ -67,6 +67,7 @@ export function createTimeAxisRendererPlugin(options: {
             crosshairX: crosshair.x,
             timestamp: k.timestamp,
             dpr,
+            fontSize: 12,
           })
         }
       }

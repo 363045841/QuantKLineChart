@@ -40,13 +40,14 @@ export function createYAxisRendererPlugin(options: {
         drawLeftBorder: false,
         drawTickLines: false,
         priceOffset: pane.yAxis.getPriceOffset(),
+        fontSize: 12,
       })
 
       // 绘制十字线价格标签
       const crosshair = options.getCrosshair?.()
       if (crosshair && crosshair.price !== null) {
         drawCrosshairPriceLabel(targetCtx, {
-          x: 0,
+          x: 2,
           y: pane.top,
           width: options.axisWidth,
           height: pane.height,
@@ -54,6 +55,7 @@ export function createYAxisRendererPlugin(options: {
           priceRange: pane.priceRange,
           yPaddingPx: options.yPaddingPx,
           dpr,
+          fontSize: 12,
         })
       }
     },
