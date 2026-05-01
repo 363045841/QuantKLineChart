@@ -98,8 +98,8 @@ export function createMainIndicatorLegendRendererPlugin(options: {
               const y = config.yPaddingPx / 2 + fontSize + rowIndex * lineHeight
 
               ctx.fillStyle = PRICE_COLORS.NEUTRAL
-              ctx.fillText('均线', x, y)
-              x += ctx.measureText('均线').width + gap
+              ctx.fillText('MA', x, y)
+              x += ctx.measureText('MA').width + gap
 
               for (const it of items) {
                 const valText = typeof it.value === 'number' ? ` ${it.value.toFixed(2)}` : ''

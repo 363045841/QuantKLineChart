@@ -159,8 +159,6 @@ export interface CrosshairPriceLabelOptions {
     textColor?: string
     fontSize?: number
     paddingX?: number
-    /** 最新价，用于计算涨跌幅 */
-    lastPrice?: number
 }
 
 export interface CrosshairTimeLabelOptions {
@@ -249,7 +247,6 @@ export function drawCrosshairPriceLabel(ctx: CanvasRenderingContext2D, opts: Cro
         textColor = TEXT_COLORS.PRIMARY,
         fontSize = 16,
         paddingX = 8,
-        lastPrice,
     } = opts
 
     const pad = Math.max(0, Math.min(yPaddingPx, Math.floor(height / 2) - 1))
@@ -259,18 +256,7 @@ export function drawCrosshairPriceLabel(ctx: CanvasRenderingContext2D, opts: Cro
     const price = yToPrice(crosshairY - y, maxPrice, minPrice, height, pad, pad)
     const priceText = price.toFixed(2)
 
-    // 计算涨跌幅
-    let changeText = ''
-    let changeColor = textColor
-    if (lastPrice && lastPrice > 0) {
-        const change = price - lastPrice
-        const changePercent = (change / lastPrice) * 100
-        const sign = change >= 0 ? '+' : ''
-        changeText = ` ${sign}${changePercent.toFixed(2)}%`
-        changeColor = getTickColor(changePercent) // 红涨绿跌
-    }
-
-    const text = priceText + changeText
+    const text = priceText
 
     ctx.save()
     ctx.font = `${fontSize}px -apple-system,BlinkMacSystemFont,Trebuchet MS,Roboto,Ubuntu,sans-serif`
@@ -292,15 +278,8 @@ export function drawCrosshairPriceLabel(ctx: CanvasRenderingContext2D, opts: Cro
 
     // 绘制价格文字
     const tx = x + paddingX
-    const priceMetrics = ctx.measureText(priceText)
     ctx.fillStyle = textColor
     ctx.fillText(priceText, roundToPhysicalPixel(tx, dpr), roundToPhysicalPixel(yy, dpr))
-
-    // 绘制涨跌幅文字
-    if (changeText) {
-        ctx.fillStyle = changeColor
-        ctx.fillText(changeText, roundToPhysicalPixel(tx + priceMetrics.width, dpr), roundToPhysicalPixel(yy, dpr))
-    }
 
     ctx.restore()
 }

@@ -20,7 +20,7 @@
           <canvas class="x-axis-canvas bottom-axis" ref="xAxisCanvasRef"></canvas>
 
           <!-- 时间轴右侧占位DOM（补齐右下角框线） -->
-          <div class="x-axis-corner right-axis-corner" :style="{ height: props.bottomAxisHeight + 'px', width: (props.rightAxisWidth + props.priceLabelWidth) + 'px' }"></div>
+          <div class="x-axis-corner right-axis-corner" :style="{ height: props.bottomAxisHeight + 'px', width: (props.rightAxisWidth + props.priceLabelWidth - 1) + 'px' }"></div>
 
           <!-- 悬浮浮窗：放在 sticky 的 canvas-layer 内，避免随 scroll-content 横向滚动而偏移 -->
           <KLineTooltip
@@ -768,6 +768,14 @@ onMounted(() => {
   chart.useRenderer(createYAxisRendererPlugin({
     axisWidth: props.rightAxisWidth,
     yPaddingPx: props.yPaddingPx,
+    getCrosshair: () => {
+      const pos = chart.interaction.crosshairPos
+      const price = chart.interaction.crosshairPrice
+      if (pos && price !== null) {
+        return { y: pos.y, price }
+      }
+      return null
+    },
   }))
   // 主图指标图例（统一管理 MA、BOLL 等）
   chart.useRenderer(createMainIndicatorLegendRendererPlugin({
@@ -786,7 +794,7 @@ onMounted(() => {
     height: props.bottomAxisHeight,
     getCrosshair: () => {
       const pos = chart.interaction.crosshairPos
-      const idx = chart.interaction.hoveredIndex
+      const idx = chart.interaction.crosshairIndex
       if (pos && idx !== null) {
         return { x: pos.x, index: idx }
       }
@@ -1002,35 +1010,38 @@ watch(
   display: block;
   border-top: 1px solid #e0e0e0;
   border-right: 1px solid #e0e0e0;
+  box-sizing: border-box;
 }
 
 /* 底部时间轴：左、右、下、上边框 */
 .x-axis-canvas {
   position: absolute;
   left: 0;
-  bottom: 0;
+  bottom: 1px;
   display: block;
   z-index: 10;
+  box-sizing: border-box;
 }
 
 .bottom-axis {
   border-left: 1px solid #e0e0e0;
   border-right: 1px solid #e0e0e0;
   border-bottom: 1px solid #e0e0e0;
-  border-top: 1px solid #e0e0e0;
 }
 
 .right-axis-corner {
-  border-top: 1px solid #e0e0e0;
+  border-left: 1px solid #e0e0e0;
   border-right: 1px solid #e0e0e0;
   border-bottom: 1px solid #e0e0e0;
+  box-sizing: border-box;
+  bottom: 1px;
 }
 
 /* 时间轴右侧占位DOM：定位到右下角 */
 .x-axis-corner {
   position: absolute;
   right: 0;
-  bottom: 0;
+  bottom: 1px;
   display: block;
   z-index: 10;
 }

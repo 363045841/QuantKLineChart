@@ -1,6 +1,6 @@
 import type { RendererPlugin, RenderContext } from '@/plugin'
 import { RENDERER_PRIORITY, GLOBAL_PANE_ID } from '@/plugin'
-import { drawPriceAxis } from '@/utils/kLineDraw/axis'
+import { drawPriceAxis, drawCrosshairPriceLabel } from '@/utils/kLineDraw/axis'
 import { calculateTickCount } from '@/core/utils/tickCount'
 
 /**
@@ -10,6 +10,7 @@ import { calculateTickCount } from '@/core/utils/tickCount'
 export function createYAxisRendererPlugin(options: {
   axisWidth: number
   yPaddingPx: number
+  getCrosshair?: () => { y: number; price: number } | null
 }): RendererPlugin {
   return {
     name: 'yAxis',
@@ -40,6 +41,21 @@ export function createYAxisRendererPlugin(options: {
         drawTickLines: false,
         priceOffset: pane.yAxis.getPriceOffset(),
       })
+
+      // 绘制十字线价格标签
+      const crosshair = options.getCrosshair?.()
+      if (crosshair && crosshair.price !== null) {
+        drawCrosshairPriceLabel(targetCtx, {
+          x: 0,
+          y: pane.top,
+          width: options.axisWidth,
+          height: pane.height,
+          crosshairY: crosshair.y,
+          priceRange: pane.priceRange,
+          yPaddingPx: options.yPaddingPx,
+          dpr,
+        })
+      }
     },
   }
 }
