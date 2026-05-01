@@ -608,7 +608,7 @@ export class Chart {
         console.log('[Chart] updateData called, data length:', data?.length)
         this.data = data ?? []
 
-        // 重置 scrollLeft 到有效范围（防止数据减少后 scrollLeft 超出范围）
+        // 重算 DOM scrollLeft 状态, 防止左右滚动超出数据长度范围
         const container = this.dom.container
         if (container) {
             const contentWidth = this.getContentWidth()
@@ -617,9 +617,6 @@ export class Chart {
                 container.scrollLeft = maxScrollLeft
             }
         }
-
-        // 通知所有渲染器数据已更新（清除缓存等）
-        this.rendererPluginManager.notifyDataUpdate(this.data, { start: 0, end: this.data.length })
 
         // 重置交互状态
         this.interaction.reset()
@@ -636,15 +633,11 @@ export class Chart {
     getContentWidth(): number {
         const n = this.data?.length ?? 0
         const dpr = this.viewport?.dpr || window.devicePixelRatio || 1
-
-        // 使用物理像素对齐后的配置，确保与渲染一致
         const { startXPx, unitPx } = getPhysicalKLineConfig(this.opt.kWidth, this.opt.kGap, dpr)
-
-        // 实际需要的 plot 宽度（物理像素转回逻辑像素）
         const plotWidth = (startXPx + n * unitPx) / dpr
-        const yAxisTotalWidth = this.opt.rightAxisWidth + (this.opt.priceLabelWidth || 60)
-        return plotWidth + yAxisTotalWidth
+        return plotWidth
     }
+
 
     /** 容器尺寸变化时调用 */
     resize() {

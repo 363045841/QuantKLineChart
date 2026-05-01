@@ -1,3 +1,4 @@
+import { EXPMA_COLORS } from '@/core/theme/colors'
 import type { RendererPlugin, RenderContext } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
 import type { KLineData } from '@/types/price'
@@ -126,10 +127,10 @@ export function createEXPMARendererPlugin(initialConfig: EXPMAConfig = {}): Rend
       const drawStart = range.start
       const drawEnd = Math.min(range.end, klineData.length)
 
-      // 快线颜色（黄色）
-      const fastColor = '#FFD700'
+      // 快线颜色（橙色）
+      const fastColor = EXPMA_COLORS.FAST
       // 慢线颜色（蓝色）
-      const slowColor = 'rgba(69, 112, 249, 1)'
+      const slowColor = EXPMA_COLORS.SLOW
 
       const drawLine = (type: 'fast' | 'slow', color: string) => {
         ctx.strokeStyle = color

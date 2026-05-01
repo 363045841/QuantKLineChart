@@ -56,7 +56,7 @@ const showModal = ref(false)
 // 嵌入容器尺寸（模拟不同父容器尺寸）
 const sizeIndex = ref(0)
 const sizes = [
-  { w: '100%', h: '100%' },
+  { w: '95%', h: '95%' },
   { w: '800px', h: '500px' },
   { w: '600px', h: '400px' },
   { w: '100%', h: '300px' },
@@ -76,6 +76,7 @@ function toggleEmbedSize() {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  align-items: center;
 }
 
 .debug-controls {

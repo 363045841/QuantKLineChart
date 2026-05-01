@@ -779,6 +779,7 @@ onMounted(() => {
       pos: chart.interaction.crosshairPos,
       activePaneId: chart.interaction.activePaneId,
       isDragging: chart.interaction.isDraggingState(),
+      price: chart.interaction.crosshairPrice,
     }),
   }))
   chart.useRenderer(createTimeAxisRendererPlugin({

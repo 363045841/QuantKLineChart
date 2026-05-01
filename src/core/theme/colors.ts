@@ -215,8 +215,8 @@ export const KST_COLORS = {
  * EXPMA 颜色
  */
 export const EXPMA_COLORS = {
-    /** 快线颜色（黄色） */
-    FAST: '#FFD700',
+    /** 快线颜色（橙色，参考 RSI2） */
+    FAST: 'rgba(255, 152, 0, 1)',
     /** 慢线颜色（蓝色） */
     SLOW: 'rgba(69, 112, 249, 1)',
 } as const

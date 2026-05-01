@@ -1,3 +1,5 @@
+// 交互控制中心
+
 import type { Chart } from '../chart'
 import type { MarkerEntity, CustomMarkerEntity } from '@/core/marker/registry'
 
@@ -27,6 +29,8 @@ export class InteractionController {
     crosshairPos: { x: number; y: number } | null = null
     /** 十字线当前指向的 K 线索引 */
     crosshairIndex: number | null = null
+    /** 十字线指向的价格（用于价格轴平移时跟随） */
+    crosshairPrice: number | null = null
     /** 鼠标悬停的 K 线索引（命中 candle 时有效） */
     hoveredIndex: number | null = null
     /** 当前活跃的 pane ID */
@@ -338,6 +342,7 @@ export class InteractionController {
     private clearHover() {
         this.crosshairPos = null
         this.crosshairIndex = null
+        this.crosshairPrice = null
         this.hoveredIndex = null
         this.activePaneId = null
 
@@ -504,9 +509,18 @@ export class InteractionController {
                 x: Math.min(Math.max(snappedX, 0), plotWidth),
                 y: Math.min(Math.max(mouseY, 0), plotHeight),
             }
+
+            // 计算十字线指向的价格（用于价格轴平移时跟随）
+            if (pane) {
+                const localY = mouseY - pane.top
+                this.crosshairPrice = pane.yAxis.yToPrice(localY)
+            } else {
+                this.crosshairPrice = null
+            }
         } else {
             this.crosshairIndex = null
             this.crosshairPos = null
+            this.crosshairPrice = null
         }
 
         // 7. Tooltip 命中判定
@@ -580,6 +594,7 @@ export class InteractionController {
         this.isTouchSession = false
         this.crosshairPos = null
         this.crosshairIndex = null
+        this.crosshairPrice = null
         this.hoveredIndex = null
         this.activePaneId = null
         this.hoveredMarkerId = null

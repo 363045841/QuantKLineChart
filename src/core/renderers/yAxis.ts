@@ -38,6 +38,7 @@ export function createYAxisRendererPlugin(options: {
         ticks,
         drawLeftBorder: false,
         drawTickLines: false,
+        priceOffset: pane.yAxis.getPriceOffset(),
       })
     },
   }

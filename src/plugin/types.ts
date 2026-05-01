@@ -100,6 +100,7 @@ export interface PaneInfo {
     yToPrice(y: number): number
     getPaddingTop(): number
     getPaddingBottom(): number
+    getPriceOffset(): number
   }
   priceRange: {
     maxPrice: number
@@ -131,6 +132,7 @@ export function wrapPaneInfo(pane: {
       yToPrice: (y) => pane.yAxis.yToPrice(y),
       getPaddingTop: () => pane.yAxis.getPaddingTop(),
       getPaddingBottom: () => pane.yAxis.getPaddingBottom(),
+      getPriceOffset: () => pane.yAxis.getPriceOffset(),
     },
     priceRange: pane.priceRange,
   }

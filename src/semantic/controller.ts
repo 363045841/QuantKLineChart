@@ -78,6 +78,10 @@ export class SemanticChartController {
 
   // ============ 私有方法 ============
 
+  /**
+   * 应用语义化 UI 配置
+   * @param config 语义化配置
+   */
   private async doApplyConfig(config: SemanticChartConfig): Promise<void> {
     console.log('[Semantic] doApplyConfig start, data config:', config.data)
 
@@ -90,6 +94,7 @@ export class SemanticChartController {
       adjust: config.data.adjust,
     })
     console.log('[Semantic] fetched data:', data.length, 'items')
+    // 请求 chart 更新数据
     this.chart.updateData(data)
 
     // 2. 应用指标配置

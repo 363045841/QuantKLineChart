@@ -296,7 +296,7 @@ export class RendererPluginManager {
     return this.plugins.get(name) as T | undefined
   }
 
-  /** 通知数据更新（跳过禁用的插件） */
+  /* 调用 onDataUpdate 钩子通知数据更新 */
   notifyDataUpdate(data: unknown[], range: { start: number; end: number }): void {
     for (const plugin of this.plugins.values()) {
       if (!plugin.onDataUpdate) continue

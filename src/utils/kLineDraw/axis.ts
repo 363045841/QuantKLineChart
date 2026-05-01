@@ -22,6 +22,8 @@ export interface PriceAxisOptions {
     drawLeftBorder?: boolean
     /** 是否绘制刻度短线（默认 true） */
     drawTickLines?: boolean
+    /** 价格偏移量（用于价格轴平移时同步显示） */
+    priceOffset?: number
 }
 
 /** 右侧价格轴（固定，不随 translate/scroll 变化） */
@@ -42,6 +44,7 @@ export function drawPriceAxis(ctx: CanvasRenderingContext2D, opts: PriceAxisOpti
         paddingX = 12,
         drawLeftBorder = true,
         drawTickLines = true,
+        priceOffset = 0,
     } = opts
 
     const wantPad = yPaddingPx
@@ -88,9 +91,10 @@ export function drawPriceAxis(ctx: CanvasRenderingContext2D, opts: PriceAxisOpti
             ctx.stroke()
         }
 
-        // 文字
+        // 文字：显示平移后的价格
+        const displayPrice = p + priceOffset
         ctx.fillStyle = textColor
-        ctx.fillText(p.toFixed(2), roundToPhysicalPixel(textX, dpr), roundToPhysicalPixel(yy, dpr))
+        ctx.fillText(displayPrice.toFixed(2), roundToPhysicalPixel(textX, dpr), roundToPhysicalPixel(yy, dpr))
     }
 }
 

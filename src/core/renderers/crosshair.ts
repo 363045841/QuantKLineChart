@@ -12,6 +12,8 @@ export function createCrosshairRendererPlugin(options: {
     pos: { x: number; y: number } | null
     activePaneId: string | null
     isDragging: boolean
+    /** 十字线指向的价格（用于价格轴平移时跟随） */
+    price: number | null
   }
 }): RendererPlugin {
   return {
@@ -28,12 +30,14 @@ export function createCrosshairRendererPlugin(options: {
 
       if (state.isDragging || !state.pos) return
 
-      const { x, y } = state.pos
+      const { x } = state.pos
       const isActive = pane.id === state.activePaneId
 
-      // 垂直线在所有面板上绘制
-      // 水平线只在活跃面板上绘制
-      const localY = isActive ? y - pane.top : -1
+      // 使用价格计算 Y 坐标（支持价格轴平移）
+      let localY = -1
+      if (isActive && state.price !== null) {
+        localY = pane.yAxis.priceToY(state.price)
+      }
 
       ctx.save()
       ctx.beginPath()
