@@ -30,7 +30,6 @@ export function createCandleRenderer(): RendererPlugin {
 
             ctx.save()
             ctx.translate(-scrollLeft, 0)
-
             const positions = kLinePositions || []
 
             // 批量计算量价关系，使用前缀和优化性能
@@ -42,6 +41,7 @@ export function createCandleRenderer(): RendererPlugin {
             )
 
             for (let i = range.start; i < range.end && i < klineData.length; i++) {
+
                 const e = klineData[i]
                 if (!e) continue
 
@@ -106,6 +106,7 @@ export function createCandleRenderer(): RendererPlugin {
 
                     drawVolumePriceMarker(ctx, markerX, markerY, relation!, i, kWidth, 4, markerManager as MarkerManager, dpr)
                 }
+
             }
 
             ctx.restore()

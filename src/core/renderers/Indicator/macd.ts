@@ -207,19 +207,22 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
 
             // 绘制 MACD 柱状图
             if (config.showBAR) {
-                // 柱宽度：让柱间距固定为1像素
-                // 柱间距 = (kWidth + kGap) - barWidth = 1
-                // 所以 barWidth = kWidth + kGap - 1
-                const barWidth = kWidth + kGap - 1
+                const unitPx = (kWidth + kGap) * dpr
+                const barWidthPx = Math.max(1, Math.round(unitPx - 1))
+                const alignedBarWidth = barWidthPx / dpr
+                const alignedZeroY = Math.round(zeroY * dpr) / dpr
+
+                // 第一根柱子的物理 X 坐标（对齐到整数像素）
+                const firstX = kLinePositions[drawStart - range.start] ?? 0
+                const firstBarXPx = Math.round((firstX + (kWidth - alignedBarWidth) / 2) * dpr)
+
                 for (let i = drawStart; i < drawEnd; i++) {
                     const point = macdData[i]
                     if (!point) continue
 
-                    const x = kLinePositions[i - range.start]
-                    if (x === undefined) continue
-
-                    // 居中对齐：柱子中心与K线中心对齐
-                    const barX = x + (kWidth - barWidth) / 2
+                    const offset = i - drawStart
+                    const alignedBarXPx = firstBarXPx + offset * Math.round(unitPx)
+                    const alignedBarX = alignedBarXPx / dpr
 
                     const barY = pane.height - (point.macd - valueMin) / valueRange * pane.height
                     const isPositive = point.macd >= 0
@@ -246,11 +249,22 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
                     }
                     ctx.fillStyle = color
 
+                    // 对齐到物理像素
+                    const alignedBarY = Math.round(barY * dpr) / dpr
+
+                    // 确保最小物理像素高度（1px），保持零轴附近视觉连续性
+                    const minBarHPx = 1 / dpr
                     if (isPositive) {
-                        ctx.fillRect(barX, barY, barWidth, zeroY - barY)
+                        const rawH = alignedZeroY - alignedBarY
+                        const finalH = rawH <= 0 ? minBarHPx : Math.max(rawH, minBarHPx)
+                        const finalBarY = rawH <= 0 ? alignedZeroY - minBarHPx : alignedZeroY - finalH
+                        ctx.fillRect(alignedBarX, finalBarY, alignedBarWidth, finalH)
                     } else {
-                        ctx.fillRect(barX, zeroY, barWidth, barY - zeroY)
+                        const rawH = alignedBarY - alignedZeroY
+                        const finalH = rawH <= 0 ? minBarHPx : Math.max(rawH, minBarHPx)
+                        ctx.fillRect(alignedBarX, alignedZeroY, alignedBarWidth, finalH)
                     }
+
                 }
             }
 
