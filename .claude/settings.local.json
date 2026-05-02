@@ -18,10 +18,13 @@
       "Read(//d/Code/kmap/QuantChatFront/src/components/**)",
       "Bash(git commit -m ' *)",
       "Bash(dir D:/Code/kmap/kmap/)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(chmod +x deploy.sh tunnel.sh)",
+      "Read(//d/Code/kmap/stockbao//**)"
     ],
     "additionalDirectories": [
-      "D:\\Code\\kmap\\QuantChatFront\\src\\components"
+      "D:\\Code\\kmap\\QuantChatFront\\src\\components",
+      "D:\\Code\\kmap\\stockbao"
     ]
   }
 }

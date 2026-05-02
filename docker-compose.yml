@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # Baostock 后端服务
+  stockbao:
+    build:
+      context: ../stockbao
+      dockerfile: Dockerfile
+    container_name: stockbao-backend
+    ports:
+      - "${BAOSTOCK_PORT:-8000}:8000"
+    restart: unless-stopped
+    networks:
+      - klinechart-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # KLineChart 前端
+  klinechart:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: klinechart-demo
+    ports:
+      - "${PORT:-3000}:80"
+    environment:
+      # 指向同一网络的 stockbao 服务
+      - BAOSTOCK_URL=http://stockbao:8000/
+      - AKTOOLS_URL=${AKTOOLS_URL:-http://host.docker.internal:8080/}
+    restart: unless-stopped
+    depends_on:
+      - stockbao
+    networks:
+      - klinechart-net
+
+networks:
+  klinechart-net:
+    driver: bridge
