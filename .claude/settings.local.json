@@ -20,7 +20,8 @@
       "Bash(dir D:/Code/kmap/kmap/)",
       "Bash(git reset *)",
       "Bash(chmod +x deploy.sh tunnel.sh)",
-      "Read(//d/Code/kmap/stockbao//**)"
+      "Read(//d/Code/kmap/stockbao//**)",
+      "Read(//home/web/kmap/**)"
     ],
     "additionalDirectories": [
       "D:\\Code\\kmap\\QuantChatFront\\src\\components",

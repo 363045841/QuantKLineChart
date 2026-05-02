@@ -21,7 +21,10 @@ RUN pnpm run build:demo
 # 生产阶段 - 使用 Nginx 提供静态文件
 FROM nginx:alpine
 
-# 安装必要的工具
+# 👇 添加这行，替换 Alpine 源为阿里云镜像
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
+# 安装必要的工具（现在会快很多）
 RUN apk add --no-cache gettext
 
 # 复制 Nginx 配置模板

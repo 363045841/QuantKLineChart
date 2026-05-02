@@ -29,7 +29,7 @@ services:
     environment:
       # 指向同一网络的 stockbao 服务
       - BAOSTOCK_URL=http://stockbao:8000/
-      - AKTOOLS_URL=${AKTOOLS_URL:-http://host.docker.internal:8080/}
+      - AKTOOLS_URL=${AKTOOLS_URL:-http://127.0.0.1:8080/}
     restart: unless-stopped
     depends_on:
       - stockbao
