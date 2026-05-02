@@ -17,10 +17,7 @@
           <!-- plotCanvas 和 yAxisCanvas 由 Chart 自动创建 -->
 
           <!-- 底部时间轴（随 X 滚动，但画布不移动） -->
-          <canvas class="x-axis-canvas bottom-axis" ref="xAxisCanvasRef"></canvas>
-
-          <!-- 时间轴右侧占位DOM（补齐右下角框线） -->
-          <div class="x-axis-corner right-axis-corner" :style="{ height: props.bottomAxisHeight + 'px', width: (props.rightAxisWidth + props.priceLabelWidth - 1) + 'px' }"></div>
+          <canvas class="x-axis-canvas" ref="xAxisCanvasRef"></canvas>
 
           <!-- 悬浮浮窗：放在 sticky 的 canvas-layer 内，避免随 scroll-content 横向滚动而偏移 -->
           <KLineTooltip
@@ -942,6 +939,8 @@ watch(
   min-height: 255px; /* 85% of 300px */
   scrollbar-width: none;
   -ms-overflow-style: none;
+  border: 1px solid #e0e0e0;
+  box-sizing: border-box;
 
   /* ===== 移动端：屏蔽长按弹出菜单/选择等默认行为，避免影响交互 ===== */
   -webkit-touch-callout: none;
@@ -989,57 +988,18 @@ watch(
   display: block;
 }
 
-/* 主图：左、上、右边框 */
-.main {
-  border-left: 1px solid #e0e0e0;
-  border-top: 1px solid #e0e0e0;
-  border-right: 1px solid #e0e0e0;
-}
-
-/* 副图：左、上、右边框 */
-.sub {
-  border-left: 1px solid #e0e0e0;
-  border-top: 1px solid #e0e0e0;
-  border-right: 1px solid #e0e0e0;
-}
-
-/* 右侧价格轴：上、右边框 */
+/* 右侧价格轴 */
 .right-axis {
   position: absolute;
-  right: 1px;
+  right: 0;
   display: block;
-  border-top: 1px solid #e0e0e0;
-  border-right: 1px solid #e0e0e0;
 }
 
-/* 底部时间轴：左、右、下、上边框 */
+/* 底部时间轴 */
 .x-axis-canvas {
   position: absolute;
   left: 0;
-  bottom: 1px;
-  display: block;
-  z-index: 10;
-}
-
-.bottom-axis {
-  border-left: 1px solid #e0e0e0;
-  border-right: 1px solid #e0e0e0;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.right-axis-corner {
-  border-left: 1px solid #e0e0e0;
-  border-right: 1px solid #e0e0e0;
-  border-bottom: 1px solid #e0e0e0;
-  box-sizing: border-box;
-  bottom: 1px;
-}
-
-/* 时间轴右侧占位DOM：定位到右下角 */
-.x-axis-corner {
-  position: absolute;
-  right: 1px;
-  bottom: 1px;
+  bottom: 0;
   display: block;
   z-index: 10;
 }
