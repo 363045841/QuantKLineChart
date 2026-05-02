@@ -285,8 +285,8 @@ function onConfirm() {
   background: #fff;
   border: 1px solid #e0e0e0;
   border-radius: 6px;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -303,8 +303,8 @@ function onConfirm() {
 }
 
 .params-close svg {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
 }
 
 /* ── 指标描述 ── */

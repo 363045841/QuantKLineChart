@@ -406,8 +406,8 @@ function initIndicatorsFromConfig(): void {
   // 副图指标参数由 syncSubPanesFromChart 处理
 }
 
-// 监听主图指标状态变化，控制渲染器（单向数据流：state → chart）
-watch(activeIndicators, (indicators) => {
+// 监听主图指标状态和参数变化，控制渲染器（单向数据流：state → chart）
+watch([activeIndicators, indicatorParams], ([indicators]) => {
   const chart = chartRef.value
   if (!chart) return
 
@@ -617,6 +617,30 @@ function handleIndicatorToggle(indicatorId: string, active: boolean) {
   }
 }
 
+// 更新主图指标图例配置
+function updateMainIndicatorLegendConfig() {
+  chartRef.value?.updateRendererConfig('mainIndicatorLegend', {
+    indicators: {
+      MA: {
+        enabled: activeIndicators.value.includes('MA'),
+        params: indicatorParams.value['MA'] || {},
+      },
+      BOLL: {
+        enabled: activeIndicators.value.includes('BOLL'),
+        params: indicatorParams.value['BOLL'] || {},
+      },
+      EXPMA: {
+        enabled: activeIndicators.value.includes('EXPMA'),
+        params: indicatorParams.value['EXPMA'] || {},
+      },
+      ENE: {
+        enabled: activeIndicators.value.includes('ENE'),
+        params: indicatorParams.value['ENE'] || {},
+      },
+    },
+  })
+}
+
 // 指标参数更新处理
 function handleUpdateParams(indicatorId: string, params: Record<string, unknown>) {
   // 保存参数配置
@@ -636,6 +660,8 @@ function handleUpdateParams(indicatorId: string, params: Record<string, unknown>
     if (indicatorId === 'ENE') {
       chartRef.value?.updateRendererConfig('ene', params)
     }
+    // 更新图例以显示新参数
+    updateMainIndicatorLegendConfig()
     scheduleRender()
     return
   }
