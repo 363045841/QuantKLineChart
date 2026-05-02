@@ -91,6 +91,12 @@ export class Chart {
     /** 渲染器插件管理器 */
     private rendererPluginManager: RendererPluginManager
 
+    /** 精确 DPR（来自 devicePixelContentBoxSize） */
+    private preciseDpr = 0
+
+    /** 用于监听物理像素尺寸变化 */
+    private dprObserver?: ResizeObserver
+
     /**
      * 创建图表实例
      * @param dom 由 Vue 组件传入的 DOM 句柄
@@ -109,6 +115,25 @@ export class Chart {
         this.rendererPluginManager.setInvalidateCallback(() => this.scheduleDraw())
 
         this.initPanes()
+
+        // 启动精确 DPR 检测（Chrome 147+ 支持）
+        if (typeof ResizeObserver !== 'undefined' &&
+            'devicePixelContentBoxSize' in ResizeObserverEntry.prototype) {
+            const layer = this.dom.canvasLayer
+            if (layer) {
+                this.dprObserver = new ResizeObserver((entries) => {
+                    const entry = entries[0]
+                    if (!entry) return
+                    const pixelSize = entry.devicePixelContentBoxSize?.[0]
+                    const cssSize = entry.contentBoxSize?.[0]
+                    if (pixelSize && cssSize) {
+                        const raw = pixelSize.inlineSize / cssSize.inlineSize
+                        this.preciseDpr = Math.round(raw * 64) / 64
+                    }
+                })
+                this.dprObserver.observe(layer)
+            }
+        }
     }
 
     /** 获取插件宿主 */
@@ -158,16 +183,10 @@ export class Chart {
 
         // 1. 计算视口信息
         const vp = this.computeViewport()
-        if (!vp) {
-            console.log('[Chart] draw aborted: no viewport')
-            return
-        }
+        if (!vp) return
 
         // 数据为空时跳过渲染
-        if (this.data.length === 0) {
-            console.log('[Chart] draw aborted: no data')
-            return
-        }
+        if (this.data.length === 0) return
 
         // 2. 计算可视 K 线数据范围
         const { start, end } = getVisibleRange(
@@ -245,7 +264,7 @@ export class Chart {
         if (xAxisCtx) {
             const timeAxisContext: RenderContext = {
                 ctx: xAxisCtx,
-                pane: { id: 'xAxis', top: 0, height: this.opt.bottomAxisHeight, yAxis: { priceToY: () => 0, yToPrice: () => 0, getPaddingTop: () => 0, getPaddingBottom: () => 0 }, priceRange: { maxPrice: 0, minPrice: 0 } },
+                pane: { id: 'xAxis', top: 0, height: this.opt.bottomAxisHeight, yAxis: { priceToY: () => 0, yToPrice: () => 0, getPaddingTop: () => 0, getPaddingBottom: () => 0, getPriceOffset: () => 0 }, priceRange: { maxPrice: 0, minPrice: 0 } },
                 data: this.data,
                 range,
                 scrollLeft: vp.scrollLeft,
@@ -605,7 +624,6 @@ export class Chart {
      * @param data K 线数据数组
      */
     updateData(data: KLineData[]) {
-        console.log('[Chart] updateData called, data length:', data?.length)
         this.data = data ?? []
 
         // 重算 DOM scrollLeft 状态, 防止左右滚动超出数据长度范围
@@ -663,6 +681,12 @@ export class Chart {
     async destroy() {
         if (this.raf != null) cancelAnimationFrame(this.raf)
         this.raf = null
+
+        // 清理 DPR 观察器
+        this.dprObserver?.disconnect()
+        this.dprObserver = undefined
+        this.preciseDpr = 0
+
         this.viewport = null
         this.paneRenderers.forEach((r) => r.destroy())
         this.paneRenderers = []
@@ -789,29 +813,31 @@ export class Chart {
         const container = this.dom.container
         if (!container) return null
 
-        // 使用 clientWidth/clientHeight 而非 getBoundingClientRect()
-        // 原因：getBoundingClientRect() 受 CSS transform 影响
-        // 当父容器有 scale/rotate 等 transform 时会返回错误的尺寸
-        const viewWidth = Math.max(1, Math.ceil(container.clientWidth))
-        const viewHeight = Math.max(1, Math.ceil(container.clientHeight))
-        const scrollLeft = container.scrollLeft
+        const viewWidth = Math.max(1, Math.round(container.clientWidth))
+        const viewHeight = Math.max(1, Math.round(container.clientHeight))
 
         const yAxisTotalWidth = this.opt.rightAxisWidth + (this.opt.priceLabelWidth || 60)
         const plotWidth = Math.round(viewWidth - yAxisTotalWidth)
         const plotHeight = Math.round(viewHeight - this.opt.bottomAxisHeight)
 
-        let dpr = window.devicePixelRatio || 1
+        // 精确 DPR，优先 devicePixelContentBoxSize，回退传统方案 + 精度吸附
+        let dpr = this.preciseDpr > 0
+            ? this.preciseDpr
+            : Math.round((window.devicePixelRatio || 1) * 64) / 64
+        if (dpr < 1) dpr = 1
+
         const MAX_CANVAS_PIXELS = 16 * 1024 * 1024
         const requestedPixels = viewWidth * dpr * (viewHeight * dpr)
         if (requestedPixels > MAX_CANVAS_PIXELS) {
             dpr = Math.sqrt(MAX_CANVAS_PIXELS / (viewWidth * viewHeight))
         }
 
+        // 对齐 scrollLeft，消除 translate 亚像素偏移
+        const scrollLeft = Math.round(container.scrollLeft * dpr) / dpr
+
         this.dom.canvasLayer.style.width = `${viewWidth}px`
         this.dom.canvasLayer.style.height = `${viewHeight}px`
 
-        // xAxisCanvas: 只设置宽度，位置由 CSS bottom: 0 自动处理
-        // 注意：CSS 宽度和 canvas 像素宽度比例必须等于 dpr，否则文本会模糊
         this.dom.xAxisCanvas.style.width = `${plotWidth}px`
         this.dom.xAxisCanvas.style.height = `${this.opt.bottomAxisHeight}px`
         this.dom.xAxisCanvas.width = Math.round(plotWidth * dpr)

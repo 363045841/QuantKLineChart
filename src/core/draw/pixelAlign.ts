@@ -2,6 +2,8 @@
  * 像素对齐工具函数 - 逻辑像素空间（配合 ctx.scale(dpr) 使用）
  */
 
+import { BORDER_COLORS } from '@/core/theme/colors'
+
 /**
  * 将逻辑坐标对齐到物理像素边界（用于矩形填充）
  * @param value - 逻辑坐标值
@@ -230,7 +232,7 @@ export function createAlignedKLineFromPx(
     const physWickX = leftPx + (widthPx - 1) / 2
     const physBodyCenter = physWickX
     const isPerfectlyAligned = physBodyWidth % 2 === 1
-    
+
     // 4. 返回逻辑像素坐标
     return {
         bodyRect: {

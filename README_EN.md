@@ -4,9 +4,9 @@ English | [简体中文](README.md)
 
 A financial charting library based on Vue 3 and Canvas, focusing on high-performance K-line (candlestick) chart rendering. The library supports horizontal scrolling, moving average (MA) display, and financial data retrieval from multiple sources including **BaoStock** and AKTools.
 
-![YU8@~$21%{NBJLGIZ}KTKED.png](https://files.seeusercontent.com/2026/04/29/akQ8/YU821NBJLGIZKTKED.png)
+![pasted-image-1777718129484.webp](https://files.seeusercontent.com/2026/05/02/Lm0w/pasted-image-1777718129484.webp)
 ![(ZOS$O}EP(_NKI273RXBV17.png](https://files.seeusercontent.com/2026/04/29/olU0/ZOSOEP_NKI273RXBV17.png)
-![1TIVL2M~[(}TWFB_O}JZJ]6.png](https://files.seeusercontent.com/2026/04/29/a6rH/1TIVL2MTWFB_OJZJ6.png)
+![YU8@~$21%{NBJLGIZ}KTKED.png](https://files.seeusercontent.com/2026/04/29/akQ8/YU821NBJLGIZKTKED.png)
 
 ## Features
 
@@ -17,6 +17,14 @@ A financial charting library based on Vue 3 and Canvas, focusing on high-perform
 - **Framework-agnostic**: Core logic is completely independent, not tied to any specific framework
 - **Plugin Architecture**: Renderer plugins support dynamic registration, configuration and lifecycle management
 - **Volume-Price Annotation**: Automatically identifies and annotates four patterns: volume-price rise, divergence, etc.
+
+### Agent Semantic Control
+
+- **JSON Configuration Driven**: Accepts JSON configuration via `semanticConfig` prop, allowing AI Agents to directly control chart rendering
+- **Custom Markers**: Supports 6 preset shapes (arrow_up, arrow_down, flag, circle, rectangle, diamond), marker size auto-adapts with K-line scaling
+- **Comprehensive Indicators**: Main chart MA/BOLL/EXPMA/ENE, sub-chart MACD/RSI/CCI/STOCH/MOM/WMSR/KST/FASTK/VOLUME
+- **Security Validation**: JSON Schema validation, prototype pollution protection, color XSS protection, input boundary checking
+- **Date-Friendly Format**: Uses `YYYY-MM-DD` natural date format for easy Agent output
 
 ## Tech Stack
 
@@ -83,36 +91,82 @@ pnpm dev
 
 ```vue
 <template>
-  <KLineChart
-    :data="klineData"
-    :kWidth="10"
-    :kGap="2"
-    :yPaddingPx="60"
-    :showMA="{ ma5: true, ma10: true, ma20: true }"
-    :autoScrollToRight="true"
-  />
+  <KLineChart :semanticConfig="config" />
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import KLineChart from '@/components/KLineChart.vue'
-import type { KLineData } from '@/types/price'
+import type { SemanticChartConfig } from '@/semantic'
 
-const klineData = ref<KLineData[]>([])
-
-onMounted(async () => {
-  // Fetch K-line data from data source
-  const data = await fetchKLineData('baostock', {
-    symbol: 'sh.601360',
+const config = ref<SemanticChartConfig>({
+  version: '1.0.0',
+  data: {
+    source: 'baostock',
+    symbol: '601360',
+    exchange: 'SH',
     startDate: '2024-01-01',
     endDate: '2024-12-31',
     period: 'daily',
     adjust: 'qfq',
-  })
-  klineData.value = data
+  },
+  indicators: {
+    main: [{ type: 'MA', enabled: true, params: { periods: [5, 10, 20] } }],
+    sub: [{ type: 'MACD', enabled: true }],
+  },
+  chart: {
+    kWidth: 10,
+    kGap: 2,
+    autoScrollToRight: true,
+  },
 })
 </script>
 ```
+
+### Semantic JSON Control (Agent Mode)
+
+Through the `semanticConfig` prop, AI Agents can fully control chart rendering with JSON configuration:
+
+```vue
+<template>
+  <KLineChart :semanticConfig="config" />
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import type { SemanticChartConfig } from '@363045841yyt/klinechart'
+
+const config = ref<SemanticChartConfig>({
+  version: '1.0.0',
+  data: {
+    source: 'baostock',
+    symbol: '600519',
+    exchange: 'SH',
+    startDate: '2025-01-01',
+    endDate: '2025-04-18',
+    period: 'daily',
+    adjust: 'qfq',
+  },
+  indicators: {
+    main: [{ type: 'MA', enabled: true, params: { periods: [5, 10, 20] } }],
+    sub: [{ type: 'MACD', enabled: true }],
+  },
+  markers: {
+    customMarkers: [
+      {
+        id: 'buy_001',
+        date: '2025-02-15',
+        shape: 'arrow_up',
+        label: { text: 'Buy' },
+        style: { fillColor: '#52c41a' },
+      },
+    ],
+  },
+})
+</script>
+```
+
+For detailed configuration, please refer to [Semantic Configuration Documentation](./docs/semantic-config.md).
 
 ## Data Source Configuration
 
@@ -141,12 +195,15 @@ uv run python -m aktools  # Start service
 
 | Prop | Type | Default | Description |
 |------|------|--------|------|
-| data | KLineData[] | [] | K-line data array |
+| semanticConfig | SemanticChartConfig | - | **Required**. Semantic configuration (the only control source) |
 | kWidth | number | 10 | K-line body width |
 | kGap | number | 2 | K-line gap |
-| yPaddingPx | number | 60 | Y-axis padding pixels |
-| showMA | MAFlags | { ma5: true, ma10: true, ma20: true } | Moving average configuration |
-| autoScrollToRight | boolean | true | Auto-scroll to right after data update |
+| yPaddingPx | number | 0 | Y-axis padding pixels |
+| minKWidth | number | 2 | Minimum K-line width |
+| maxKWidth | number | 50 | Maximum K-line width |
+| rightAxisWidth | number | 0 | Right price axis width |
+| bottomAxisHeight | number | 24 | Bottom time axis height |
+| priceLabelWidth | number | 60 | Price label extra width (for displaying change percentage) |
 
 ## Environment Requirements
 

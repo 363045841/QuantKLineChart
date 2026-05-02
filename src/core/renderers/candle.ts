@@ -50,17 +50,26 @@ export function createCandleRenderer(): RendererPlugin {
                 const highY = pane.yAxis.priceToY(e.high)
                 const lowY = pane.yAxis.priceToY(e.low)
 
-                const rawRectY = Math.min(openY, closeY)
-                const rawRectH = Math.max(Math.abs(openY - closeY), 1)
-
                 // 使用 Chart 统一计算的 x 坐标
                 const leftLogical = positions[i - range.start]
                 if (!leftLogical) continue
+
+                // 对齐 Y 坐标到物理像素网格
+                const alignY = (logical: number) => Math.round(logical * dpr) / dpr
+                const alignedOpenY = alignY(openY)
+                const alignedCloseY = alignY(closeY)
+                const alignedHighY = alignY(highY)
+                const alignedLowY = alignY(lowY)
+                const alignedRawRectY = Math.min(alignedOpenY, alignedCloseY)
+                const alignedRawRectH = Math.max(Math.abs(alignedOpenY - alignedCloseY), 1)
+
+                const roundedLeftPx = Math.round(leftLogical * dpr)
+
                 const aligned = createAlignedKLineFromPx(
-                    Math.round(leftLogical * dpr),
-                    rawRectY,
+                    roundedLeftPx,
+                    alignedRawRectY,
                     kWidthPx,
-                    rawRectH,
+                    alignedRawRectH,
                     dpr
                 )
 
@@ -78,11 +87,11 @@ export function createCandleRenderer(): RendererPlugin {
                 const bodyLow = Math.min(e.open, e.close)
 
                 if (e.high > bodyHigh) {
-                    const wick = createVerticalLineRect(wickX, highY, bodyTop, dpr)
+                    const wick = createVerticalLineRect(wickX, alignedHighY, bodyTop, dpr)
                     if (wick) ctx.fillRect(wick.x, wick.y, wickWidth, wick.height)
                 }
                 if (e.low < bodyLow) {
-                    const wick = createVerticalLineRect(wickX, bodyBottom, lowY, dpr)
+                    const wick = createVerticalLineRect(wickX, bodyBottom, alignedLowY, dpr)
                     if (wick) ctx.fillRect(wick.x, wick.y, wickWidth, wick.height)
                 }
 
@@ -92,10 +101,10 @@ export function createCandleRenderer(): RendererPlugin {
                     // 根据量价关系决定标记位置
                     const isRising = relation === VolumePriceRelation.RISE_WITH_VOLUME ||
                         relation === VolumePriceRelation.RISE_WITHOUT_VOLUME
-                    const markerY = isRising ? highY - 15 : lowY + 15
+                    const markerY = isRising ? alignedHighY - 15 : alignedLowY + 15
                     const markerX = aligned.bodyRect.x + aligned.bodyRect.width / 2
 
-                    drawVolumePriceMarker(ctx, markerX, markerY, relation!, i, kWidth, 4, markerManager as MarkerManager)
+                    drawVolumePriceMarker(ctx, markerX, markerY, relation!, i, kWidth, 4, markerManager as MarkerManager, dpr)
                 }
             }
 
@@ -114,6 +123,7 @@ export function createCandleRenderer(): RendererPlugin {
 * @param relation - 量价关系类型
 * @param kWidth - K线宽度，作为三角形边长
 * @param gap - 三角形与K线的间距，默认为4
+* @param dpr - 设备像素比
 */
 export function drawVolumePriceMarker(
     ctx: CanvasRenderingContext2D,
@@ -123,8 +133,14 @@ export function drawVolumePriceMarker(
     kIndex: number,
     kWidth: number,
     gap: number = 4,
-    markerManager: MarkerManager
+    markerManager: MarkerManager,
+    dpr: number
 ): void {
+    // 对齐坐标到物理像素网格
+    const align = (v: number) => Math.round(v * dpr) / dpr
+    x = align(x)
+    y = align(y)
+
     const sideLength = Math.min(kWidth, 20)
     // 等边三角形的高度 = 边长 * √3 / 2
     const height = sideLength * Math.sqrt(3) / 2
@@ -163,21 +179,21 @@ export function drawVolumePriceMarker(
     if (isUp) {
         // 向上三角形：底边在下，顶点在上
         // y 是 highY，三角形底边距离 highY 有 gap 的间距
-        const baseY = y - gap           // 底边 y 坐标
-        const tipY = baseY - height     // 顶点 y 坐标
+        const baseY = align(y - gap)           // 底边 y 坐标
+        const tipY = align(baseY - height)     // 顶点 y 坐标
 
-        ctx.moveTo(x, tipY)                          // 顶点
-        ctx.lineTo(x - sideLength / 2, baseY)        // 左下角
-        ctx.lineTo(x + sideLength / 2, baseY)        // 右下角
+        ctx.moveTo(x, tipY)                                    // 顶点
+        ctx.lineTo(align(x - sideLength / 2), baseY)           // 左下角
+        ctx.lineTo(align(x + sideLength / 2), baseY)           // 右下角
     } else {
         // 向下三角形：底边在上，顶点在下
         // y 是 lowY，三角形底边距离 lowY 有 gap 的间距
-        const baseY = y + gap           // 底边 y 坐标
-        const tipY = baseY + height     // 顶点 y 坐标
+        const baseY = align(y + gap)           // 底边 y 坐标
+        const tipY = align(baseY + height)     // 顶点 y 坐标
 
-        ctx.moveTo(x, tipY)                          // 顶点
-        ctx.lineTo(x - sideLength / 2, baseY)        // 左上角
-        ctx.lineTo(x + sideLength / 2, baseY)        // 右上角
+        ctx.moveTo(x, tipY)                                    // 顶点
+        ctx.lineTo(align(x - sideLength / 2), baseY)           // 左上角
+        ctx.lineTo(align(x + sideLength / 2), baseY)           // 右上角
     }
 
     ctx.closePath()
@@ -193,16 +209,16 @@ export function drawVolumePriceMarker(
 
     if (isUp) {
         // 向上三角形：底边在下，顶点在上
-        const baseY = y - gap           // 底边 y 坐标
-        const tipY = baseY - height     // 顶点 y 坐标
-        boundingX = x - sideLength / 2  // 左上角 x
-        boundingY = tipY                 // 左上角 y（顶点 y）
+        const baseY = align(y - gap)           // 底边 y 坐标
+        const tipY = align(baseY - height)     // 顶点 y 坐标
+        boundingX = align(x - sideLength / 2)  // 左上角 x
+        boundingY = tipY                        // 左上角 y（顶点 y）
     } else {
         // 向下三角形：底边在上，顶点在下
-        const baseY = y + gap           // 底边 y 坐标
-        const tipY = baseY + height     // 顶点 y 坐标
-        boundingX = x - sideLength / 2  // 左上角 x
-        boundingY = baseY                // 左上角 y（底边 y）
+        const baseY = align(y + gap)           // 底边 y 坐标
+        const tipY = align(baseY + height)     // 顶点 y 坐标
+        boundingX = align(x - sideLength / 2)  // 左上角 x
+        boundingY = baseY                       // 左上角 y（底边 y）
     }
 
     // 根据 VolumePriceRelation 获取对应的 markerType

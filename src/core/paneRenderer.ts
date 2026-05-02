@@ -49,14 +49,14 @@ export class PaneRenderer {
 
         plotCanvas.style.width = `${width}px`
         plotCanvas.style.height = `${height}px`
-        plotCanvas.width = Math.ceil(width * dpr)
-        plotCanvas.height = Math.ceil(height * dpr)
+        plotCanvas.width = Math.round(width * dpr)
+        plotCanvas.height = Math.round(height * dpr)
 
         const canvasYAxisWidth = this.opt.rightAxisWidth + (this.opt.priceLabelWidth || 60)
         yAxisCanvas.style.width = `${canvasYAxisWidth}px`
         yAxisCanvas.style.height = `${height}px`
-        yAxisCanvas.width = Math.ceil(canvasYAxisWidth * dpr)
-        yAxisCanvas.height = Math.ceil(height * dpr)
+        yAxisCanvas.width = Math.round(canvasYAxisWidth * dpr)
+        yAxisCanvas.height = Math.round(height * dpr)
     }
 
     /** 销毁 PaneRenderer 实例 */

@@ -4,9 +4,9 @@
 
 这是一个基于 Canvas 的金融图表绘制库，提供 Vue 组件封装。专注于高性能 K 线图渲染，支持**语义化 JSON 配置**，便于 AI Agent 直接控制图表渲染。特性包括横向滚动、多种技术指标（MA/BOLL/MACD/RSI 等）、自定义标记标注、多数据源支持（BaoStock、东方财富）。
 
-![YU8@~$21%{NBJLGIZ}KTKED.png](https://files.seeusercontent.com/2026/04/29/akQ8/YU821NBJLGIZKTKED.png)
+![pasted-image-1777718129484.webp](https://files.seeusercontent.com/2026/05/02/Lm0w/pasted-image-1777718129484.webp)
 ![(ZOS$O}EP(_NKI273RXBV17.png](https://files.seeusercontent.com/2026/04/29/olU0/ZOSOEP_NKI273RXBV17.png)
-![1TIVL2M~[(}TWFB_O}JZJ]6.png](https://files.seeusercontent.com/2026/04/29/a6rH/1TIVL2MTWFB_OJZJ6.png)
+![YU8@~$21%{NBJLGIZ}KTKED.png](https://files.seeusercontent.com/2026/04/29/akQ8/YU821NBJLGIZKTKED.png)
 
 
 ## 功能特性
@@ -98,33 +98,34 @@ pnpm dev
 
 ```vue
 <template>
-  <KLineChart
-    :data="klineData"
-    :kWidth="10"
-    :kGap="2"
-    :yPaddingPx="60"
-    :showMA="{ ma5: true, ma10: true, ma20: true }"
-    :autoScrollToRight="true"
-  />
+  <KLineChart :semanticConfig="config" />
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import KLineChart from '@/components/KLineChart.vue'
-import type { KLineData } from '@/types/price'
+import type { SemanticChartConfig } from '@/semantic'
 
-const klineData = ref<KLineData[]>([])
-
-onMounted(async () => {
-  // 从数据源获取 K 线数据
-  const data = await fetchKLineData('baostock', {
-    symbol: 'sh.601360',
+const config = ref<SemanticChartConfig>({
+  version: '1.0.0',
+  data: {
+    source: 'baostock',
+    symbol: '601360',
+    exchange: 'SH',
     startDate: '2024-01-01',
     endDate: '2024-12-31',
     period: 'daily',
     adjust: 'qfq',
-  })
-  klineData.value = data
+  },
+  indicators: {
+    main: [{ type: 'MA', enabled: true, params: { periods: [5, 10, 20] } }],
+    sub: [{ type: 'MACD', enabled: true }],
+  },
+  chart: {
+    kWidth: 10,
+    kGap: 2,
+    autoScrollToRight: true,
+  },
 })
 </script>
 ```
@@ -201,13 +202,15 @@ uv run python -m aktools  # 启动服务
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| data | KLineData[] | [] | K 线数据数组 |
-| semanticConfig | SemanticChartConfig | - | 语义化配置（Agent 模式，唯一数据源） |
+| semanticConfig | SemanticChartConfig | - | **必需**。语义化配置（唯一控制源） |
 | kWidth | number | 10 | K 线实体宽度 |
 | kGap | number | 2 | K 线间距 |
-| yPaddingPx | number | 60 | Y 轴上下留白像素 |
-| showMA | MAFlags | { ma5: true, ma10: true, ma20: true } | 移动平均线配置 |
-| autoScrollToRight | boolean | true | 数据更新后自动滚动到最右侧 |
+| yPaddingPx | number | 0 | Y 轴上下留白像素 |
+| minKWidth | number | 2 | K 线最小宽度 |
+| maxKWidth | number | 50 | K 线最大宽度 |
+| rightAxisWidth | number | 0 | 右侧价格轴宽度 |
+| bottomAxisHeight | number | 24 | 底部时间轴高度 |
+| priceLabelWidth | number | 60 | 价格标签额外宽度（用于显示涨跌幅） |
 
 ## 环境要求
 

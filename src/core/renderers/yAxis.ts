@@ -47,7 +47,7 @@ export function createYAxisRendererPlugin(options: {
       const crosshair = options.getCrosshair?.()
       if (crosshair && crosshair.price !== null) {
         drawCrosshairPriceLabel(targetCtx, {
-          x: 2,
+          x: 0,
           y: pane.top,
           width: options.axisWidth,
           height: pane.height,
