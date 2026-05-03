@@ -76,6 +76,7 @@ import {
 } from '@/core/renderers/Indicator'
 import { createExtremaMarkersRendererPlugin } from '@/core/renderers/extremaMarkers'
 import { createYAxisRendererPlugin } from '@/core/renderers/yAxis'
+import { createMacdScaleRendererPlugin } from '@/core/renderers/Indicator/scale/macd_scale'
 import { createTimeAxisRendererPlugin } from '@/core/renderers/timeAxis'
 import { createCrosshairRendererPlugin } from '@/core/renderers/crosshair'
 import { createPaneTitleRendererPlugin, type TitleInfo } from '@/core/renderers/paneTitle'
@@ -805,6 +806,13 @@ onMounted(() => {
     yPaddingPx: props.yPaddingPx,
   }))
 
+  // MACD 副图刻度渲染器（示例：注册到 sub_MACD pane）
+  // 注意：实际使用时应在动态创建 MACD 副图时注册
+  chart.useRenderer(createMacdScaleRendererPlugin({
+    axisWidth: props.rightAxisWidth + props.priceLabelWidth,
+    paneId: 'sub_MACD',
+  }))
+
   chart.useRenderer(createCrosshairRendererPlugin({
     getCrosshairState: () => ({
       pos: chart.interaction.crosshairPos,
@@ -1028,5 +1036,19 @@ watch(
   bottom: 0;
   display: block;
   z-index: 10;
+}
+
+/* 框线系统 */
+.main, .sub {
+  border-right: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.x-axis-canvas {
+  border-right: 1px solid #e0e0e0;
+}
+
+.right-axis {
+  border-bottom: 1px solid #e0e0e0;
 }
 </style>

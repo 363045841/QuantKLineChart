@@ -1,17 +1,19 @@
 /**
  * 插件宿主 - 核心管理类
  */
-import type { Plugin, PluginConfig, PluginHost, PluginState } from './types'
+import type { Plugin, PluginConfig, PluginHost, PluginState, BaseIndicatorState } from './types'
 import { PluginRegistry } from './PluginRegistry'
 import { EventBus } from './EventBus'
 import { HookSystem } from './HookSystem'
 import { ConfigManager } from './ConfigManager'
+import { StateStore } from './StateStore'
 
 export class PluginHostImpl implements PluginHost {
   private registry: PluginRegistry
   private eventBus: EventBus
   private hookSystem: HookSystem
   private configManager: ConfigManager
+  private stateStore: StateStore
   private isDestroyed = false
 
   constructor() {
@@ -19,6 +21,7 @@ export class PluginHostImpl implements PluginHost {
     this.eventBus = new EventBus()
     this.hookSystem = new HookSystem()
     this.configManager = new ConfigManager()
+    this.stateStore = new StateStore()
   }
 
   // 实现 PluginHost 接口
@@ -72,6 +75,28 @@ export class PluginHostImpl implements PluginHost {
     const timestamp = new Date().toISOString()
     const prefix = `[${timestamp}] [${level.toUpperCase()}]`
     console[level](`${prefix} ${message}`, ...args)
+  }
+
+  // ============ 状态存储 API ============
+
+  setSharedState<T extends BaseIndicatorState>(namespace: string, state: T, ownerId?: string): void {
+    this.stateStore.setState(namespace, state, ownerId)
+  }
+
+  getSharedState<T extends BaseIndicatorState>(namespace: string): T | undefined {
+    console.log("[PluginHost] getSharedState:", namespace); return this.stateStore.getState<T>(namespace)
+  }
+
+  clearSharedState(namespace: string): void {
+    this.stateStore.clearState(namespace)
+  }
+
+  registerStateOwner(ownerId: string, namespaces: string[]): void {
+    this.stateStore.registerStateOwner(ownerId, namespaces)
+  }
+
+  clearByOwner(ownerId: string): void {
+    this.stateStore.clearByOwner(ownerId)
   }
 
   /**
@@ -187,6 +212,7 @@ export class PluginHostImpl implements PluginHost {
     this.eventBus.clear()
     this.hookSystem.clear()
     this.configManager.clear()
+    this.stateStore.clear()
 
     this.isDestroyed = true
     this.log('info', 'PluginHost destroyed')

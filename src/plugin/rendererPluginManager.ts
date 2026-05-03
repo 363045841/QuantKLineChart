@@ -99,6 +99,12 @@ export class RendererPluginManager {
       }
     }
 
+    // 记录声明的状态命名空间（用于自动清理）
+    const namespaces = withHost.getDeclaredNamespaces?.()
+    if (namespaces && this.pluginHost) {
+      this.pluginHost.registerStateOwner(plugin.name, namespaces)
+    }
+
     // 注册后自动触发重绘
     this.onInvalidate?.()
   }
@@ -107,6 +113,9 @@ export class RendererPluginManager {
   unregister(name: string): void {
     const plugin = this.plugins.get(name)
     if (!plugin) return
+
+    // 自动清理状态（在 onUninstall 之前）
+    this.pluginHost?.clearByOwner(name)
 
     // 调用卸载回调
     if (plugin.onUninstall) {
@@ -200,6 +209,17 @@ export class RendererPluginManager {
   getRenderers(paneId: string): RendererPlugin[] {
     this.rebuildCache()
 
+    // 调试日志
+    if (import.meta.env.DEV) {
+      const paneRenderers = this.groupCache.get(paneId) ?? []
+      const globalRenderers = this.groupCache.get(GLOBAL_CACHE_KEY) ?? []
+      console.log(`[RendererManager] getRenderers(${paneId}):`, {
+        knownPaneIds: Array.from(this.knownPaneIds),
+        paneRenderers: paneRenderers.map(p => p.name),
+        globalRenderers: globalRenderers.map(p => p.name),
+      })
+    }
+
     // 有专属缓存用专属，否则用 global fallback
     let cached = this.mergedCache.get(paneId)
     if (!cached) {
@@ -222,6 +242,8 @@ export class RendererPluginManager {
   render(paneId: string, context: RenderContext): RendererErrorEvent[] {
     const renderers = this.getRenderers(paneId)
     const errors: RendererErrorEvent[] = []
+
+    console.log(`[RendererManager] render(${paneId}) order:`, renderers.map(r => `${r.name}(${r.priority})`))
 
     for (const renderer of renderers) {
       try {

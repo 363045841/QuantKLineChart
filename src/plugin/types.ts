@@ -86,6 +86,23 @@ export interface PluginHost {
 
   /** 日志工具 */
   log(level: 'info' | 'warn' | 'error', message: string, ...args: unknown[]): void
+
+  // ============ 状态存储 API ============
+
+  /** 设置共享状态 */
+  setSharedState<T extends BaseIndicatorState>(namespace: string, state: T, ownerId?: string): void
+
+  /** 获取共享状态 */
+  getSharedState<T extends BaseIndicatorState>(namespace: string): T | undefined
+
+  /** 清除共享状态 */
+  clearSharedState(namespace: string): void
+
+  /** 注册状态拥有者 */
+  registerStateOwner(ownerId: string, namespaces: string[]): void
+
+  /** 按拥有者清除状态 */
+  clearByOwner(ownerId: string): void
 }
 
 // ============ 渲染器插件类型 ============
@@ -172,7 +189,17 @@ export const RENDERER_PRIORITY = {
   SYSTEM_XAXIS: -20, // X轴（系统级）
   BACKGROUND: 0, // 背景层
   GRID: 10, // 网格线
-  INDICATOR: 30, // 指标（MA、BOLL等）
+  /**
+   * 指标渲染器（MACD, RSI 等）
+   * 所有指标渲染器必须使用此优先级或 ≤30 的值
+   */
+  INDICATOR: 30,
+  /**
+   * 指标刻度渲染器（依赖于前方 INDICATOR 的状态）
+   * 所有刻度渲染器必须使用此优先级或 ≥35 的值，
+   * 确保每次绘制时指标更新先于刻度。
+   */
+  INDICATOR_SCALE: 35,
   MAIN: 50, // 主图（K线）
   OVERLAY: 80, // 叠加层（标记点）
   FOREGROUND: 100, // 前景层（价格线）
@@ -233,4 +260,13 @@ export interface RendererPlugin {
 export interface RendererPluginWithHost extends RendererPlugin {
   /** 安装时获取 PluginHost 访问权限 */
   onInstall?(host: PluginHost): void
+  /** 声明该渲染器所拥有的状态命名空间，卸载时框架会自动清理 */
+  getDeclaredNamespaces?(): string[]
+}
+
+// ============ 状态存储类型 ============
+
+/** 指标渲染器状态基类 */
+export interface BaseIndicatorState {
+  timestamp: number
 }

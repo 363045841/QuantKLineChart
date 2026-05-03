@@ -1,5 +1,6 @@
-import type { RendererPlugin, RenderContext } from '@/plugin'
+import type { RendererPluginWithHost, RenderContext, PluginHost, BaseIndicatorState } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
+import { createIndicatorStateKey } from '@/plugin/stateKeys'
 import type { KLineData } from '@/types/price'
 import { MACD_COLORS } from '@/core/theme/colors'
 import { alignToPhysicalPixelCenter } from '@/core/draw/pixelAlign'
@@ -17,6 +18,13 @@ export interface MACDConfig {
     showDEA?: boolean
     /** 是否显示 MACD 柱 */
     showBAR?: boolean
+}
+
+/** MACD 渲染器状态（共享给刻度渲染器） */
+export interface MACDRenderState extends BaseIndicatorState {
+    valueMin: number
+    valueMax: number
+    latestValues?: { dif: number; dea: number; macd: number }
 }
 
 interface MACDPoint {
@@ -126,8 +134,11 @@ export interface MACDRendererOptions {
 /**
  * 创建 MACD 渲染器插件
  */
-export function createMACDRendererPlugin(options: MACDRendererOptions = {}): RendererPlugin {
+export function createMACDRendererPlugin(options: MACDRendererOptions = {}): RendererPluginWithHost {
     const { paneId = 'sub', config: initialConfig = {} } = options
+
+    const STATE_KEY = createIndicatorStateKey('macd', paneId)
+    let pluginHost: PluginHost | null = null
 
     const config: Required<MACDConfig> = {
         fastPeriod: 12,
@@ -169,7 +180,15 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
         description: 'MACD 指标渲染器',
         debugName: 'MACD',
         paneId: paneId,
-        priority: RENDERER_PRIORITY.MAIN,
+        priority: RENDERER_PRIORITY.INDICATOR,
+
+        onInstall(host: PluginHost) {
+            pluginHost = host
+        },
+
+        getDeclaredNamespaces() {
+            return [STATE_KEY]
+        },
 
         draw(context: RenderContext) {
             const { ctx, pane, data, range, scrollLeft, kWidth, kGap, dpr, kLinePositions } = context
@@ -195,6 +214,21 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
             const valueMin = minVal - padding
             const valueMax = maxVal + padding
             const valueRange = valueMax - valueMin || 1
+
+            // 发布状态给刻度渲染器
+            const latestIndex = range.end - 1
+            const latestPoint = latestIndex >= 0 && latestIndex < macdData.length ? macdData[latestIndex] : null
+            const stateData: MACDRenderState = {
+                valueMin,
+                valueMax,
+                timestamp: Date.now(),
+                latestValues: latestPoint ? {
+                    dif: latestPoint.dif,
+                    dea: latestPoint.dea,
+                    macd: latestPoint.macd,
+                } : undefined,
+            }
+            pluginHost?.setSharedState<MACDRenderState>(STATE_KEY, stateData, `macd_${paneId}`)
 
             // 零轴位置
             const zeroY = pane.height - (0 - valueMin) / valueRange * pane.height

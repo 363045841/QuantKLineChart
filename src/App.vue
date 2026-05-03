@@ -87,6 +87,8 @@ function toggleEmbedSize() {
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
+  align-self: stretch;          /* 撑满父容器宽度 */
+  justify-content: center;      /* 内部按钮居中 */
 }
 
 .debug-controls button {
