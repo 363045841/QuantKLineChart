@@ -126,6 +126,7 @@ const semanticController = shallowRef<SemanticChartController | null>(null)
 
 /* ========== 数据长度（响应式，用于计算 totalWidth） ========== */
 const dataLength = ref(0)
+const viewportDpr = ref(1)
 
 function scheduleRender() {
   chartRef.value?.scheduleDraw()
@@ -684,7 +685,7 @@ function handleUpdateParams(indicatorId: string, params: Record<string, unknown>
 /* 计算总宽度：使用物理像素对齐后的值，确保与渲染一致 */
 const totalWidth = computed(() => {
   const n = dataLength.value
-  const dpr = window.devicePixelRatio || 1
+  const dpr = viewportDpr.value
 
   // 使用物理像素对齐后的配置
   const { startXPx, unitPx } = getPhysicalKLineConfig(
@@ -833,7 +834,11 @@ onMounted(() => {
     },
   }))
 
+  chart.setOnViewportChange((vp) => {
+    viewportDpr.value = vp.dpr
+  })
   chartRef.value = chart
+  viewportDpr.value = chart.getCurrentDpr()
   chart.resize()
 
   // 初始化语义化控制器
@@ -875,21 +880,6 @@ onMounted(() => {
     scheduleRender()
   })
 
-  // 使用 ResizeObserver 监听容器尺寸变化
-  // 注：chart.ts 使用 clientWidth/clientHeight 获取尺寸，不受 CSS transform 影响
-  let resizeTimeout: ReturnType<typeof setTimeout> | null = null
-
-  const resizeObserver = new ResizeObserver(() => {
-    // 简单防抖，避免频繁触发
-    if (resizeTimeout) clearTimeout(resizeTimeout)
-    resizeTimeout = setTimeout(() => {
-      chart.resize()
-      resizeTimeout = null
-    }, 50)
-  })
-  resizeObserver.observe(container)
-  ;(chart as any).__resizeObserver = resizeObserver
-  ;(chart as any).__resizeTimeout = resizeTimeout
   // 保存 wheel handler，确保 onUnmounted 能正确移除
   ;(chart as any).__onWheel = onWheelHandler
 })
@@ -897,13 +887,6 @@ onMounted(() => {
 onUnmounted(() => {
   const chart = chartRef.value
   if (chart) {
-    // 清理 ResizeObserver 和防抖 timeout
-    const resizeObserver = (chart as any).__resizeObserver as ResizeObserver | undefined
-    const resizeTimeout = (chart as any).__resizeTimeout as ReturnType<typeof setTimeout> | null
-    if (resizeTimeout) clearTimeout(resizeTimeout)
-    if (resizeObserver) {
-      resizeObserver.disconnect()
-    }
     const onWheel = (chart as any).__onWheel as
       | ((this: HTMLElement, ev: WheelEvent) => any)
       | undefined
@@ -913,6 +896,7 @@ onUnmounted(() => {
   }
   chartRef.value = null
 })
+
 
 watch(
   () => [props.kWidth, props.kGap],

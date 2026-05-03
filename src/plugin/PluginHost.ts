@@ -84,7 +84,7 @@ export class PluginHostImpl implements PluginHost {
   }
 
   getSharedState<T extends BaseIndicatorState>(namespace: string): T | undefined {
-    console.log("[PluginHost] getSharedState:", namespace); return this.stateStore.getState<T>(namespace)
+    return this.stateStore.getState<T>(namespace)
   }
 
   clearSharedState(namespace: string): void {

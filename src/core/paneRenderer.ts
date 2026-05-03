@@ -57,8 +57,6 @@ export class PaneRenderer {
         yAxisCanvas.height = Math.round(height * dpr)
         yAxisCanvas.style.width = `${yAxisCanvas.width / dpr}px`
         yAxisCanvas.style.height = `${yAxisCanvas.height / dpr}px`
-
-        console.log('[RESIZE] height:', height, 'canvasH:', plotCanvas.height, 'styleH:', plotCanvas.style.height, 'ratio:', plotCanvas.height / parseFloat(plotCanvas.style.height), 'dpr:', dpr)
     }
 
     /** 销毁 PaneRenderer 实例 */

@@ -213,11 +213,6 @@ export class RendererPluginManager {
     if (import.meta.env.DEV) {
       const paneRenderers = this.groupCache.get(paneId) ?? []
       const globalRenderers = this.groupCache.get(GLOBAL_CACHE_KEY) ?? []
-      console.log(`[RendererManager] getRenderers(${paneId}):`, {
-        knownPaneIds: Array.from(this.knownPaneIds),
-        paneRenderers: paneRenderers.map(p => p.name),
-        globalRenderers: globalRenderers.map(p => p.name),
-      })
     }
 
     // 有专属缓存用专属，否则用 global fallback
@@ -242,8 +237,6 @@ export class RendererPluginManager {
   render(paneId: string, context: RenderContext): RendererErrorEvent[] {
     const renderers = this.getRenderers(paneId)
     const errors: RendererErrorEvent[] = []
-
-    console.log(`[RendererManager] render(${paneId}) order:`, renderers.map(r => `${r.name}(${r.priority})`))
 
     for (const renderer of renderers) {
       try {

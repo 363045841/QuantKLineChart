@@ -27,7 +27,6 @@ export class StateStore {
       }
     }
     this.states.set(namespace, state)
-    console.log(`[StateStore] setState: "${namespace}" =`, state)
   }
 
   /**
@@ -36,8 +35,6 @@ export class StateStore {
    */
   getState<T extends BaseIndicatorState>(namespace: string): T | undefined {
     const state = this.states.get(namespace) as T | undefined
-    console.log(`[StateStore] getState: "${namespace}" =>`, state ? 'found' : 'NOT FOUND')
-    console.log(`[StateStore] Current namespaces:`, Array.from(this.states.keys()))
     return state
   }
 

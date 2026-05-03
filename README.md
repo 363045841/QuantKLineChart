@@ -4,6 +4,20 @@
 
 这是一个基于 Canvas 的金融图表绘制库，提供 Vue 组件封装。专注于高性能 K 线图渲染，支持**语义化 JSON 配置**，便于 AI Agent 直接控制图表渲染。特性包括横向滚动、多种技术指标（MA/BOLL/MACD/RSI 等）、自定义标记标注、多数据源支持（BaoStock、东方财富）。
 
+## 重要更新：渲染链路已重构为 ResizeObserver 单链路
+
+当前版本已完成 Canvas 尺寸与 DPR 处理链路重构，核心变化如下：
+
+- 尺寸与 DPR 统一由 `Chart` 内部 `ResizeObserver` 维护（单一真源）
+- 优先使用 `devicePixelContentBoxSize` 获取精确 DPR，回退 `window.devicePixelRatio`
+- `canvas.width/height` 始终按 `逻辑尺寸 × 当前 DPR` 设置，绘制前统一 `ctx.scale(dpr, dpr)`
+- 交互命中边界与渲染 viewport 对齐，减少缩放/跨屏后的坐标漂移
+- Vue 组件层移除重复 resize observer，避免双链路竞争
+
+这次重构的目标是：在浏览器缩放、跨屏拖动、容器 resize 等场景下保持持续清晰绘制。
+
+详细说明见：[架构文档（ResizeObserver 重构版）](./docs/architecture.md)
+
 ![pasted-image-1777718129484.webp](https://files.seeusercontent.com/2026/05/02/Lm0w/pasted-image-1777718129484.webp)
 ![(ZOS$O}EP(_NKI273RXBV17.png](https://files.seeusercontent.com/2026/04/29/olU0/ZOSOEP_NKI273RXBV17.png)
 ![YU8@~$21%{NBJLGIZ}KTKED.png](https://files.seeusercontent.com/2026/04/29/akQ8/YU821NBJLGIZKTKED.png)
@@ -235,6 +249,7 @@ pnpm preview  # 预览生产包
 - [Canvas API MDN 文档](https://developer.mozilla.org/zh-CN/docs/Web/API/Canvas_API)
 - [Vitest 官方文档](https://vitest.dev/)
 - [语义化配置文档](./docs/semantic-config.md) - Agent JSON 配置说明
+- [架构文档（ResizeObserver 重构版）](./docs/architecture.md)
 
 ## 许可证
 

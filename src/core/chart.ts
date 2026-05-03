@@ -91,11 +91,17 @@ export class Chart {
     /** 渲染器插件管理器 */
     private rendererPluginManager: RendererPluginManager
 
-    /** 精确 DPR（来自 devicePixelContentBoxSize） */
+    /** 精确 DPR（来自 ResizeObserver 的 devicePixelContentBoxSize） */
     private preciseDpr = 0
 
-    /** 用于监听物理像素尺寸变化 */
-    private dprObserver?: ResizeObserver
+    /** 统一监听容器尺寸与 DPR 变化 */
+    private resizeObserver?: ResizeObserver
+
+    /** 最近一次观测到的容器尺寸 */
+    private observedSize = { width: 0, height: 0 }
+
+    /** 视口变化回调（供外部同步 DPR/尺寸） */
+    private onViewportChange?: (viewport: Viewport) => void
 
     /**
      * 创建图表实例
@@ -115,25 +121,75 @@ export class Chart {
         this.rendererPluginManager.setInvalidateCallback(() => this.scheduleDraw())
 
         this.initPanes()
+        this.initResizeObserver()
+    }
 
-        // 启动精确 DPR 检测（Chrome 147+ 支持）
-        if (typeof ResizeObserver !== 'undefined' &&
-            'devicePixelContentBoxSize' in ResizeObserverEntry.prototype) {
-            const layer = this.dom.canvasLayer
-            if (layer) {
-                this.dprObserver = new ResizeObserver((entries) => {
-                    const entry = entries[0]
-                    if (!entry) return
-                    const pixelSize = entry.devicePixelContentBoxSize?.[0]
-                    const cssSize = entry.contentBoxSize?.[0]
-                    if (pixelSize && cssSize) {
-                        const raw = pixelSize.inlineSize / cssSize.inlineSize
-                        this.preciseDpr = Math.round(raw * 64) / 64
-                    }
-                })
-                this.dprObserver.observe(layer)
+
+
+    private initResizeObserver() {
+        if (typeof ResizeObserver === 'undefined') return
+
+        const target = this.dom.container
+        if (!target) return
+
+        this.resizeObserver = new ResizeObserver((entries) => {
+            const entry = entries[0]
+            if (!entry) return
+
+            const prevWidth = this.observedSize.width
+            const prevHeight = this.observedSize.height
+            const prevDpr = this.preciseDpr
+
+            this.updateObservedMetrics(entry)
+
+            const widthChanged = this.observedSize.width !== prevWidth
+            const heightChanged = this.observedSize.height !== prevHeight
+            const dprChanged = this.preciseDpr !== prevDpr
+            if (widthChanged || heightChanged || dprChanged) {
+                this.resize()
             }
+        })
+
+        try {
+            this.resizeObserver.observe(target, { box: 'device-pixel-content-box' as ResizeObserverBoxOptions })
+        } catch {
+            this.resizeObserver.observe(target)
         }
+    }
+
+
+
+    private updateObservedMetrics(entry: ResizeObserverEntry) {
+        const cssWidth = Math.max(1, Math.round(entry.contentRect.width))
+        const cssHeight = Math.max(1, Math.round(entry.contentRect.height))
+        this.observedSize.width = cssWidth
+        this.observedSize.height = cssHeight
+
+        const pixelSize = entry.devicePixelContentBoxSize?.[0]
+        const cssSize = entry.contentBoxSize?.[0]
+        if (!pixelSize || !cssSize || cssSize.inlineSize <= 0) {
+            this.preciseDpr = 0
+            return
+        }
+
+        const raw = pixelSize.inlineSize / cssSize.inlineSize
+        this.preciseDpr = Math.round(raw * 64) / 64
+    }
+
+    private getEffectiveDpr(): number {
+        let dpr = this.preciseDpr > 0
+            ? this.preciseDpr
+            : Math.round((window.devicePixelRatio || 1) * 64) / 64
+        if (dpr < 1) dpr = 1
+        return dpr
+    }
+
+    getViewport(): Viewport | null {
+        return this.viewport
+    }
+
+    getCurrentDpr(): number {
+        return this.getEffectiveDpr()
     }
 
     /** 获取插件宿主 */
@@ -294,7 +350,7 @@ export class Chart {
         const centerIndex = (scrollLeft + mouseX) / oldUnit
 
         // 2. 物理像素空间调整 kWidth（步进 2 保证实体可被影线居中等分）
-        const dpr = this.viewport?.dpr || window.devicePixelRatio || 1
+        const dpr = this.getEffectiveDpr()
         const physKWidth = Math.round(this.opt.kWidth * dpr)
         const delta = deltaY > 0 ? -2 : 2
         let newPhysKWidth = physKWidth + delta
@@ -341,7 +397,6 @@ export class Chart {
         this.scheduleDraw()
     }
 
-
     /** 缩放回调函数，用于通知外部同步 kWidth、kGap 与 scrollLeft */
     private onZoomChange?: (kWidth: number, kGap: number, targetScrollLeft: number) => void
 
@@ -353,6 +408,10 @@ export class Chart {
         this.onZoomChange = cb
     }
 
+    /** 注册视口变化回调 */
+    setOnViewportChange(cb: (viewport: Viewport) => void) {
+        this.onViewportChange = cb
+    }
 
     /** 获取所有 PaneRenderer */
     getPaneRenderers(): PaneRenderer[] {
@@ -400,7 +459,7 @@ export class Chart {
             return []
         }
 
-        const dpr = this.viewport?.dpr || window.devicePixelRatio || 1
+        const dpr = this.getEffectiveDpr()
 
         // 统一使用 getPhysicalKLineConfig，确保与渲染完全一致
         const { unitPx, startXPx } = getPhysicalKLineConfig(this.opt.kWidth, this.opt.kGap, dpr)
@@ -650,7 +709,7 @@ export class Chart {
     /** 获取内容总宽度（用于外部 scroll-content 撑开 scrollWidth） */
     getContentWidth(): number {
         const n = this.data?.length ?? 0
-        const dpr = this.viewport?.dpr || window.devicePixelRatio || 1
+        const dpr = this.getEffectiveDpr()
         const { startXPx, unitPx } = getPhysicalKLineConfig(this.opt.kWidth, this.opt.kGap, dpr)
         const plotWidth = (startXPx + n * unitPx) / dpr
         return plotWidth
@@ -682,10 +741,11 @@ export class Chart {
         if (this.raf != null) cancelAnimationFrame(this.raf)
         this.raf = null
 
-        // 清理 DPR 观察器
-        this.dprObserver?.disconnect()
-        this.dprObserver = undefined
+        // 清理尺寸观察器
+        this.resizeObserver?.disconnect()
+        this.resizeObserver = undefined
         this.preciseDpr = 0
+        this.observedSize = { width: 0, height: 0 }
 
         this.viewport = null
         this.paneRenderers.forEach((r) => r.destroy())
@@ -695,6 +755,7 @@ export class Chart {
         this.rendererPluginManager.clear()
 
         this.onZoomChange = undefined
+        this.onViewportChange = undefined
         await this.pluginHost.destroy()
     }
 
@@ -799,6 +860,7 @@ export class Chart {
             }
 
             renderer.resize(vp.plotWidth, h, vp.dpr)
+            this.rendererPluginManager.notifyResize(pane.id, wrapPaneInfo(pane))
             const dom = renderer.getDom()
             // 只设置 top，left/right 由 CSS 自动处理
             dom.plotCanvas.style.top = `${y}px`
@@ -808,23 +870,24 @@ export class Chart {
         }
     }
 
-    /** 计算并应用 viewport */
     private computeViewport(): Viewport | null {
         const container = this.dom.container
         if (!container) return null
 
-        const viewWidth = Math.max(1, Math.round(container.clientWidth))
-        const viewHeight = Math.max(1, Math.round(container.clientHeight))
+        const observedWidth = this.observedSize.width
+        const observedHeight = this.observedSize.height
+        const viewWidth = observedWidth > 0
+            ? observedWidth
+            : Math.max(1, Math.round(container.clientWidth))
+        const viewHeight = observedHeight > 0
+            ? observedHeight
+            : Math.max(1, Math.round(container.clientHeight))
 
         const yAxisTotalWidth = this.opt.rightAxisWidth + (this.opt.priceLabelWidth || 60)
         const plotWidth = Math.round(viewWidth - yAxisTotalWidth)
         const plotHeight = Math.round(viewHeight - this.opt.bottomAxisHeight)
 
-        // 精确 DPR，优先 devicePixelContentBoxSize，回退传统方案 + 精度吸附
-        let dpr = this.preciseDpr > 0
-            ? this.preciseDpr
-            : Math.round((window.devicePixelRatio || 1) * 64) / 64
-        if (dpr < 1) dpr = 1
+        let dpr = this.getEffectiveDpr()
 
         const MAX_CANVAS_PIXELS = 16 * 1024 * 1024
         const requestedPixels = viewWidth * dpr * (viewHeight * dpr)
@@ -852,6 +915,7 @@ export class Chart {
             dpr,
         }
         this.viewport = vp
+        this.onViewportChange?.(vp)
         return vp
     }
 }

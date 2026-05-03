@@ -1,219 +1,167 @@
-# 项目架构（v2 / 2026-01）
+# 项目架构（ResizeObserver 重构版 / 2026-05）
 
-本项目是一个基于 **Canvas + Vue 3** 的 K 线图组件库/示例工程。近期已将核心逻辑从 Vue composables 中下沉到 **纯 TypeScript Core 层**，以支持多窗格（Pane）、插件化渲染（Renderers）、以及可复用的交互控制器（InteractionController）。
+本文档描述当前仓库中 K 线渲染链路的**实际实现**，重点覆盖“基于 ResizeObserver 的尺寸/DPR 统一重构”。
 
-> 目标：Vue 只负责 DOM/props 绑定和事件转发；核心绘制与交互在 `src/core` 中独立演进。
+## 1. 目标与核心原则
 
----
+当前架构围绕三个目标设计：
 
-## 目录分层
-
-```
-src/
-  components/               # Vue 组件（对外 UI）
-    KLineChart.vue          # 画布容器 + 事件转发 + tooltip 渲染
-    KLineTooltip.vue        # 悬浮详情（DOM）
-
-  core/                     # 纯 TS 核心（无 Vue 依赖）
-    chart.ts                # Chart：总控（viewport/调度/绘制顺序/pane 布局）
-    controller/
-      interaction.ts        # InteractionController：拖拽/缩放/hover 命中/十字线状态
-    layout/
-      pane.ts               # Pane：窗格（top/height、priceRange、yAxis、renderers 列表）
-    scale/
-      price.ts              # priceToY/yToPrice 等通用函数
-      priceScale.ts         # PriceScale：pane 级 y 轴缩放
-    viewport/
-      viewport.ts           # getVisibleRange/getVisiblePriceRange（可视范围计算）
-    renderers/              # 渲染器（插件化）
-      candle.ts             # 蜡烛图
-      gridLines.ts          # 仅网格线（不画任何文字刻度，避免与轴层重复）
-      lastPrice.ts          # 最新价虚线
-      ma.ts                 # MA 线（MA5/10/20）
-      maLegend.ts           # MA 图例（屏幕坐标）
-      timeAxis.ts           # 底部时间轴（x-axis-canvas）
-      yAxis.ts              # 右侧价格轴（y-axis-canvas，分 pane 分段）
-      crosshair.ts          # 十字线线体（绘图区 overlay）
-      crosshairLabels.ts    # 十字线标签：价格标签绘制在 y-axis-canvas
-      paneTitle.ts          # pane 左上角标题（例如“副图(占位)”）
-      paneBorder.ts         # 绘图区整体边框（按需求仅保留 plotCanvas 边框）
-
-  utils/                    # 旧实现/通用绘制工具（逐步迁移/复用）
-    kLineDraw/              # axis/MA/pixelAlign 等（core renderer 目前复用部分实现）
-    kline/                  # MA 计算等数据工具
-```
+1. **清晰绘制**：Canvas 物理像素尺寸始终与当前 DPR 对齐，避免模糊和亚像素漂移。
+2. **单一真源**：尺寸与 DPR 统一由 `Chart` 内部维护，避免组件层和核心层各算一套。
+3. **渲染/交互一致**：绘制使用的 viewport 与交互命中使用的边界来自同一数据源。
 
 ---
 
-## Canvas 分层（核心设计）
+## 2. 分层与职责
 
-`KLineChart.vue` 维持 3 层 canvas（叠放）：
-
-1. **plotCanvas**：绘图层（主图/副图的内容渲染 + 十字线线体）
-2. **yAxisCanvas**：右侧价格轴层（每个 Pane 一段 y 轴；十字线价格标签也在此绘制）
-3. **xAxisCanvas**：底部时间轴层（共享一条时间轴；十字线日期标签也在此绘制）
-
-> 规则：
->
-> - **plotCanvas 不绘制任何价格/日期刻度文字**，避免出现“两套坐标轴”视觉冲突。
-> - 网格线在 plotCanvas 绘制（但只画线，不画字）。
-
----
-
-## 核心对象模型
-
-### Chart（`src/core/chart.ts`）
+### Vue 层（`src/components/KLineChart.vue`）
 
 职责：
+- 挂载容器 DOM 与 canvas 引用
+- 创建 `Chart` 实例
+- 转发 pointer / wheel / scroll 事件到 `InteractionController`
+- 维护 tooltip 等响应式 UI 状态
+- 接收 `chart.setOnViewportChange` 回调，同步 `viewportDpr` 到 Vue
 
-- 管理 DOM（container/canvasLayer/三个 canvas）
-- 计算 viewport（viewWidth/viewHeight/plotWidth/plotHeight/dpr/scrollLeft）
-- 计算可视范围（start/end）
-- 管理 Pane 布局（支持 `paneGap` 形成真实分隔）
-- RAF 调度：`scheduleDraw()` 合并多次重绘请求
-- 统一绘制顺序（plot → yAxis → xAxis → overlay）
+Vue 层**不再**自行做 ResizeObserver 尺寸监听，不再维护独立防抖 resize 管线。
 
-关键 API：
+### Core 层（`src/core/*`）
 
-- `updateData(data)`
-- `updateOptions(partial)`
-- `resize()`
-- `scheduleDraw()` / `draw()`
-- `zoomAt(mouseX, scrollLeft, deltaY)`
-
-### Pane（`src/core/layout/pane.ts`）
-
-职责：
-
-- 管理自身布局：`top/height`（位于 plot 区域内部）
-- 独立价格范围：`priceRange`（由可视数据计算）
-- 独立 y 轴缩放：`yAxis: PriceScale`
-- 维护渲染器列表：`renderers: PaneRenderer[]`
-
-### Renderers（`src/core/renderers/*`）
-
-职责：
-
-- 每个 renderer 是一个“可插拔的绘制策略”
-- 接口统一：
-
-```ts
-export interface PaneRenderer {
-  draw(args: {
-    ctx: CanvasRenderingContext2D
-    pane: Pane
-    data: KLineData[]
-    range: { start: number; end: number }
-    scrollLeft: number
-    kWidth: number
-    kGap: number
-    dpr: number
-  }): void
-}
-```
-
-#### 坐标系约定
-
-- **pane 内容渲染**：在 `Chart.draw()` 中 `ctx.translate(0, pane.top)` 后调用 renderer，使 renderer 的 y=0 对应 pane 顶部。
-- **world 坐标（随 scrollLeft 平移）**：需要渲染器自己 `ctx.translate(-scrollLeft, 0)`。
-- **屏幕坐标（不随滚动）**：不做 `translate(-scrollLeft,0)`，用于 overlay（如图例）。
-
-### InteractionController（`src/core/controller/interaction.ts`）
-
-职责：
-
-- 拖拽滚动（mousedown/mousemove）
-- wheel 缩放（zoomAt）
-- hover 命中（蜡烛实体/影线）
-- 维护十字线状态：`crosshairPos/crosshairIndex`
-- 维护 tooltip 状态：`hoveredIndex/tooltipPos/tooltipSize` + `activePaneId`
-
-> 注意：InteractionController 内部状态是普通属性，Vue 组件需在事件回调中同步到响应式变量，驱动 tooltip 视图更新。
+- `chart.ts`：总控（viewport、布局、调度、绘制）
+- `controller/interaction.ts`：交互命中与十字线
+- `paneRenderer.ts`：pane 对应 canvas 的物理尺寸设置
+- `viewport/viewport.ts`：可视数据范围计算
+- `plugin/*`：渲染器插件注册、调度、生命周期
 
 ---
 
-## Vue 层职责（`src/components/KLineChart.vue`）
+## 3. Canvas 结构与坐标体系
 
-Vue 层仅负责：
+每个 pane 由两张 canvas 组成：
+- `plotCanvas`：K 线/指标主体绘制
+- `yAxisCanvas`：价格轴与相关标签
 
-- 维护 DOM refs（container、三个 canvas）
-- 实例化 `Chart`
-- 将鼠标/滚轮/scroll 事件转发到 `chart.interaction.*`
-- 同步 interaction 状态到 Vue 响应式（hoveredIdx/tooltipPos）
-- 渲染 Tooltip（DOM），并在 tooltip mount 时回传尺寸给 `interaction.setTooltipSize()`
+全局一张：
+- `xAxisCanvas`：底部时间轴
 
----
-
-## 组件 Props 文档
-
-### `KLineChart`（`src/components/KLineChart.vue`）
-
-> 对外主要组件（组件库入口：`src/components/index.ts` 导出 `KLineChart`）。
-
-#### Props
-
-| Prop                | 类型                                                | 必填 | 默认值                               | 说明                                                                     |
-| ------------------- | --------------------------------------------------- | ---: | ------------------------------------ | ------------------------------------------------------------------------ |
-| `data`              | `KLineData[]`                                       |   是 | -                                    | K 线数据数组。`timestamp/open/high/low/close` 等字段用于绘制与 tooltip。 |
-| `kWidth`            | `number`                                            |   否 | `10`                                 | 单根 K 线实体宽度（逻辑像素）。支持滚轮缩放时作为初始值。                |
-| `kGap`              | `number`                                            |   否 | `2`                                  | K 线之间间距（逻辑像素）。                                               |
-| `yPaddingPx`        | `number`                                            |   否 | `40`                                 | 上下留白（用于 y 轴缩放/视觉留白）。                                     |
-| `showMA`            | `{ ma5?: boolean; ma10?: boolean; ma20?: boolean }` |   否 | `{ ma5:true, ma10:true, ma20:true }` | 是否绘制 MA5/MA10/MA20。当前仅作用于主图 pane。                          |
-| `autoScrollToRight` | `boolean`                                           |   否 | `true`                               | 数据变化时是否自动滚到最右侧（最新数据）。                               |
-| `minKWidth`         | `number`                                            |   否 | `2`                                  | 滚轮缩放允许的最小 `kWidth`。                                            |
-| `maxKWidth`         | `number`                                            |   否 | `50`                                 | 滚轮缩放允许的最大 `kWidth`。                                            |
-| `rightAxisWidth`    | `number`                                            |   否 | `70`                                 | 右侧价格轴 canvas 宽度（逻辑像素）。                                     |
-| `bottomAxisHeight`  | `number`                                            |   否 | `24`                                 | 底部时间轴 canvas 高度（逻辑像素）。                                     |
-| `paneRatios`        | `[number, number]`                                  |   否 | `[0.85, 0.15]`                       | 主图/副图高度比例。副图目前为占位（仅网格线 + 标题）。                   |
-
-#### Expose（对外方法）
-
-| 方法             | 签名         | 说明                                                |
-| ---------------- | ------------ | --------------------------------------------------- |
-| `scheduleRender` | `() => void` | 请求下一帧重绘（内部调用 `chart.scheduleDraw()`）。 |
-| `scrollToRight`  | `() => void` | 将容器横向滚动到最右侧并触发重绘。                  |
-
-#### 备注
-
-- 目前组件内部固定传入 `paneGap = 8` 给 `ChartOptions`（形成主/副图真实留白）。如需对外配置，可将其提升为 props。
-- Tooltip 是否出现取决于 `InteractionController` 的命中判定（蜡烛 body/wick）。
+坐标体系：
+- 逻辑尺寸（CSS px）用于布局和交互
+- 物理尺寸（device px）用于 `canvas.width/height`
+- 绘制前统一 `ctx.scale(dpr, dpr)`，渲染代码仍按逻辑坐标书写
 
 ---
 
-### `KLineTooltip`（`src/components/KLineTooltip.vue`）
+## 4. 新的 ResizeObserver 统一链路
 
-> Tooltip 目前为 **内部组件**（由 `KLineChart` 渲染），但也可以复用（如果你将它导出）。
+核心在 `src/core/chart.ts`：
 
-#### Props
+### 4.1 观察器初始化
+- `Chart` 构造时调用 `initResizeObserver()`
+- 监听目标：`container`
+- 优先尝试 `device-pixel-content-box`，不支持时回退默认 `observe`
 
-| Prop    | 类型                                   | 必填 | 默认值 | 说明                                                               |
-| ------- | -------------------------------------- | ---: | ------ | ------------------------------------------------------------------ |
-| `k`     | `KLineData \| null`                    |   是 | -      | 当前悬停的 K 线数据。为 `null` 时不渲染。                          |
-| `index` | `number \| null`                       |   是 | -      | 当前 K 在 `data` 中的索引，用于计算涨跌色（与前一根比较）。        |
-| `data`  | `KLineData[]`                          |   是 | -      | 全量数据，用于通过 `index-1` 取上一根 K。                          |
-| `pos`   | `{ x: number; y: number }`             |   是 | -      | Tooltip 在容器内的定位坐标（像素）。                               |
-| `setEl` | `(el: HTMLDivElement \| null) => void` |   否 | -      | 回传 tooltip 根元素给父组件，用于测量 tooltip 宽高并做防溢出布局。 |
+### 4.2 观测数据更新
+在 observer 回调中：
+1. 读取 CSS 尺寸（`entry.contentRect`）→ `observedSize`
+2. 读取 `devicePixelContentBoxSize/contentBoxSize` 计算 `preciseDpr`
+3. 对比前后 width/height/dpr
+4. 任一变化则立即执行 `chart.resize()`
+
+### 4.3 DPR 决策
+`getEffectiveDpr()` 逻辑：
+- 优先 `preciseDpr`
+- 回退 `window.devicePixelRatio`
+- 做 1/64 精度吸附
+- 最小值钳制到 1
+
+> 注意：这里不再优先复用旧 `viewport.dpr`，避免 DPR 变化后被旧值“锁住”导致模糊。
+
+### 4.4 viewport 产出与分发
+`computeViewport()`：
+- 尺寸来源优先 `observedSize`，回退 `container.clientWidth/clientHeight`
+- 计算 `viewWidth/viewHeight/plotWidth/plotHeight/scrollLeft/dpr`
+- 应用 `MAX_CANVAS_PIXELS` 上限，超限时降低 dpr
+- 同步设置 `canvasLayer` 与 `xAxisCanvas` 物理尺寸
+- 更新 `this.viewport`
+- 触发 `onViewportChange?.(vp)`（供 Vue 层同步 DPR）
 
 ---
 
-## 当前默认行为（可配置点）
+## 5. 渲染主链路
 
-- 多 pane：默认主/副比例 `paneRatios=[0.85, 0.15]`
-- paneGap：默认在组件内传入 `paneGap=8`（形成真实分隔）
-- 副图当前只保留网格线与标题（占位），不绘制数据
-- 十字线价格标签只在鼠标所在 pane 的 yAxis 段绘制（避免副图标签重叠）
-- 边框：按需求目前 **只保留 plotCanvas 绘图区整体外框**（其它区域不画边线）
+入口与流程：
+- 触发：数据更新、交互、resize、配置变更
+- `scheduleDraw()`：RAF 合并
+- `draw()`：
+  1. `computeViewport()`
+  2. `getVisibleRange(...)`
+  3. `calcKLinePositions(...)`
+  4. `interaction.setKLinePositions(...)`
+  5. 遍历 pane：清空 + 插件渲染
+  6. 单独渲染时间轴插件
+
+关键点：
+- `zoomAt/calcKLinePositions/getContentWidth` 已统一使用 `getEffectiveDpr()`
+- 避免不同模块各自读取 `window.devicePixelRatio` 导致漂移
 
 ---
 
-## 后续扩展建议
+## 6. Pane 布局与插件 resize 生命周期
 
-1. **副图指标（MACD/VOL/RSI）**
-   - 新增 renderer：`core/renderers/macd.ts` / `volume.ts`
-   - 仅挂在 sub pane（`chart.setPaneRenderers('sub', [...])`）
+`layoutPanes()` 负责：
+- 计算各 pane 高度
+- `pane.setLayout(...)` 与主副图 padding
+- `renderer.resize(vp.plotWidth, h, vp.dpr)` 设置 plot/yAxis canvas 物理尺寸
+- 调用 `rendererPluginManager.notifyResize(pane.id, wrapPaneInfo(pane))`
 
-2. **轴策略（每 pane 一条 xAxis）**
-   - 当前为共享底部 xAxis；如需要每 pane 也显示日期刻度，可为 sub pane 增加独立时间轴 renderer（会占高度）。
+这保证了插件在 pane 尺寸变化时可及时更新内部缓存。
 
-3. **showMA 与 legend 同步**
-   - 目前 MA 线按 `props.showMA` 接入；legend 默认全开显示，可进一步将 showMA 下沉到 ChartOptions，以便 legend 严格跟随开关。
+---
+
+## 7. 交互链路（与 viewport 对齐）
+
+`src/core/controller/interaction.ts` 中：
+- 鼠标坐标仍来自 `getBoundingClientRect()`（用于屏幕坐标转容器坐标）
+- 命中边界优先使用 `chart.getViewport()` 的 `plotWidth/plotHeight`
+- dpr 使用 `chart.getCurrentDpr()`
+
+这样交互命中和绘制边界基于同一 viewport，降低跨缩放场景偏移。
+
+---
+
+## 8. Vue 侧与 Core 侧的同步点
+
+`KLineChart.vue` 当前关键同步：
+- `chart.setOnZoomChange(...)`：缩放时同步 `kWidth/kGap/scrollLeft`
+- `chart.setOnViewportChange(...)`：同步 `viewportDpr`
+- `totalWidth` 计算使用 `viewportDpr` + `getPhysicalKLineConfig(...)`
+
+这保证 scroll-content 宽度与实际渲染像素策略一致。
+
+---
+
+## 9. 当前已知限制
+
+1. `npm run type-check` 当前仍有历史类型问题（`import.meta.env` 相关），与本次链路重构无直接关系。
+2. 若浏览器不支持 `devicePixelContentBoxSize`，会回退 `window.devicePixelRatio`。
+3. 在超大视口下会触发 `MAX_CANVAS_PIXELS` 限制，DPR 可能被主动降低以控制内存。
+
+---
+
+## 10. 验证清单（建议）
+
+1. 浏览器缩放（80/100/125/150）下线条清晰度
+2. 跨屏拖拽（1x/1.5x/2x）后是否立即恢复清晰
+3. 容器 resize 时是否无闪烁、无错位
+4. 缩放后十字线、tooltip、marker 命中是否仍对齐
+5. 主图/副图 pane 高度变化时插件是否正确响应
+
+---
+
+## 11. 关键文件索引
+
+- `src/core/chart.ts`：observer + viewport + render pipeline
+- `src/core/controller/interaction.ts`：命中与 crosshair 逻辑
+- `src/core/paneRenderer.ts`：canvas 物理尺寸设置
+- `src/components/KLineChart.vue`：Vue 与 Core 对接入口
+- `src/plugin/rendererPluginManager.ts`：插件渲染与 resize 通知

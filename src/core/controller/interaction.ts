@@ -381,21 +381,18 @@ export class InteractionController {
         const rect = container.getBoundingClientRect()
         const mouseX = clientX - rect.left
         const mouseY = clientY - rect.top
-
-        const opt = this.chart.getOption()
-        const viewWidth = Math.max(1, Math.round(rect.width))
-        const viewHeight = Math.max(1, Math.round(rect.height))
-        const plotWidth = viewWidth - opt.rightAxisWidth - (opt.priceLabelWidth || 60)
-        const plotHeight = viewHeight - opt.bottomAxisHeight
-
-        // 1. 检查鼠标是否在绘图区域内
+        const viewport = this.chart.getViewport()
+        const viewWidth = viewport?.viewWidth ?? Math.max(1, Math.round(container.clientWidth))
+        const viewHeight = viewport?.viewHeight ?? Math.max(1, Math.round(container.clientHeight))
+        const plotWidth = viewport?.plotWidth ?? viewWidth
+        const plotHeight = viewport?.plotHeight ?? viewHeight
         if (mouseX < 0 || mouseY < 0 || mouseX > plotWidth || mouseY > plotHeight) {
             this.clearHover()
             return
         }
 
         const scrollLeft = container.scrollLeft
-        const dpr = window.devicePixelRatio || 1
+        const dpr = this.chart.getCurrentDpr()
 
         // 2. 优先检查量价关系 marker 命中（marker 在 world 坐标系）
         const markerManager = this.chart.getMarkerManager()
