@@ -1,5 +1,6 @@
-import type { RendererPlugin, RenderContext } from '@/plugin'
+import type { RendererPluginWithHost, RenderContext, PluginHost, BaseIndicatorState } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
+import { createIndicatorStateKey } from '@/plugin/stateKeys'
 import type { KLineData } from '@/types/price'
 import { WMSR_COLORS } from '@/core/theme/colors'
 import { alignToPhysicalPixelCenter } from '@/core/draw/pixelAlign'
@@ -43,6 +44,11 @@ function calcWMSRData(data: KLineData[], period: number): (number | undefined)[]
     return result
 }
 
+export interface WMSRRenderState extends BaseIndicatorState {
+    valueMin: number
+    valueMax: number
+}
+
 export interface WMSRRendererOptions {
     /** 目标 pane ID（默认 'sub'） */
     paneId?: string
@@ -53,8 +59,10 @@ export interface WMSRRendererOptions {
 /**
  * 创建 WMSR 渲染器插件
  */
-export function createWMSRRendererPlugin(options: WMSRRendererOptions = {}): RendererPlugin {
+export function createWMSRRendererPlugin(options: WMSRRendererOptions = {}): RendererPluginWithHost {
     const { paneId = 'sub', config: initialConfig = {} } = options
+    const STATE_KEY = createIndicatorStateKey('wmsr', paneId)
+    let pluginHost: PluginHost | null = null
 
     const config: Required<WMSRConfig> = {
         period: 14,
@@ -84,6 +92,14 @@ export function createWMSRRendererPlugin(options: WMSRRendererOptions = {}): Ren
         paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
+        onInstall(host: PluginHost) {
+            pluginHost = host
+        },
+
+        getDeclaredNamespaces() {
+            return [STATE_KEY]
+        },
+
         draw(context: RenderContext) {
             const { ctx, pane, data, range, scrollLeft, kWidth, dpr, kLinePositions } = context
             const klineData = data as KLineData[]
@@ -95,6 +111,13 @@ export function createWMSRRendererPlugin(options: WMSRRendererOptions = {}): Ren
             const valueMin = -100
             const valueMax = 0
             const valueRange = valueMax - valueMin
+
+            const stateData: WMSRRenderState = {
+                valueMin,
+                valueMax,
+                timestamp: Date.now(),
+            }
+            pluginHost?.setSharedState<WMSRRenderState>(STATE_KEY, stateData, `wmsr_${paneId}`)
 
             ctx.save()
             ctx.translate(-scrollLeft, 0)

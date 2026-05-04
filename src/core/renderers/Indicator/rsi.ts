@@ -1,5 +1,6 @@
-import type { RendererPlugin, RenderContext } from '@/plugin'
+import type { RendererPluginWithHost, RenderContext, PluginHost, BaseIndicatorState } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
+import { createIndicatorStateKey } from '@/plugin/stateKeys'
 import type { KLineData } from '@/types/price'
 import { RSI_COLORS } from '@/core/theme/colors'
 import { alignToPhysicalPixelCenter } from '@/core/draw/pixelAlign'
@@ -82,6 +83,11 @@ function calcRSIData(data: KLineData[], period: number): (number | undefined)[] 
     return result
 }
 
+export interface RSIRenderState extends BaseIndicatorState {
+    valueMin: number
+    valueMax: number
+}
+
 export interface RSIRendererOptions {
     /** 目标 pane ID（默认 'sub'） */
     paneId?: string
@@ -92,8 +98,10 @@ export interface RSIRendererOptions {
 /**
  * 创建 RSI 渲染器插件
  */
-export function createRSIRendererPlugin(options: RSIRendererOptions = {}): RendererPlugin {
+export function createRSIRendererPlugin(options: RSIRendererOptions = {}): RendererPluginWithHost {
     const { paneId = 'sub', config: initialConfig = {} } = options
+    const STATE_KEY = createIndicatorStateKey('rsi', paneId)
+    let pluginHost: PluginHost | null = null
 
     const config: Required<RSIConfig> = {
         period1: 6,
@@ -140,6 +148,14 @@ export function createRSIRendererPlugin(options: RSIRendererOptions = {}): Rende
         paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
+        onInstall(host: PluginHost) {
+            pluginHost = host
+        },
+
+        getDeclaredNamespaces() {
+            return [STATE_KEY]
+        },
+
         draw(context: RenderContext) {
             const { ctx, pane, data, range, scrollLeft, kWidth, dpr, kLinePositions } = context
             const klineData = data as KLineData[]
@@ -151,6 +167,13 @@ export function createRSIRendererPlugin(options: RSIRendererOptions = {}): Rende
             const valueMin = 0
             const valueMax = 100
             const valueRange = valueMax - valueMin
+
+            const stateData: RSIRenderState = {
+                valueMin,
+                valueMax,
+                timestamp: Date.now(),
+            }
+            pluginHost?.setSharedState<RSIRenderState>(STATE_KEY, stateData, `rsi_${paneId}`)
 
             ctx.save()
             ctx.translate(-scrollLeft, 0)

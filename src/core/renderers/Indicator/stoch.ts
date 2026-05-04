@@ -1,5 +1,6 @@
-import type { RendererPlugin, RenderContext } from '@/plugin'
+import type { RendererPluginWithHost, RenderContext, PluginHost, BaseIndicatorState } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
+import { createIndicatorStateKey } from '@/plugin/stateKeys'
 import type { KLineData } from '@/types/price'
 import { KDJ_COLORS } from '@/core/theme/colors'
 import { alignToPhysicalPixelCenter } from '@/core/draw/pixelAlign'
@@ -79,6 +80,11 @@ function calcSTOCHData(data: KLineData[], n: number, m: number): STOCHPoint[] {
     return result
 }
 
+export interface STOCHRenderState extends BaseIndicatorState {
+    valueMin: number
+    valueMax: number
+}
+
 export interface STOCHRendererOptions {
     /** 目标 pane ID（默认 'sub'） */
     paneId?: string
@@ -89,8 +95,10 @@ export interface STOCHRendererOptions {
 /**
  * 创建 STOCH 渲染器插件
  */
-export function createSTOCHRendererPlugin(options: STOCHRendererOptions = {}): RendererPlugin {
+export function createSTOCHRendererPlugin(options: STOCHRendererOptions = {}): RendererPluginWithHost {
     const { paneId = 'sub', config: initialConfig = {} } = options
+    const STATE_KEY = createIndicatorStateKey('stoch', paneId)
+    let pluginHost: PluginHost | null = null
 
     const config: Required<STOCHConfig> = {
         n: 9,
@@ -128,6 +136,14 @@ export function createSTOCHRendererPlugin(options: STOCHRendererOptions = {}): R
         paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
+        onInstall(host: PluginHost) {
+            pluginHost = host
+        },
+
+        getDeclaredNamespaces() {
+            return [STATE_KEY]
+        },
+
         draw(context: RenderContext) {
             const { ctx, pane, data, range, scrollLeft, kWidth, dpr, kLinePositions } = context
             const klineData = data as KLineData[]
@@ -139,6 +155,13 @@ export function createSTOCHRendererPlugin(options: STOCHRendererOptions = {}): R
             const valueMin = 0
             const valueMax = 100
             const valueRange = valueMax - valueMin
+
+            const stateData: STOCHRenderState = {
+                valueMin,
+                valueMax,
+                timestamp: Date.now(),
+            }
+            pluginHost?.setSharedState<STOCHRenderState>(STATE_KEY, stateData, `stoch_${paneId}`)
 
             ctx.save()
             ctx.translate(-scrollLeft, 0)

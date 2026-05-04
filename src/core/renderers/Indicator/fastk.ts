@@ -1,5 +1,6 @@
-import type { RendererPlugin, RenderContext } from '@/plugin'
+import type { RendererPluginWithHost, RenderContext, PluginHost, BaseIndicatorState } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
+import { createIndicatorStateKey } from '@/plugin/stateKeys'
 import type { KLineData } from '@/types/price'
 import { KDJ_COLORS } from '@/core/theme/colors'
 import { alignToPhysicalPixelCenter } from '@/core/draw/pixelAlign'
@@ -43,6 +44,11 @@ function calcFASTKData(data: KLineData[], period: number): (number | undefined)[
     return result
 }
 
+export interface FASTKRenderState extends BaseIndicatorState {
+    valueMin: number
+    valueMax: number
+}
+
 export interface FASTKRendererOptions {
     /** 目标 pane ID（默认 'sub'） */
     paneId?: string
@@ -53,8 +59,10 @@ export interface FASTKRendererOptions {
 /**
  * 创建 FASTK 渲染器插件
  */
-export function createFASTKRendererPlugin(options: FASTKRendererOptions = {}): RendererPlugin {
+export function createFASTKRendererPlugin(options: FASTKRendererOptions = {}): RendererPluginWithHost {
     const { paneId = 'sub', config: initialConfig = {} } = options
+    const STATE_KEY = createIndicatorStateKey('fastk', paneId)
+    let pluginHost: PluginHost | null = null
 
     const config: Required<FASTKConfig> = {
         period: 9,
@@ -84,6 +92,14 @@ export function createFASTKRendererPlugin(options: FASTKRendererOptions = {}): R
         paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
+        onInstall(host: PluginHost) {
+            pluginHost = host
+        },
+
+        getDeclaredNamespaces() {
+            return [STATE_KEY]
+        },
+
         draw(context: RenderContext) {
             const { ctx, pane, data, range, scrollLeft, kWidth, dpr, kLinePositions } = context
             const klineData = data as KLineData[]
@@ -95,6 +111,13 @@ export function createFASTKRendererPlugin(options: FASTKRendererOptions = {}): R
             const valueMin = 0
             const valueMax = 100
             const valueRange = valueMax - valueMin
+
+            const stateData: FASTKRenderState = {
+                valueMin,
+                valueMax,
+                timestamp: Date.now(),
+            }
+            pluginHost?.setSharedState<FASTKRenderState>(STATE_KEY, stateData, `fastk_${paneId}`)
 
             ctx.save()
             ctx.translate(-scrollLeft, 0)

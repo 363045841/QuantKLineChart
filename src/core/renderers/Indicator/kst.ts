@@ -1,5 +1,6 @@
-import type { RendererPlugin, RenderContext } from '@/plugin'
+import type { RendererPluginWithHost, RenderContext, PluginHost, BaseIndicatorState } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
+import { createIndicatorStateKey } from '@/plugin/stateKeys'
 import type { KLineData } from '@/types/price'
 import { KST_COLORS } from '@/core/theme/colors'
 import { alignToPhysicalPixelCenter } from '@/core/draw/pixelAlign'
@@ -134,6 +135,11 @@ function calcKSTData(
     return result
 }
 
+export interface KSTRenderState extends BaseIndicatorState {
+    valueMin: number
+    valueMax: number
+}
+
 export interface KSTRendererOptions {
     /** 目标 pane ID（默认 'sub'） */
     paneId?: string
@@ -144,8 +150,10 @@ export interface KSTRendererOptions {
 /**
  * 创建 KST 渲染器插件
  */
-export function createKSTRendererPlugin(options: KSTRendererOptions = {}): RendererPlugin {
+export function createKSTRendererPlugin(options: KSTRendererOptions = {}): RendererPluginWithHost {
     const { paneId = 'sub', config: initialConfig = {} } = options
+    const STATE_KEY = createIndicatorStateKey('kst', paneId)
+    let pluginHost: PluginHost | null = null
 
     const config: Required<KSTConfig> = {
         roc1: 10,
@@ -188,6 +196,14 @@ export function createKSTRendererPlugin(options: KSTRendererOptions = {}): Rende
         paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
+        onInstall(host: PluginHost) {
+            pluginHost = host
+        },
+
+        getDeclaredNamespaces() {
+            return [STATE_KEY]
+        },
+
         draw(context: RenderContext) {
             const { ctx, pane, data, range, scrollLeft, kWidth, dpr, kLinePositions } = context
             const klineData = data as KLineData[]
@@ -214,6 +230,12 @@ export function createKSTRendererPlugin(options: KSTRendererOptions = {}): Rende
             minVal -= padding
 
             const valueRange = maxVal - minVal || 1
+            const stateData: KSTRenderState = {
+                valueMin: minVal,
+                valueMax: maxVal,
+                timestamp: Date.now(),
+            }
+            pluginHost?.setSharedState<KSTRenderState>(STATE_KEY, stateData, `kst_${paneId}`)
             const zeroY = pane.height - (0 - minVal) / valueRange * pane.height
 
             ctx.save()

@@ -1,18 +1,15 @@
 import type { RendererPluginWithHost } from '@/plugin'
 import { createIndicatorScaleRendererPlugin } from './indicator_scale'
 
-/**
- * 创建 MACD 刻度渲染器插件
- */
-export function createMacdScaleRendererPlugin(options: {
+export function createRsiScaleRendererPlugin(options: {
     axisWidth: number
     paneId: string
 }): RendererPluginWithHost {
     return createIndicatorScaleRendererPlugin({
         axisWidth: options.axisWidth,
         paneId: options.paneId,
-        indicatorKey: 'macd',
-        label: 'MACD',
+        indicatorKey: 'rsi',
+        label: 'RSI',
         decimals: 2,
     })
 }

@@ -1,11 +1,11 @@
 import type { RendererPlugin, RenderContext } from '@/plugin'
 import { RENDERER_PRIORITY, GLOBAL_PANE_ID } from '@/plugin'
-import { drawPriceAxis, drawCrosshairPriceLabel } from '@/utils/kLineDraw/axis'
-import { calculateTickCount } from '@/core/utils/tickCount'
+import { drawCrosshairPriceLabel } from '@/utils/kLineDraw/axis'
+import { drawScaleTicks } from '@/core/renderers/Indicator/scale/indicator_scale'
 
 /**
  * 创建 Y 轴渲染器插件
- * 渲染到所有面板的 Y 轴区域
+ * 仅渲染主图价格刻度；副图刻度由指标刻度插件负责
  */
 export function createYAxisRendererPlugin(options: {
   axisWidth: number
@@ -26,24 +26,24 @@ export function createYAxisRendererPlugin(options: {
       // Y 轴绘制到 yAxisCtx（如果提供）或使用 ctx
       const targetCtx = yAxisCtx || ctx
 
-      const ticks = calculateTickCount(pane.height, pane.id === 'main')
+      // 副图不再走系统 Y 轴，避免与指标刻度叠加
+      if (pane.id !== 'main') return
 
-      drawPriceAxis(targetCtx, {
-        x: 0,
-        y: pane.top,
-        width: options.axisWidth,
-        height: pane.height,
-        priceRange: pane.priceRange,
-        yPaddingPx: options.yPaddingPx,
+      drawScaleTicks({
+        ctx: targetCtx,
         dpr,
-        ticks,
-        drawLeftBorder: false,
-        drawTickLines: false,
-        priceOffset: pane.yAxis.getPriceOffset(),
-        fontSize: 12,
+        axisWidth: options.axisWidth,
+        height: pane.height,
+        paddingTop: pane.yAxis.getPaddingTop(),
+        paddingBottom: pane.yAxis.getPaddingBottom(),
+        valueMin: pane.priceRange.minPrice,
+        valueMax: pane.priceRange.maxPrice,
+        isMain: true,
+        decimals: 2,
+        hideEdgeTicks: true,
       })
 
-      // 绘制十字线价格标签
+      // 绘制十字线价格标签（仅主图）
       const crosshair = options.getCrosshair?.()
       if (crosshair && crosshair.price !== null) {
         drawCrosshairPriceLabel(targetCtx, {

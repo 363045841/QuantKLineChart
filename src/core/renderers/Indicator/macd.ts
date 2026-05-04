@@ -241,21 +241,28 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
 
             // 绘制 MACD 柱状图
             if (config.showBAR) {
-                const unitPx = (kWidth + kGap) * dpr
-                const barWidthPx = Math.max(1, Math.round(unitPx - 1))
-                const alignedBarWidth = barWidthPx / dpr
                 const alignedZeroY = Math.round(zeroY * dpr) / dpr
-
-                // 第一根柱子的物理 X 坐标（对齐到整数像素）
-                const firstX = kLinePositions[drawStart - range.start] ?? 0
-                const firstBarXPx = Math.round((firstX + (kWidth - alignedBarWidth) / 2) * dpr)
+                const fallbackUnitPx = Math.max(1, Math.round((kWidth + kGap) * dpr))
 
                 for (let i = drawStart; i < drawEnd; i++) {
                     const point = macdData[i]
                     if (!point) continue
 
-                    const offset = i - drawStart
-                    const alignedBarXPx = firstBarXPx + offset * Math.round(unitPx)
+                    const x = kLinePositions[i - range.start]
+                    if (x === undefined) continue
+
+                    const nextX = kLinePositions[i - range.start + 1]
+                    const prevX = kLinePositions[i - range.start - 1]
+                    const unitPx = nextX !== undefined
+                        ? Math.max(1, Math.round((nextX - x) * dpr))
+                        : prevX !== undefined
+                            ? Math.max(1, Math.round((x - prevX) * dpr))
+                            : fallbackUnitPx
+
+                    // 固定 1 物理像素间距：柱宽 = 单位宽 - 1px
+                    const barWidthPx = Math.max(1, unitPx - 1)
+                    const alignedBarWidth = barWidthPx / dpr
+                    const alignedBarXPx = Math.round((x + (kWidth - alignedBarWidth) / 2) * dpr)
                     const alignedBarX = alignedBarXPx / dpr
 
                     const barY = pane.height - (point.macd - valueMin) / valueRange * pane.height

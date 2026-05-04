@@ -1,5 +1,6 @@
-import type { RendererPlugin, RenderContext } from '@/plugin'
+import type { RendererPluginWithHost, RenderContext, PluginHost, BaseIndicatorState } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
+import { createIndicatorStateKey } from '@/plugin/stateKeys'
 import type { KLineData } from '@/types/price'
 import { CCI_COLORS } from '@/core/theme/colors'
 import { alignToPhysicalPixelCenter } from '@/core/draw/pixelAlign'
@@ -49,6 +50,11 @@ function calcCCIData(data: KLineData[], period: number): (number | undefined)[] 
     return result
 }
 
+export interface CCIRenderState extends BaseIndicatorState {
+    valueMin: number
+    valueMax: number
+}
+
 export interface CCIRendererOptions {
     /** 目标 pane ID（默认 'sub'） */
     paneId?: string
@@ -59,8 +65,10 @@ export interface CCIRendererOptions {
 /**
  * 创建 CCI 渲染器插件
  */
-export function createCCIRendererPlugin(options: CCIRendererOptions = {}): RendererPlugin {
+export function createCCIRendererPlugin(options: CCIRendererOptions = {}): RendererPluginWithHost {
     const { paneId = 'sub', config: initialConfig = {} } = options
+    const STATE_KEY = createIndicatorStateKey('cci', paneId)
+    let pluginHost: PluginHost | null = null
 
     const config: Required<CCIConfig> = {
         period: 14,
@@ -90,6 +98,14 @@ export function createCCIRendererPlugin(options: CCIRendererOptions = {}): Rende
         paneId: paneId,
         priority: RENDERER_PRIORITY.MAIN,
 
+        onInstall(host: PluginHost) {
+            pluginHost = host
+        },
+
+        getDeclaredNamespaces() {
+            return [STATE_KEY]
+        },
+
         draw(context: RenderContext) {
             const { ctx, pane, data, range, scrollLeft, kWidth, dpr, kLinePositions } = context
             const klineData = data as KLineData[]
@@ -115,6 +131,13 @@ export function createCCIRendererPlugin(options: CCIRendererOptions = {}): Rende
             minVal = Math.min(minVal, -150)
 
             const valueRange = maxVal - minVal || 1
+
+            const stateData: CCIRenderState = {
+                valueMin: minVal,
+                valueMax: maxVal,
+                timestamp: Date.now(),
+            }
+            pluginHost?.setSharedState<CCIRenderState>(STATE_KEY, stateData, `cci_${paneId}`)
 
             // 零轴位置
             const zeroY = pane.height - (0 - minVal) / valueRange * pane.height
