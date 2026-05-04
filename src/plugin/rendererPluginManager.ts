@@ -205,9 +205,28 @@ export class RendererPluginManager {
     this.cacheInvalid = false
   }
 
+  /** 判断渲染器是否启用 */
+  private isRendererEnabled(plugin: RendererPlugin): boolean {
+    const state = this.enabledState.get(plugin.name)
+    return state !== undefined ? state : plugin.enabled !== false
+  }
+
+  /** 获取指定 pane 的合并渲染器（包含 system 渲染器） */
+  private getMergedRenderers(paneId: string): RendererPlugin[] {
+    this.rebuildCache()
+
+    let cached = this.mergedCache.get(paneId)
+    if (!cached) {
+      cached = this.mergedCache.get(GLOBAL_CACHE_KEY) ?? []
+      this.mergedCache.set(paneId, cached)
+    }
+
+    return cached
+  }
+
   /** 获取指定 pane 的渲染器（已缓存，无穿透） */
   getRenderers(paneId: string): RendererPlugin[] {
-    this.rebuildCache()
+    const cached = this.getMergedRenderers(paneId)
 
     // 调试日志
     if (import.meta.env.DEV) {
@@ -215,23 +234,14 @@ export class RendererPluginManager {
       const globalRenderers = this.groupCache.get(GLOBAL_CACHE_KEY) ?? []
     }
 
-    // 有专属缓存用专属，否则用 global fallback
-    let cached = this.mergedCache.get(paneId)
-    if (!cached) {
-      // fallback 到 global 渲染器，并缓存结果
-      cached = this.mergedCache.get(GLOBAL_CACHE_KEY) ?? []
-      this.mergedCache.set(paneId, cached)
-    }
-
     // 根据启用状态过滤，同时排除系统渲染器
     return cached.filter((p) => {
       // 系统渲染器不通过 getRenderers 返回，只能通过 renderPlugin 单独渲染
       if (p.isSystem) return false
-
-      const state = this.enabledState.get(p.name)
-      return state !== undefined ? state : p.enabled !== false
+      return this.isRendererEnabled(p)
     })
   }
+
 
   /** 渲染指定 pane（带错误隔离） */
   render(paneId: string, context: RenderContext): RendererErrorEvent[] {
@@ -263,9 +273,7 @@ export class RendererPluginManager {
     if (!plugin) return []
 
     // 检查启用状态
-    const state = this.enabledState.get(name)
-    const isEnabled = state !== undefined ? state : plugin.enabled !== false
-    if (!isEnabled) return []
+    if (!this.isRendererEnabled(plugin)) return []
 
     const errors: RendererErrorEvent[] = []
     try {
@@ -317,9 +325,7 @@ export class RendererPluginManager {
       if (!plugin.onDataUpdate) continue
 
       // 检查启用状态，跳过禁用的插件
-      const state = this.enabledState.get(plugin.name)
-      const isEnabled = state !== undefined ? state : plugin.enabled !== false
-      if (!isEnabled) continue
+      if (!this.isRendererEnabled(plugin)) continue
 
       try {
         plugin.onDataUpdate(data, range)
@@ -331,7 +337,7 @@ export class RendererPluginManager {
 
   /** 通知尺寸变化 */
   notifyResize(paneId: string, pane: PaneInfo): void {
-    const renderers = this.getRenderers(paneId)
+    const renderers = this.getMergedRenderers(paneId).filter((renderer) => this.isRendererEnabled(renderer))
     for (const renderer of renderers) {
       if (renderer.onResize) {
         try {

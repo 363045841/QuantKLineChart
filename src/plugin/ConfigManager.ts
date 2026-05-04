@@ -84,8 +84,10 @@ export class ConfigManager {
   clear(pluginName?: string): void {
     if (pluginName) {
       this.configs.delete(pluginName)
+      this.defaults.delete(pluginName)
     } else {
       this.configs.clear()
+      this.defaults.clear()
     }
   }
 }

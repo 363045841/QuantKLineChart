@@ -1,7 +1,7 @@
 /**
  * Hook 钩子系统实现
  */
-import type { HookDescriptor, HookFn } from './types'
+import type { HookCallOptions, HookDescriptor, HookFn } from './types'
 
 export class HookSystem {
   private hooks: Map<string, HookDescriptor[]> = new Map()
@@ -43,7 +43,8 @@ export class HookSystem {
    */
   async call<T = unknown, R = unknown>(
     hookName: string,
-    context: T
+    context: T,
+    options?: HookCallOptions
   ): Promise<R[]> {
     const descriptors = this.hooks.get(hookName)
     if (!descriptors || descriptors.length === 0) {
@@ -57,6 +58,9 @@ export class HookSystem {
         results.push(result as R)
       } catch (error) {
         console.error(`[HookSystem] Error in hook "${hookName}":`, error)
+        if (options?.throwOnError) {
+          throw error
+        }
       }
     }
     return results
@@ -65,7 +69,7 @@ export class HookSystem {
   /**
    * 触发钩子（同步）
    */
-  callSync<T = unknown, R = unknown>(hookName: string, context: T): R[] {
+  callSync<T = unknown, R = unknown>(hookName: string, context: T, options?: HookCallOptions): R[] {
     const descriptors = this.hooks.get(hookName)
     if (!descriptors || descriptors.length === 0) {
       return []
@@ -78,6 +82,9 @@ export class HookSystem {
         results.push(result)
       } catch (error) {
         console.error(`[HookSystem] Error in hook "${hookName}":`, error)
+        if (options?.throwOnError) {
+          throw error
+        }
       }
     }
     return results

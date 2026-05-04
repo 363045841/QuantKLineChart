@@ -43,6 +43,11 @@ export interface PluginDescriptor {
 /** Hook 函数类型 */
 export type HookFn<T = unknown, R = unknown> = (context: T) => R | Promise<R>
 
+/** Hook 调用选项 */
+export interface HookCallOptions {
+  throwOnError?: boolean
+}
+
 /** Hook 描述符 */
 export interface HookDescriptor<T = unknown, R = unknown> {
   name: string
@@ -52,6 +57,13 @@ export interface HookDescriptor<T = unknown, R = unknown> {
 
 /** 事件处理器 */
 export type EventHandler<T = unknown> = (data: T) => void
+
+/** 插件日志器 */
+export interface PluginLogger {
+  info(message?: unknown, ...optionalParams: unknown[]): void
+  warn(message?: unknown, ...optionalParams: unknown[]): void
+  error(message?: unknown, ...optionalParams: unknown[]): void
+}
 
 /** 插件宿主接口（暴露给插件使用的 API） */
 export interface PluginHost {
@@ -71,8 +83,8 @@ export interface PluginHost {
       priority?: number
     ): void
     untap(hookName: string, fn: HookFn): void
-    call<T = unknown, R = unknown>(hookName: string, context: T): Promise<R[]>
-    callSync<T = unknown, R = unknown>(hookName: string, context: T): R[]
+    call<T = unknown, R = unknown>(hookName: string, context: T, options?: HookCallOptions): Promise<R[]>
+    callSync<T = unknown, R = unknown>(hookName: string, context: T, options?: HookCallOptions): R[]
   }
 
   /** 获取配置 */

@@ -23,7 +23,9 @@
       "Read(//d/Code/kmap/stockbao//**)",
       "Read(//home/web/kmap/**)",
       "Bash(git checkout *)",
-      "Bash(git restore *)"
+      "Bash(git restore *)",
+      "Bash(git *)",
+      "Bash(pnpm vitest *)"
     ],
     "additionalDirectories": [
       "D:\\Code\\kmap\\QuantChatFront\\src\\components",

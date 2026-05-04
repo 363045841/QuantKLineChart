@@ -1,7 +1,7 @@
 /**
  * 插件宿主 - 核心管理类
  */
-import type { Plugin, PluginConfig, PluginHost, PluginState, BaseIndicatorState } from './types'
+import type { Plugin, PluginConfig, PluginHost, PluginState, BaseIndicatorState, PluginLogger, HookCallOptions } from './types'
 import { PluginRegistry } from './PluginRegistry'
 import { EventBus } from './EventBus'
 import { HookSystem } from './HookSystem'
@@ -15,13 +15,15 @@ export class PluginHostImpl implements PluginHost {
   private configManager: ConfigManager
   private stateStore: StateStore
   private isDestroyed = false
+  private logger: PluginLogger
 
-  constructor() {
+  constructor(logger?: PluginLogger) {
     this.registry = new PluginRegistry()
     this.eventBus = new EventBus()
     this.hookSystem = new HookSystem()
     this.configManager = new ConfigManager()
     this.stateStore = new StateStore()
+    this.logger = logger ?? console
   }
 
   // 实现 PluginHost 接口
@@ -51,11 +53,11 @@ export class PluginHostImpl implements PluginHost {
     untap: (hookName: string, fn: (context: unknown) => unknown) => {
       this.hookSystem.untap(hookName, fn)
     },
-    call: async <T = unknown, R = unknown>(hookName: string, context: T) => {
-      return this.hookSystem.call<T, R>(hookName, context)
+    call: async <T = unknown, R = unknown>(hookName: string, context: T, options?: HookCallOptions) => {
+      return this.hookSystem.call<T, R>(hookName, context, options)
     },
-    callSync: <T = unknown, R = unknown>(hookName: string, context: T) => {
-      return this.hookSystem.callSync<T, R>(hookName, context)
+    callSync: <T = unknown, R = unknown>(hookName: string, context: T, options?: HookCallOptions) => {
+      return this.hookSystem.callSync<T, R>(hookName, context, options)
     },
   }
 
@@ -74,7 +76,7 @@ export class PluginHostImpl implements PluginHost {
   log(level: 'info' | 'warn' | 'error', message: string, ...args: unknown[]): void {
     const timestamp = new Date().toISOString()
     const prefix = `[${timestamp}] [${level.toUpperCase()}]`
-    console[level](`${prefix} ${message}`, ...args)
+    this.logger[level](`${prefix} ${message}`, ...args)
   }
 
   // ============ 状态存储 API ============
@@ -119,7 +121,7 @@ export class PluginHostImpl implements PluginHost {
       }
 
       // 触发安装前钩子
-      await this.hooks.call('plugin:beforeInstall', { plugin, config })
+      await this.hooks.call('plugin:beforeInstall', { plugin, config }, { throwOnError: true })
 
       // 安装插件
       await plugin.install(this, descriptor.config)
@@ -128,7 +130,7 @@ export class PluginHostImpl implements PluginHost {
       this.registry.updateState(plugin.name, 'installed' as PluginState)
 
       // 触发安装后钩子
-      await this.hooks.call('plugin:afterInstall', { plugin, config })
+      await this.hooks.call('plugin:afterInstall', { plugin, config }, { throwOnError: true })
 
       this.log('info', `Plugin "${plugin.name}" installed successfully`)
     } catch (error) {
@@ -155,7 +157,7 @@ export class PluginHostImpl implements PluginHost {
 
     try {
       // 触发卸载前钩子
-      await this.hooks.call('plugin:beforeUninstall', { name })
+      await this.hooks.call('plugin:beforeUninstall', { name }, { throwOnError: true })
 
       // 调用插件的卸载方法
       if (descriptor.plugin.uninstall) {
@@ -167,7 +169,7 @@ export class PluginHostImpl implements PluginHost {
       this.configManager.clear(name)
 
       // 触发卸载后钩子
-      await this.hooks.call('plugin:afterUninstall', { name })
+      await this.hooks.call('plugin:afterUninstall', { name }, { throwOnError: true })
 
       this.log('info', `Plugin "${name}" removed successfully`)
     } catch (error) {
@@ -226,6 +228,6 @@ export class PluginHostImpl implements PluginHost {
 }
 
 // 导出工厂函数
-export function createPluginHost(): PluginHostImpl {
-  return new PluginHostImpl()
+export function createPluginHost(logger?: PluginLogger): PluginHostImpl {
+  return new PluginHostImpl(logger)
 }

@@ -1,5 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createPluginHost, type Plugin } from '@/plugin'
+import {
+  createPluginHost,
+  ConfigManager,
+  RendererPluginManager,
+  type Plugin,
+  type RendererPlugin,
+  type PaneInfo,
+} from '@/plugin'
 
 describe('Plugin System', () => {
   describe('PluginHost', () => {
@@ -110,6 +117,28 @@ describe('Plugin System', () => {
       const results = await host.hooks.call('test:transform', { x: 5 })
       expect(results).toEqual([10])
     })
+
+    it('should swallow hook errors by default', async () => {
+      const host = createPluginHost()
+      const good = vi.fn(() => 2)
+      host.hooks.tap('test:error-default', () => {
+        throw new Error('hook failed')
+      })
+      host.hooks.tap('test:error-default', good)
+
+      const results = await host.hooks.call('test:error-default', {})
+      expect(results).toEqual([2])
+      expect(good).toHaveBeenCalledTimes(1)
+    })
+
+    it('should throw hook errors when throwOnError is true', async () => {
+      const host = createPluginHost()
+      host.hooks.tap('test:error-throw', () => {
+        throw new Error('hook failed strict')
+      })
+
+      await expect(host.hooks.call('test:error-throw', {}, { throwOnError: true })).rejects.toThrow('hook failed strict')
+    })
   })
 
   describe('ConfigManager', () => {
@@ -119,6 +148,63 @@ describe('Plugin System', () => {
       host.setConfig('my-plugin', 'threshold', 100)
       expect(host.getConfig('my-plugin', 'threshold')).toBe(100)
       expect(host.getConfig('my-plugin', 'missing', 'default')).toBe('default')
+    })
+
+    it('should clear plugin defaults with plugin config', () => {
+      const manager = new ConfigManager()
+      manager.registerDefaults('demo', { period: 20, color: 'red' })
+      expect(manager.get('demo', 'period')).toBe(20)
+
+      manager.clear('demo')
+
+      expect(manager.get('demo', 'period')).toBeUndefined()
+      expect(manager.getAll('demo')).toEqual({})
+    })
+  })
+
+  describe('RendererPluginManager', () => {
+    const pane: PaneInfo = {
+      id: 'main',
+      top: 0,
+      height: 120,
+      yAxis: {
+        priceToY: (p) => p,
+        yToPrice: (y) => y,
+        getPaddingTop: () => 0,
+        getPaddingBottom: () => 0,
+        getPriceOffset: () => 0,
+      },
+      priceRange: { maxPrice: 1, minPrice: 0 },
+    }
+
+    it('should notify resize to enabled system and normal renderers', () => {
+      const manager = new RendererPluginManager()
+      const systemResize = vi.fn()
+      const normalResize = vi.fn()
+
+      const systemPlugin: RendererPlugin = {
+        name: 'system-resize',
+        paneId: 'main',
+        priority: 1,
+        isSystem: true,
+        draw: vi.fn(),
+        onResize: systemResize,
+      }
+
+      const normalPlugin: RendererPlugin = {
+        name: 'normal-resize',
+        paneId: 'main',
+        priority: 2,
+        draw: vi.fn(),
+        onResize: normalResize,
+      }
+
+      manager.register(systemPlugin)
+      manager.register(normalPlugin)
+      manager.notifyResize('main', pane)
+
+      expect(systemResize).toHaveBeenCalledTimes(1)
+      expect(normalResize).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -216,6 +302,38 @@ describe('Plugin System', () => {
         'beforeUninstall',
         'afterUninstall',
       ])
+    })
+
+    it('should fail install when lifecycle hook throws', async () => {
+      const host = createPluginHost()
+      host.hooks.tap('plugin:beforeInstall', () => {
+        throw new Error('before install rejected')
+      })
+
+      const plugin: Plugin = {
+        name: 'lifecycle-fail-install',
+        version: '1.0.0',
+        install() {},
+      }
+
+      await expect(host.use(plugin)).rejects.toThrow('before install rejected')
+    })
+
+    it('should fail remove when lifecycle hook throws', async () => {
+      const host = createPluginHost()
+      const plugin: Plugin = {
+        name: 'lifecycle-fail-remove',
+        version: '1.0.0',
+        install() {},
+        uninstall() {},
+      }
+      await host.use(plugin)
+
+      host.hooks.tap('plugin:beforeUninstall', () => {
+        throw new Error('before uninstall rejected')
+      })
+
+      await expect(host.remove('lifecycle-fail-remove')).rejects.toThrow('before uninstall rejected')
     })
 
     it('should destroy host and cleanup all plugins', async () => {
