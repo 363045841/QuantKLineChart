@@ -18,6 +18,10 @@
 
 详细说明见：[架构文档（ResizeObserver 重构版）](./docs/architecture.md)
 
+新增文档：
+- [系统架构综述](./docs/system-architecture-overview.md)
+- [渲染器开发指南](./docs/renderer-development-guide.md)
+
 ![pasted-image-1777718129484.webp](https://files.seeusercontent.com/2026/05/02/Lm0w/pasted-image-1777718129484.webp)
 ![(ZOS$O}EP(_NKI273RXBV17.png](https://files.seeusercontent.com/2026/04/29/olU0/ZOSOEP_NKI273RXBV17.png)
 ![YU8@~$21%{NBJLGIZ}KTKED.png](https://files.seeusercontent.com/2026/04/29/akQ8/YU821NBJLGIZKTKED.png)
@@ -250,6 +254,8 @@ pnpm preview  # 预览生产包
 - [Vitest 官方文档](https://vitest.dev/)
 - [语义化配置文档](./docs/semantic-config.md) - Agent JSON 配置说明
 - [架构文档（ResizeObserver 重构版）](./docs/architecture.md)
+- [系统架构综述](./docs/system-architecture-overview.md)
+- [渲染器开发指南](./docs/renderer-development-guide.md)
 
 ## 许可证
 
