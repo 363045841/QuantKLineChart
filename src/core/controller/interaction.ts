@@ -15,12 +15,17 @@ export interface MarkerHoverEvent {
 export class InteractionController {
     private chart: Chart
     private isDragging = false
+    private dragMode: 'none' | 'pan' | 'resize-separator' = 'none'
     private dragStartX = 0
     private scrollStartX = 0
 
     /** 垂直拖动相关 */
     private dragStartY = 0
     private activePaneIdOnDrag: string | null = null
+
+    /** 分隔线拖拽相关 */
+    private activeSeparatorUpperPaneId: string | null = null
+    private hoveredSeparatorUpperPaneId: string | null = null
 
     /** [触屏]:触摸会话标记，避免触摸触发的模拟 mouse 事件干扰 */
     private isTouchSession = false
@@ -117,6 +122,18 @@ export class InteractionController {
             return
         }
 
+        const separatorUpperPaneId = this.hitTestPaneSeparator(mouseY)
+        if (separatorUpperPaneId) {
+            this.isDragging = true
+            this.dragMode = 'resize-separator'
+            this.dragStartY = e.clientY
+            this.activeSeparatorUpperPaneId = separatorUpperPaneId
+            this.hoveredSeparatorUpperPaneId = separatorUpperPaneId
+            this.clearHover()
+            this.chart.scheduleDraw()
+            return
+        }
+
         //3.5 确定鼠标落在哪个 pane
         const paneRenderers = this.chart.getPaneRenderers()
         const renderer = paneRenderers.find((r) => {
@@ -127,6 +144,7 @@ export class InteractionController {
 
         //4. 没有点击 marker，开始拖拽
         this.isDragging = true
+        this.dragMode = 'pan'
         this.updateHoverFromPoint(e.clientX, e.clientY)
         this.dragStartX = e.clientX
         this.dragStartY = e.clientY
@@ -135,6 +153,7 @@ export class InteractionController {
 
         this.chart.scheduleDraw()
     }
+
 
     /**
      * 设置 tooltip 尺寸
@@ -151,6 +170,9 @@ export class InteractionController {
     onPointerUp(e: PointerEvent) {
         if (e.isPrimary === false) return
         this.isDragging = false
+        this.dragMode = 'none'
+        this.activePaneIdOnDrag = null
+        this.activeSeparatorUpperPaneId = null
     }
 
     /**
@@ -160,6 +182,9 @@ export class InteractionController {
     onPointerLeave(e: PointerEvent) {
         if (e.isPrimary === false) return
         this.isDragging = false
+        this.dragMode = 'none'
+        this.activePaneIdOnDrag = null
+        this.clearSeparatorState()
         this.isTouchSession = false
         this.clearHover()
         this.chart.scheduleDraw()
@@ -194,6 +219,19 @@ export class InteractionController {
             return
         }
 
+        const separatorUpperPaneId = this.hitTestPaneSeparator(mouseY)
+        if (separatorUpperPaneId) {
+            this.isDragging = true
+            this.dragMode = 'resize-separator'
+            this.dragStartY = e.clientY
+            this.activeSeparatorUpperPaneId = separatorUpperPaneId
+            this.hoveredSeparatorUpperPaneId = separatorUpperPaneId
+            this.clearHover()
+            this.chart.scheduleDraw()
+            e.preventDefault()
+            return
+        }
+
         // 3. 确定鼠标落在哪个 pane
         const paneRenderers = this.chart.getPaneRenderers()
         const renderer = paneRenderers.find((r) => {
@@ -204,6 +242,7 @@ export class InteractionController {
 
         // 4. 没有点击 marker，开始拖拽
         this.isDragging = true
+        this.dragMode = 'pan'
         this.dragStartX = e.clientX
         this.dragStartY = e.clientY
         this.scrollStartX = container.scrollLeft
@@ -222,20 +261,37 @@ export class InteractionController {
         const container = this.chart.getDom().container
 
         if (this.isDragging) {
-            // 1. 水平拖拽：更新滚动位置
-            const deltaX = this.dragStartX - e.clientX
-            container.scrollLeft = this.scrollStartX + deltaX
+            if (this.dragMode === 'resize-separator') {
+                const deltaY = e.clientY - this.dragStartY
+                if (deltaY !== 0 && this.activeSeparatorUpperPaneId) {
+                    const resized = this.chart.resizePaneBoundary(this.activeSeparatorUpperPaneId, deltaY)
+                    if (resized) {
+                        this.dragStartY = e.clientY
+                    }
+                }
+                return
+            }
 
-            // 2. 垂直拖拽：平移价格轴
-            const deltaY = e.clientY - this.dragStartY
-            if (deltaY !== 0 && this.activePaneIdOnDrag) {
-                this.chart.translatePrice(this.activePaneIdOnDrag, deltaY)
-                this.dragStartY = e.clientY
+            if (this.dragMode === 'pan') {
+                // 1. 水平拖拽：更新滚动位置
+                const deltaX = this.dragStartX - e.clientX
+                container.scrollLeft = this.scrollStartX + deltaX
+
+                // 2. 垂直拖拽：平移价格轴
+                const deltaY = e.clientY - this.dragStartY
+                if (deltaY !== 0 && this.activePaneIdOnDrag) {
+                    this.chart.translatePrice(this.activePaneIdOnDrag, deltaY)
+                    this.dragStartY = e.clientY
+                }
             }
             return
         }
 
-        this.updateHover(e)
+        const rect = container.getBoundingClientRect()
+        const mouseY = e.clientY - rect.top
+        this.hoveredSeparatorUpperPaneId = this.hitTestPaneSeparator(mouseY)
+
+        this.updateHoverFromPoint(e.clientX, e.clientY)
         this.chart.scheduleDraw()
     }
 
@@ -243,12 +299,18 @@ export class InteractionController {
     onMouseUp() {
         if (this.isTouchSession) return
         this.isDragging = false
+        this.dragMode = 'none'
+        this.activePaneIdOnDrag = null
+        this.activeSeparatorUpperPaneId = null
     }
 
     /** 处理鼠标离开事件 */
     onMouseLeave() {
         if (this.isTouchSession) return
         this.isDragging = false
+        this.dragMode = 'none'
+        this.activePaneIdOnDrag = null
+        this.clearSeparatorState()
         this.clearHover()
         this.chart.scheduleDraw()
     }
@@ -278,18 +340,35 @@ export class InteractionController {
         const container = this.chart.getDom().container
 
         if (this.isDragging) {
-            // 1. 水平拖拽：更新滚动位置
-            const deltaX = this.dragStartX - e.clientX
-            container.scrollLeft = this.scrollStartX + deltaX
+            if (this.dragMode === 'resize-separator') {
+                const deltaY = e.clientY - this.dragStartY
+                if (deltaY !== 0 && this.activeSeparatorUpperPaneId) {
+                    const resized = this.chart.resizePaneBoundary(this.activeSeparatorUpperPaneId, deltaY)
+                    if (resized) {
+                        this.dragStartY = e.clientY
+                    }
+                }
+                return
+            }
 
-            // 2. 垂直拖拽：平移价格轴
-            const deltaY = e.clientY - this.dragStartY
-            if (deltaY !== 0 && this.activePaneIdOnDrag) {
-                this.chart.translatePrice(this.activePaneIdOnDrag, deltaY)
-                this.dragStartY = e.clientY
+            if (this.dragMode === 'pan') {
+                // 1. 水平拖拽：更新滚动位置
+                const deltaX = this.dragStartX - e.clientX
+                container.scrollLeft = this.scrollStartX + deltaX
+
+                // 2. 垂直拖拽：平移价格轴
+                const deltaY = e.clientY - this.dragStartY
+                if (deltaY !== 0 && this.activePaneIdOnDrag) {
+                    this.chart.translatePrice(this.activePaneIdOnDrag, deltaY)
+                    this.dragStartY = e.clientY
+                }
             }
             return
         }
+
+        const rect = container.getBoundingClientRect()
+        const mouseY = e.clientY - rect.top
+        this.hoveredSeparatorUpperPaneId = this.hitTestPaneSeparator(mouseY)
 
         this.updateHoverFromPoint(e.clientX, e.clientY)
         this.chart.scheduleDraw()
@@ -318,6 +397,16 @@ export class InteractionController {
         return this.isDragging
     }
 
+    /** 是否处于分隔线拖拽状态 */
+    isResizingPaneBoundaryState(): boolean {
+        return this.dragMode === 'resize-separator'
+    }
+
+    /** 是否悬停在可拖拽分隔线上 */
+    isHoveringPaneBoundaryState(): boolean {
+        return this.hoveredSeparatorUpperPaneId !== null
+    }
+
     /** 设置 marker hover 回调 */
     setOnMarkerHover(callback: (marker: MarkerEntity | null) => void) {
         this.onMarkerHoverCallback = callback
@@ -336,6 +425,24 @@ export class InteractionController {
     /** 设置自定义标记 click 回调 */
     setOnCustomMarkerClick(callback: (marker: CustomMarkerEntity) => void) {
         this.onCustomMarkerClickCallback = callback
+    }
+
+    /** 命中可拖拽分隔线（返回上方 paneId） */
+    private hitTestPaneSeparator(mouseY: number): string | null {
+        const paneRenderers = this.chart.getPaneRenderers()
+        if (paneRenderers.length < 2) return null
+
+        const SEP_HIT_HALF = 5
+        for (let i = 0; i < paneRenderers.length - 1; i++) {
+            const upper = paneRenderers[i]?.getPane()
+            const lower = paneRenderers[i + 1]?.getPane()
+            if (!upper || !lower) continue
+            const boundaryY = upper.top + upper.height
+            if (Math.abs(mouseY - boundaryY) <= SEP_HIT_HALF) {
+                return upper.id
+            }
+        }
+        return null
     }
 
     /** 清除 hover 状态 */
@@ -363,12 +470,9 @@ export class InteractionController {
         }
     }
 
-    /**
-     * 从鼠标事件更新 hover 状态
-     * @param e MouseEvent
-     */
-    private updateHover(e: MouseEvent) {
-        this.updateHoverFromPoint(e.clientX, e.clientY)
+    private clearSeparatorState() {
+        this.activeSeparatorUpperPaneId = null
+        this.hoveredSeparatorUpperPaneId = null
     }
 
     /**
@@ -393,6 +497,13 @@ export class InteractionController {
 
         const scrollLeft = container.scrollLeft
         const dpr = this.chart.getCurrentDpr()
+
+        const separatorUpperPaneId = this.hitTestPaneSeparator(mouseY)
+        this.hoveredSeparatorUpperPaneId = separatorUpperPaneId
+        if (separatorUpperPaneId) {
+            this.clearHover()
+            return
+        }
 
         // 2. 优先检查量价关系 marker 命中（marker 在 world 坐标系）
         const markerManager = this.chart.getMarkerManager()
@@ -584,10 +695,12 @@ export class InteractionController {
      */
     reset(): void {
         this.isDragging = false
+        this.dragMode = 'none'
         this.dragStartX = 0
         this.dragStartY = 0
         this.scrollStartX = 0
         this.activePaneIdOnDrag = null
+        this.clearSeparatorState()
         this.isTouchSession = false
         this.crosshairPos = null
         this.crosshairIndex = null

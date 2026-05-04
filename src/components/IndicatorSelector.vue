@@ -3,57 +3,76 @@
     <div class="indicator-scroll-container">
       <div class="indicator-list">
         <!-- 已激活的指标 -->
-        <div
+        <template
           v-for="indicator in activeIndicatorsList"
           :key="indicator.id"
-          class="indicator-item"
         >
           <div
-            class="indicator-btn-wrapper"
-            @mouseenter="hoveredIndicator = indicator.id"
-            @mouseleave="hoveredIndicator = null"
+            v-if="indicator.id === firstActiveSubIndicatorId"
+            class="indicator-divider"
+            aria-hidden="true"
+          ></div>
+
+          <div
+            class="indicator-item"
+            :class="{
+              draggable: isSubIndicatorId(indicator.id),
+              'drag-over': dragOverIndicatorId === indicator.id,
+              'is-dragging': draggingIndicatorId === indicator.id,
+            }"
+            :draggable="isSubIndicatorId(indicator.id)"
+            @dragstart="onDragStart($event, indicator.id)"
+            @dragover.prevent="onDragOver($event, indicator.id)"
+            @drop.prevent="onDrop($event, indicator.id)"
+            @dragend="onDragEnd"
           >
-            <button
-              class="indicator-btn"
-              :class="{ active: true, hovering: hoveredIndicator === indicator.id }"
+            <div
+              class="indicator-btn-wrapper"
+              @mouseenter="hoveredIndicator = indicator.id"
+              @mouseleave="hoveredIndicator = null"
             >
-              <span class="btn-content">
-                {{ indicator.label }}
-                <span v-if="indicator.params" class="param-hint">
-                  ({{ getParamDisplay(indicator) }})
+              <button
+                class="indicator-btn"
+                :class="{ active: true, hovering: hoveredIndicator === indicator.id }"
+              >
+                <span class="btn-content">
+                  {{ indicator.label }}
+                  <span v-if="indicator.params" class="param-hint">
+                    ({{ getParamDisplay(indicator) }})
+                  </span>
                 </span>
-              </span>
-              <!-- 悬浮操作层 -->
-              <Transition name="fade">
-                <div
-                  v-if="hoveredIndicator === indicator.id"
-                  class="hover-overlay"
-                >
-                  <button
-                    v-if="indicator.params"
-                    class="action-btn settings-btn"
-                    @click.stop="showParams(indicator.id)"
-                    title="编辑参数"
+                <!-- 悬浮操作层 -->
+                <Transition name="fade">
+                  <div
+                    v-if="hoveredIndicator === indicator.id"
+                    class="hover-overlay"
                   >
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                      <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-                    </svg>
-                  </button>
-                  <span v-if="indicator.params" class="divider"></span>
-                  <button
-                    class="action-btn remove-btn"
-                    @click.stop="removeIndicator(indicator.id)"
-                    title="移除指标"
-                  >
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                    </svg>
-                  </button>
-                </div>
-              </Transition>
-            </button>
+                    <button
+                      v-if="indicator.params"
+                      class="action-btn settings-btn"
+                      @click.stop="showParams(indicator.id)"
+                      title="编辑参数"
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                        <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                      </svg>
+                    </button>
+                    <span v-if="indicator.params" class="divider"></span>
+                    <button
+                      class="action-btn remove-btn"
+                      @click.stop="removeIndicator(indicator.id)"
+                      title="移除指标"
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                      </svg>
+                    </button>
+                  </div>
+                </Transition>
+              </button>
+            </div>
           </div>
-        </div>
+        </template>
 
         <!-- 添加按钮 -->
         <div class="indicator-item">
@@ -302,6 +321,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   toggle: [indicatorId: string, active: boolean]
   updateParams: [indicatorId: string, params: Record<string, number>]
+  reorderSubIndicators: [orderedIndicatorIds: string[]]
 }>()
 
 // ─────────────────────────────────────────────────────────────────
@@ -314,6 +334,9 @@ const currentIndicatorId = ref<string | null>(null)
 const hoveredIndicator = ref<string | null>(null)
 const showAddMenu = ref(false)
 const menuStyle = ref<{ left: string; bottom: string }>({ left: '0', bottom: '0' })
+const dragOverIndicatorId = ref<string | null>(null)
+const draggingIndicatorId = ref<string | null>(null)
+
 
 // ─────────────────────────────────────────────────────────────────
 // 计算属性
@@ -324,6 +347,11 @@ const activeIndicatorsList = computed(() => {
   return props.activeIndicators
     .map((id) => allIndicators.find((i) => i.id === id))
     .filter((i): i is Indicator => i !== undefined)
+})
+
+const firstActiveSubIndicatorId = computed(() => {
+  const firstSub = activeIndicatorsList.value.find((indicator) => indicator.pane === 'sub')
+  return firstSub?.id ?? null
 })
 
 const currentIndicator = computed(() => {
@@ -400,6 +428,67 @@ function onParamsConfirm(values: Record<string, number>) {
     emit('updateParams', currentIndicatorId.value, values)
   }
   paramsVisible.value = false
+}
+
+function isSubIndicatorId(indicatorId: string): boolean {
+  const indicator = allIndicators.find((i) => i.id === indicatorId)
+  return indicator?.pane === 'sub'
+}
+
+function onDragStart(event: DragEvent, indicatorId: string) {
+  if (!isSubIndicatorId(indicatorId)) {
+    event.preventDefault()
+    return
+  }
+  draggingIndicatorId.value = indicatorId
+  dragOverIndicatorId.value = null
+  event.dataTransfer?.setData('text/plain', indicatorId)
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+  }
+}
+
+function onDragOver(event: DragEvent, indicatorId: string) {
+  if (!draggingIndicatorId.value || !isSubIndicatorId(indicatorId) || draggingIndicatorId.value === indicatorId) return
+  dragOverIndicatorId.value = indicatorId
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
+}
+
+function onDrop(event: DragEvent, targetIndicatorId: string) {
+  const sourceIndicatorId = draggingIndicatorId.value || event.dataTransfer?.getData('text/plain') || ''
+  if (!sourceIndicatorId || sourceIndicatorId === targetIndicatorId) {
+    onDragEnd()
+    return
+  }
+  if (!isSubIndicatorId(sourceIndicatorId) || !isSubIndicatorId(targetIndicatorId)) {
+    onDragEnd()
+    return
+  }
+
+  const sourceIndex = activeIndicatorsList.value.findIndex((i) => i.id === sourceIndicatorId)
+  const targetIndex = activeIndicatorsList.value.findIndex((i) => i.id === targetIndicatorId)
+  if (sourceIndex < 0 || targetIndex < 0) {
+    onDragEnd()
+    return
+  }
+
+  const next = [...activeIndicatorsList.value.map((i) => i.id)]
+  const [moved] = next.splice(sourceIndex, 1)
+  if (!moved) {
+    onDragEnd()
+    return
+  }
+  next.splice(targetIndex, 0, moved)
+
+  emit('reorderSubIndicators', next.filter((id) => isSubIndicatorId(id)))
+  onDragEnd()
+}
+
+function onDragEnd() {
+  dragOverIndicatorId.value = null
+  draggingIndicatorId.value = null
 }
 
 // 切换菜单显示
@@ -490,10 +579,33 @@ onUnmounted(() => {
   margin: 0 auto;
 }
 
+.indicator-divider {
+  width: 1px;
+  height: 20px;
+  align-self: center;
+  background: #d9d9d9;
+}
+
 .indicator-item {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.indicator-item.draggable,
+.indicator-item.draggable .indicator-btn,
+.indicator-item.draggable:hover,
+.indicator-item.draggable:hover .indicator-btn {
+  cursor: move;
+}
+
+.indicator-item.is-dragging {
+  opacity: 0.6;
+}
+
+.indicator-item.drag-over .indicator-btn {
+  border-color: #1a1a1a;
+  box-shadow: 0 0 0 2px rgba(26, 26, 26, 0.12);
 }
 
 .indicator-btn-wrapper {

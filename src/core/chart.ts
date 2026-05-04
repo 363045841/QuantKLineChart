@@ -37,7 +37,7 @@ export type ChartDom = {
  * @property ratio Pane 高度占比
  * @property visible 是否可见（默认 true）
  */
-export type PaneSpec = { id: string; ratio: number; visible?: boolean }
+export type PaneSpec = { id: string; ratio: number; visible?: boolean; minHeightPx?: number }
 
 export type PaneRendererDom = {
     plotCanvas: HTMLCanvasElement
@@ -59,6 +59,9 @@ export type ChartOptions = {
 
     /** 价格标签额外宽度（用于显示涨跌幅，默认 60px） */
     priceLabelWidth?: number
+
+    /** pane 最小高度（逻辑像素，默认 60） */
+    defaultPaneMinHeightPx?: number
 }
 
 /** K 线起始 x 坐标数组，positions[i] 表示第 i 根 K 线的起始 x 坐标（逻辑像素） */
@@ -100,6 +103,9 @@ export class Chart {
     /** 最近一次观测到的容器尺寸 */
     private observedSize = { width: 0, height: 0 }
 
+    /** pane ratio 状态（按 paneId 维护，sum=1 仅对可见 pane） */
+    private paneRatios: Map<string, number> = new Map()
+
     /** 视口变化回调（供外部同步 DPR/尺寸） */
     private onViewportChange?: (viewport: Viewport) => void
 
@@ -120,10 +126,10 @@ export class Chart {
         this.rendererPluginManager.setPluginHost(this.pluginHost)
         this.rendererPluginManager.setInvalidateCallback(() => this.scheduleDraw())
 
+        this.syncPaneRatiosFromSpecs(this.opt.panes)
         this.initPanes()
         this.initResizeObserver()
     }
-
 
 
     private initResizeObserver() {
@@ -486,14 +492,85 @@ export class Chart {
         this.resize()
     }
 
-    /**
-     * 更新 pane 布局配置
+    /** 更新 pane 布局配置
      * @param panes 新的 pane 配置数组
      */
     updatePaneLayout(panes: PaneSpec[]): void {
-        this.opt.panes = panes
+        this.opt.panes = panes.map(spec => ({ ...spec }))
+        this.syncPaneRatiosFromSpecs(this.opt.panes)
         this.layoutPanes()
         this.scheduleDraw()
+    }
+
+    /** 获取当前 pane 布局快照（含 ratio） */
+    getPaneLayoutSpecs(): PaneSpec[] {
+        const visible = this.opt.panes.filter(p => p.visible !== false)
+        const sum = visible.reduce((s, p) => s + (this.paneRatios.get(p.id) ?? p.ratio ?? 0), 0)
+        const safeSum = sum > 0 ? sum : 1
+        return this.opt.panes.map((spec) => {
+            const base = this.paneRatios.get(spec.id) ?? spec.ratio ?? 0
+            const ratio = spec.visible === false ? base : base / safeSum
+            return { ...spec, ratio }
+        })
+    }
+
+    /**
+     * 调整相邻 pane 边界（upper 与其下方一个 pane）
+     * @param upperPaneId 上方 pane ID
+     * @param deltaY Y 方向位移（逻辑像素，正数表示边界向下）
+     */
+    resizePaneBoundary(upperPaneId: string, deltaY: number): boolean {
+        if (!Number.isFinite(deltaY) || deltaY === 0) return false
+        const vp = this.viewport
+        if (!vp) return false
+
+        const visibleSpecs = this.opt.panes.filter(p => p.visible !== false)
+        const upperIndex = visibleSpecs.findIndex(p => p.id === upperPaneId)
+        if (upperIndex < 0 || upperIndex >= visibleSpecs.length - 1) return false
+
+        const upperSpec = visibleSpecs[upperIndex]
+        const lowerSpec = visibleSpecs[upperIndex + 1]
+        if (!upperSpec || !lowerSpec) return false
+
+        const upperRenderer = this.paneRenderers.find(r => r.getPane().id === upperSpec.id)
+        const lowerRenderer = this.paneRenderers.find(r => r.getPane().id === lowerSpec.id)
+        if (!upperRenderer || !lowerRenderer) return false
+
+        const upperPane = upperRenderer.getPane()
+        const lowerPane = lowerRenderer.getPane()
+        const pairTotal = upperPane.height + lowerPane.height
+        if (pairTotal <= 1) return false
+
+        const upperMin = this.getPaneMinHeight(upperSpec, vp.plotHeight)
+        const lowerMin = this.getPaneMinHeight(lowerSpec, vp.plotHeight)
+
+        const minUpper = Math.max(1, Math.min(upperMin, pairTotal - 1))
+        const maxUpper = Math.max(minUpper, pairTotal - Math.max(1, Math.min(lowerMin, pairTotal - 1)))
+        const nextUpper = Math.max(minUpper, Math.min(maxUpper, upperPane.height + deltaY))
+        const nextLower = pairTotal - nextUpper
+
+        if (Math.abs(nextUpper - upperPane.height) < 0.01 && Math.abs(nextLower - lowerPane.height) < 0.01) {
+            return false
+        }
+
+        const gap = Math.max(0, this.opt.paneGap ?? 0)
+        const totalGaps = gap * Math.max(0, visibleSpecs.length - 1)
+        const availableH = Math.max(1, vp.plotHeight - totalGaps)
+
+        const currentUpperRatio = this.paneRatios.get(upperSpec.id) ?? upperSpec.ratio ?? 0
+        const currentLowerRatio = this.paneRatios.get(lowerSpec.id) ?? lowerSpec.ratio ?? 0
+        const pairRatio = Math.max(1e-6, currentUpperRatio + currentLowerRatio)
+
+        this.paneRatios.set(upperSpec.id, pairRatio * (nextUpper / pairTotal))
+        this.paneRatios.set(lowerSpec.id, pairRatio * (nextLower / pairTotal))
+
+        this.normalizeVisiblePaneRatios(visibleSpecs)
+        this.syncPaneRatiosToSpecs()
+
+        // 用最新 ratio 重排，保证所有 pane 一致
+        this.layoutPanes()
+        this.scheduleDraw()
+        return true
     }
 
     /**
@@ -805,41 +882,127 @@ export class Chart {
         }
     }
 
+
+    private syncPaneRatiosFromSpecs(specs: PaneSpec[]): void {
+        const next = new Map<string, number>()
+        for (const spec of specs) {
+            const prev = this.paneRatios.get(spec.id)
+            const incoming = Number.isFinite(spec.ratio) ? spec.ratio : 0
+            const ratio = prev !== undefined ? prev : (incoming > 0 ? incoming : 1)
+            next.set(spec.id, ratio)
+        }
+        this.paneRatios = next
+        this.normalizeVisiblePaneRatios(specs)
+        this.syncPaneRatiosToSpecs()
+    }
+
+    private syncPaneRatiosToSpecs(): void {
+        const visible = this.opt.panes.filter(p => p.visible !== false)
+        const visibleSum = visible.reduce((s, p) => s + (this.paneRatios.get(p.id) ?? p.ratio ?? 0), 0)
+        const safeVisibleSum = visibleSum > 0 ? visibleSum : 1
+
+        this.opt.panes = this.opt.panes.map((spec) => {
+            const ratio = this.paneRatios.get(spec.id) ?? spec.ratio ?? 0
+            if (spec.visible === false) {
+                return { ...spec, ratio }
+            }
+            return { ...spec, ratio: ratio / safeVisibleSum }
+        })
+    }
+
+    private normalizeVisiblePaneRatios(specs: PaneSpec[]): void {
+        const visible = specs.filter(p => p.visible !== false)
+        if (visible.length === 0) return
+
+        let sum = 0
+        for (const spec of visible) {
+            const raw = this.paneRatios.get(spec.id) ?? spec.ratio ?? 0
+            const safe = Number.isFinite(raw) && raw > 0 ? raw : 0
+            this.paneRatios.set(spec.id, safe)
+            sum += safe
+        }
+
+        if (sum <= 0) {
+            const equal = 1 / visible.length
+            for (const spec of visible) {
+                this.paneRatios.set(spec.id, equal)
+            }
+            return
+        }
+
+        for (const spec of visible) {
+            const v = this.paneRatios.get(spec.id) ?? 0
+            this.paneRatios.set(spec.id, v / sum)
+        }
+    }
+
+    private getPaneMinHeight(spec: PaneSpec, plotHeight: number): number {
+        const fallback = this.opt.defaultPaneMinHeightPx ?? 60
+        const raw = spec.minHeightPx ?? fallback
+        return Math.max(1, Math.min(Math.round(raw), Math.max(1, plotHeight)))
+    }
+
+    private computePaneHeightsByRatio(visibleSpecs: PaneSpec[], availableH: number): number[] {
+        if (visibleSpecs.length === 0) return []
+
+        const ratios = visibleSpecs.map(spec => this.paneRatios.get(spec.id) ?? spec.ratio ?? 0)
+        const ratioSum = ratios.reduce((s, r) => s + (r > 0 ? r : 0), 0)
+        const safeRatios = ratioSum > 0
+            ? ratios.map(r => (r > 0 ? r : 0) / ratioSum)
+            : visibleSpecs.map(() => 1 / visibleSpecs.length)
+
+        const heights = safeRatios.map(r => Math.max(1, Math.round(availableH * r)))
+        const mins = visibleSpecs.map(spec => this.getPaneMinHeight(spec, availableH))
+
+        for (let i = 0; i < heights.length; i++) {
+            heights[i] = Math.max(heights[i]!, Math.min(mins[i]!, availableH))
+        }
+
+        let total = heights.reduce((s, h) => s + h, 0)
+
+        if (total > availableH) {
+            let overflow = total - availableH
+            while (overflow > 0) {
+                let shrunk = false
+                for (let i = heights.length - 1; i >= 0 && overflow > 0; i--) {
+                    const minH = Math.max(1, Math.min(mins[i]!, availableH))
+                    const h = heights[i]!
+                    if (h > minH) {
+                        heights[i] = h - 1
+                        overflow--
+                        shrunk = true
+                    }
+                }
+                if (!shrunk) break
+            }
+        } else if (total < availableH) {
+            heights[heights.length - 1] = (heights[heights.length - 1] ?? 1) + (availableH - total)
+        }
+
+        total = heights.reduce((s, h) => s + h, 0)
+        if (total !== availableH && heights.length > 0) {
+            heights[heights.length - 1] = Math.max(1, (heights[heights.length - 1] ?? 1) + (availableH - total))
+        }
+
+        return heights
+    }
+
     /** 计算每个 pane 的布局（top 和 height） */
     private layoutPanes() {
         const vp = this.viewport
         if (!vp) return
 
-        // 过滤出可见的 pane
         const visibleSpecs = this.opt.panes.filter(p => p.visible !== false)
+        if (visibleSpecs.length === 0) return
+
         const gap = Math.max(0, this.opt.paneGap ?? 0)
         let y = 0
 
         const totalGaps = gap * Math.max(0, visibleSpecs.length - 1)
         const availableH = Math.max(1, vp.plotHeight - totalGaps)
 
-        // 指数退避 + 副图等分策略
-        // 主图比例随副图数量递减，参考 TradingView 行为
-        // subCount=0: 100%, subCount=1: 85%, subCount=2: 72%, subCount=3: 61%...
-        const DECAY_FACTOR = 0.85
-
-        const subCount = Math.max(0, visibleSpecs.length - 1)
-        const mainRatio = subCount === 0 ? 1.0 : Math.pow(DECAY_FACTOR, subCount)
-        const subRatioEach = subCount > 0 ? (1 - mainRatio) / subCount : 0
-
-        // 计算每个 pane 的高度
-        const paneHeights: number[] = visibleSpecs.map((spec, i) => {
-            const isFirst = i === 0
-            const ratio = isFirst ? mainRatio : subRatioEach
-            return Math.round(availableH * ratio)
-        })
-
-        // 修正最后一个 pane 的高度，确保总和等于 availableH（消除舍入误差）
-        const totalHeight = paneHeights.reduce((s, h) => s + h, 0)
-        const lastPaneHeightIndex = paneHeights.length - 1
-        if (lastPaneHeightIndex >= 0) {
-            paneHeights[lastPaneHeightIndex]! += availableH - totalHeight
-        }
+        this.normalizeVisiblePaneRatios(visibleSpecs)
+        const paneHeights = this.computePaneHeightsByRatio(visibleSpecs, availableH)
 
         for (let i = 0; i < visibleSpecs.length; i++) {
             const spec = visibleSpecs[i]
@@ -849,10 +1012,9 @@ export class Chart {
             if (!renderer) continue
 
             const pane = renderer.getPane()
-            const h = paneHeights[i]!
+            const h = paneHeights[i] ?? 1
 
             pane.setLayout(y, h)
-            // 副图（非 main）不设置 padding，主图使用配置的 yPaddingPx
             if (pane.id !== 'main') {
                 pane.setPadding(0, 0)
             } else {
@@ -862,14 +1024,23 @@ export class Chart {
             renderer.resize(vp.plotWidth, h, vp.dpr)
             this.rendererPluginManager.notifyResize(pane.id, wrapPaneInfo(pane))
             const dom = renderer.getDom()
-            // 只设置 top，left/right 由 CSS 自动处理
             dom.plotCanvas.style.top = `${y}px`
             dom.yAxisCanvas.style.top = `${y}px`
 
             y += h + gap
         }
-    }
 
+        // 按实际像素高度回写 ratio，确保后续 resize 视觉比例稳定
+        const finalAvailable = Math.max(1, availableH)
+        for (const spec of visibleSpecs) {
+            const renderer = this.paneRenderers.find(r => r.getPane().id === spec.id)
+            if (!renderer) continue
+            const h = renderer.getPane().height
+            this.paneRatios.set(spec.id, h / finalAvailable)
+        }
+        this.normalizeVisiblePaneRatios(visibleSpecs)
+        this.syncPaneRatiosToSpecs()
+    }
     private computeViewport(): Viewport | null {
         const container = this.dom.container
         if (!container) return null

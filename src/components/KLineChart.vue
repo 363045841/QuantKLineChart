@@ -2,7 +2,11 @@
   <div class="chart-wrapper">
     <div
       class="chart-container"
-      :class="{ 'is-dragging': isDragging }"
+      :class="{
+        'is-dragging': isDragging,
+        'is-resizing-pane': isResizingPane,
+        'is-hovering-pane-separator': isHoveringPaneSeparator,
+      }"
       ref="containerRef"
       @scroll.passive="onScroll"
       @pointerdown="onPointerDown"
@@ -41,6 +45,7 @@
       :indicator-params="indicatorParams"
       @toggle="handleIndicatorToggle"
       @update-params="handleUpdateParams"
+      @reorder-sub-indicators="handleReorderSubIndicators"
     />
   </div>
 </template>
@@ -77,6 +82,13 @@ import {
 import { createExtremaMarkersRendererPlugin } from '@/core/renderers/extremaMarkers'
 import { createYAxisRendererPlugin } from '@/core/renderers/yAxis'
 import { createMacdScaleRendererPlugin } from '@/core/renderers/Indicator/scale/macd_scale'
+import { createRsiScaleRendererPlugin } from '@/core/renderers/Indicator/scale/rsi_scale'
+import { createCciScaleRendererPlugin } from '@/core/renderers/Indicator/scale/cci_scale'
+import { createStochScaleRendererPlugin } from '@/core/renderers/Indicator/scale/stoch_scale'
+import { createMomScaleRendererPlugin } from '@/core/renderers/Indicator/scale/mom_scale'
+import { createWmsrScaleRendererPlugin } from '@/core/renderers/Indicator/scale/wmsr_scale'
+import { createKstScaleRendererPlugin } from '@/core/renderers/Indicator/scale/kst_scale'
+import { createFastkScaleRendererPlugin } from '@/core/renderers/Indicator/scale/fastk_scale'
 import { createTimeAxisRendererPlugin } from '@/core/renderers/timeAxis'
 import { createCrosshairRendererPlugin } from '@/core/renderers/crosshair'
 import { createPaneTitleRendererPlugin, type TitleInfo } from '@/core/renderers/paneTitle'
@@ -146,8 +158,12 @@ const hoveredMarker = ref<MarkerEntity | null>(null)
 const hoveredCustomMarker = ref<CustomMarkerEntity | null>(null)
 const mousePos = ref({ x: 0, y: 0 })
 
-// ===== 交互状态（先保留最小：拖拽时样式） =====
+// ===== 交互状态 =====
 const isDragging = ref(false)
+const isResizingPane = ref(false)
+const isHoveringPaneSeparator = ref(false)
+
+const paneRatios = ref<Record<string, number>>({ main: 1 })
 
 // tooltip/hover 必须是 Vue 可追踪的响应式状态（Chart 内部普通属性 Vue 不会自动追踪）
 const hoveredIdx = ref<number | null>(null)
@@ -184,6 +200,28 @@ function notifyDataChange() {
 // RAF 节流：避免高频 pointermove 触发过多响应式更新
 let hoverRafId: number | null = null
 
+function syncPaneInteractionState() {
+  const interaction = chartRef.value?.interaction
+  if (!interaction) {
+    isResizingPane.value = false
+    isHoveringPaneSeparator.value = false
+    return
+  }
+  isResizingPane.value = interaction.isResizingPaneBoundaryState()
+  isHoveringPaneSeparator.value = interaction.isHoveringPaneBoundaryState()
+}
+
+function syncPaneRatiosFromChart() {
+  const chart = chartRef.value
+  if (!chart) return
+  const specs = chart.getPaneLayoutSpecs()
+  const next: Record<string, number> = {}
+  for (const spec of specs) {
+    next[spec.id] = spec.ratio
+  }
+  paneRatios.value = next
+}
+
 function syncHoverState() {
   const interaction = chartRef.value?.interaction
   if (!interaction) {
@@ -191,6 +229,7 @@ function syncHoverState() {
     crosshairIdx.value = null
     hoveredMarker.value = null
     hoveredCustomMarker.value = null
+    syncPaneInteractionState()
     return
   }
 
@@ -201,6 +240,8 @@ function syncHoverState() {
 
   const pos = interaction.tooltipPos
   if (pos) tooltipPosition.value = { x: pos.x, y: pos.y }
+
+  syncPaneInteractionState()
 }
 
 // 节流版本：用于 pointermove 高频调用
@@ -214,8 +255,8 @@ function syncHoverStateThrottled() {
 
 function onPointerDown(e: PointerEvent) {
   // 触屏：手指一接触屏幕就触发十字线（避免必须长按才触发）
-  isDragging.value = true
   chartRef.value?.interaction.onPointerDown(e)
+  isDragging.value = chartRef.value?.interaction.isDraggingState() ?? false
   syncHoverState()
 }
 
@@ -233,15 +274,17 @@ function onPointerMove(e: PointerEvent) {
 }
 
 function onPointerUp(e: PointerEvent) {
-  isDragging.value = false
   chartRef.value?.interaction.onPointerUp(e)
+  isDragging.value = chartRef.value?.interaction.isDraggingState() ?? false
   syncHoverState()
+  syncPaneRatiosFromChart()
 }
 
 function onPointerLeave(e: PointerEvent) {
-  isDragging.value = false
   chartRef.value?.interaction.onPointerLeave(e)
+  isDragging.value = chartRef.value?.interaction.isDraggingState() ?? false
   hoveredIdx.value = null
+  syncPaneInteractionState()
 }
 
 function onScroll() {
@@ -273,14 +316,19 @@ const maxSubPanes = 4
 // 副图指标列表
 const SUB_PANE_INDICATORS: SubIndicatorType[] = ['VOLUME', 'MACD', 'RSI', 'CCI', 'STOCH', 'MOM', 'WMSR', 'KST', 'FASTK']
 
-// 布局配置（ratio 由 Chart 内部的指数退避策略计算，此处仅提供 pane 顺序）
+// 布局配置（ratio 由 Chart 内部维护并回流）
 const layoutPanes = computed<PaneSpec[]>(() => {
+  const mainRatio = paneRatios.value['main'] ?? 1
   if (subPanes.value.length === 0) {
-    return [{ id: 'main', ratio: 1, visible: true }]
+    return [{ id: 'main', ratio: mainRatio, visible: true }]
   }
   return [
-    { id: 'main', ratio: 1, visible: true },
-    ...subPanes.value.map(pane => ({ id: pane.id, ratio: 1, visible: true }))
+    { id: 'main', ratio: mainRatio, visible: true },
+    ...subPanes.value.map((pane) => ({
+      id: pane.id,
+      ratio: paneRatios.value[pane.id] ?? 1,
+      visible: true,
+    })),
   ]
 })
 
@@ -338,6 +386,9 @@ function addSubPane(indicatorId: SubIndicatorType = 'VOLUME', params?: Record<st
     params: params ?? getDefaultParams(indicatorId)
   })
 
+  // 新增副图后，从 Chart 回流 ratio
+  syncPaneRatiosFromChart()
+
   // 更新 activeIndicators
   if (!activeIndicators.value.includes(indicatorId)) {
     activeIndicators.value.push(indicatorId)
@@ -363,6 +414,9 @@ function removeSubPane(paneId: string): void {
   // 更新本地状态
   subPanes.value.splice(index, 1)
 
+  // 移除副图后，从 Chart 回流 ratio
+  syncPaneRatiosFromChart()
+
   // 更新 activeIndicators
   const hasOtherPane = subPanes.value.some(p => p.indicatorId === pane.indicatorId)
   if (!hasOtherPane) {
@@ -382,6 +436,7 @@ function clearAllSubPanes(): void {
 
   // 清空本地状态
   subPanes.value = []
+  syncPaneRatiosFromChart()
   activeIndicators.value = activeIndicators.value.filter(id => !SUB_PANE_INDICATORS.includes(id as SubIndicatorType))
 }
 
@@ -682,6 +737,49 @@ function handleUpdateParams(indicatorId: string, params: Record<string, unknown>
   scheduleRender()
 }
 
+function handleReorderSubIndicators(orderedIndicatorIds: string[]) {
+  if (!orderedIndicatorIds.length || subPanes.value.length <= 1) return
+
+  const validOrder = orderedIndicatorIds.filter((id): id is SubIndicatorType =>
+    SUB_PANE_INDICATORS.includes(id as SubIndicatorType)
+  )
+  if (!validOrder.length) return
+
+  const paneByIndicator = new Map(subPanes.value.map((pane) => [pane.indicatorId, pane] as const))
+  const nextSubPanes: SubPaneSlot[] = []
+
+  for (const indicatorId of validOrder) {
+    const pane = paneByIndicator.get(indicatorId)
+    if (pane) {
+      nextSubPanes.push(pane)
+      paneByIndicator.delete(indicatorId)
+    }
+  }
+
+  if (nextSubPanes.length === 0) return
+
+  for (const pane of subPanes.value) {
+    if (paneByIndicator.has(pane.indicatorId)) {
+      nextSubPanes.push(pane)
+      paneByIndicator.delete(pane.indicatorId)
+    }
+  }
+
+  const currentSubIds = subPanes.value.map((p) => p.id)
+  const nextSubIds = nextSubPanes.map((p) => p.id)
+  if (currentSubIds.join('|') === nextSubIds.join('|')) return
+
+  subPanes.value = nextSubPanes
+
+  const currentMainIndicators = activeIndicators.value.filter(
+    (id) => !SUB_PANE_INDICATORS.includes(id as SubIndicatorType)
+  )
+  const subIndicatorOrder = subPanes.value.map((pane) => pane.indicatorId)
+  activeIndicators.value = [...currentMainIndicators, ...subIndicatorOrder]
+
+  scheduleRender()
+}
+
 /* 计算总宽度：使用物理像素对齐后的值，确保与渲染一致 */
 const totalWidth = computed(() => {
   const n = dataLength.value
@@ -807,11 +905,37 @@ onMounted(() => {
     yPaddingPx: props.yPaddingPx,
   }))
 
-  // MACD 副图刻度渲染器（示例：注册到 sub_MACD pane）
-  // 注意：实际使用时应在动态创建 MACD 副图时注册
   chart.useRenderer(createMacdScaleRendererPlugin({
     axisWidth: props.rightAxisWidth + props.priceLabelWidth,
     paneId: 'sub_MACD',
+  }))
+  chart.useRenderer(createRsiScaleRendererPlugin({
+    axisWidth: props.rightAxisWidth + props.priceLabelWidth,
+    paneId: 'sub_RSI',
+  }))
+  chart.useRenderer(createCciScaleRendererPlugin({
+    axisWidth: props.rightAxisWidth + props.priceLabelWidth,
+    paneId: 'sub_CCI',
+  }))
+  chart.useRenderer(createStochScaleRendererPlugin({
+    axisWidth: props.rightAxisWidth + props.priceLabelWidth,
+    paneId: 'sub_STOCH',
+  }))
+  chart.useRenderer(createMomScaleRendererPlugin({
+    axisWidth: props.rightAxisWidth + props.priceLabelWidth,
+    paneId: 'sub_MOM',
+  }))
+  chart.useRenderer(createWmsrScaleRendererPlugin({
+    axisWidth: props.rightAxisWidth + props.priceLabelWidth,
+    paneId: 'sub_WMSR',
+  }))
+  chart.useRenderer(createKstScaleRendererPlugin({
+    axisWidth: props.rightAxisWidth + props.priceLabelWidth,
+    paneId: 'sub_KST',
+  }))
+  chart.useRenderer(createFastkScaleRendererPlugin({
+    axisWidth: props.rightAxisWidth + props.priceLabelWidth,
+    paneId: 'sub_FASTK',
   }))
 
   chart.useRenderer(createCrosshairRendererPlugin({
@@ -840,6 +964,7 @@ onMounted(() => {
   chartRef.value = chart
   viewportDpr.value = chart.getCurrentDpr()
   chart.resize()
+  syncPaneRatiosFromChart()
 
   // 初始化语义化控制器
   semanticController.value = new SemanticChartController(chart)
@@ -857,6 +982,7 @@ onMounted(() => {
 
     // 同步副图状态（副图由 Chart API 动态创建）
     syncSubPanesFromChart()
+    syncPaneRatiosFromChart()
 
     nextTick(() => scrollToRight())
   })
@@ -976,8 +1102,10 @@ watch(
   cursor: grab;
 }
 
-.chart-container:active {
-  cursor: grabbing;
+
+.chart-container.is-resizing-pane,
+.chart-container.is-hovering-pane-separator {
+  cursor: row-resize;
 }
 
 .scroll-content {
