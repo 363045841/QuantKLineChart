@@ -1,9 +1,40 @@
 <template>
   <div class="app-container">
     <div class="debug-controls">
-      <button @click="showModal = true">打开 Modal（模拟组件库使用场景）</button>
-      <button @click="toggleEmbedSize">切换嵌入容器尺寸</button>
-      <span class="size-info">嵌入尺寸：{{ embedWidth }} × {{ embedHeight }}</span>
+      <div class="debug-left">
+        <button @click="showModal = true">打开 Modal（模拟组件库使用场景）</button>
+        <button @click="toggleEmbedSize">切换嵌入容器尺寸</button>
+      </div>
+      <div class="debug-center">
+        <span class="size-info">嵌入尺寸：{{ embedWidth }} × {{ embedHeight }}</span>
+      </div>
+      <div class="debug-right">
+        <span class="version-badge">v{{ packageVersion }}</span>
+        <a
+          class="debug-link"
+          href="https://github.com/363045841/KLineChartQuant"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="GitHub"
+          aria-label="GitHub"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+            <path d="M12 0C5.37 0 0 5.37 0 12a12 12 0 0 0 8.2 11.4c.6.1.82-.26.82-.58 0-.28-.01-1.03-.02-2.02-3.34.73-4.04-1.61-4.04-1.61-.55-1.38-1.33-1.75-1.33-1.75-1.1-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.08 1.84 2.83 1.3 3.52.99.1-.78.42-1.3.76-1.6-2.67-.3-5.47-1.34-5.47-5.95 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.53.12-3.18 0 0 1-.32 3.3 1.23A11.5 11.5 0 0 1 12 5.8c1.02 0 2.04.14 3 .42 2.3-1.56 3.3-1.23 3.3-1.23.66 1.65.25 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.62-2.8 5.64-5.48 5.95.43.37.82 1.1.82 2.22 0 1.6-.01 2.9-.01 3.3 0 .32.22.69.82.57A12 12 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+        </a>
+        <a
+          class="debug-link"
+          href="https://www.npmjs.com/package/@363045841yyt/klinechart?activeTab=readme"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="NPM"
+          aria-label="NPM"
+        >
+          <svg viewBox="0 0 1024 1024" width="20" height="20" aria-hidden="true">
+            <path d="M0 312.928v341.344h284.416v56.832H512v-56.832h512V312.928z m284.416 284.32H227.584v-170.656h-56.96v170.656H56.96v-227.456h227.456z m170.656 0v56.992h-113.696v-284.448h227.584v227.488h-113.888z m512.064 0H910.4v-170.656h-56.992v170.656h-56.96v-170.656h-56.736v170.656h-113.952v-227.456h341.408zM455.04 426.656H512v113.792h-56.96z" fill="#CB3837"/>
+          </svg>
+        </a>
+      </div>
     </div>
 
     <!-- 嵌入场景：模拟组件库在父容器中的使用 -->
@@ -45,10 +76,12 @@ import { ref, computed } from 'vue'
 import KLineChart from '@/components/KLineChart.vue'
 import type { SemanticChartConfig } from '@/semantic'
 import debugConfig from '@/semantic/debug-config.json'
+import packageJson from '../package.json'
 
 const defaultConfig = debugConfig as SemanticChartConfig
 
 const currentConfig = computed(() => defaultConfig)
+const packageVersion = packageJson.version
 
 // Modal 控制
 const showModal = ref(false)
@@ -80,15 +113,56 @@ function toggleEmbedSize() {
 }
 
 .debug-controls {
+  position: relative;
   padding: 8px 16px;
   background: #f5f5f5;
   border-bottom: 1px solid #e8e8e8;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
   flex-shrink: 0;
-  align-self: stretch;          /* 撑满父容器宽度 */
-  justify-content: center;      /* 内部按钮居中 */
+  align-self: stretch;
+}
+
+.debug-left,
+.debug-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.debug-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.debug-link {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
+  text-decoration: none;
+}
+
+.debug-link:hover {
+  color: #1890ff;
+  border-color: #1890ff;
+}
+
+.version-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid #d9d9d9;
+  background: #fff;
+  color: #666;
+  font-size: 12px;
+  font-family: monospace;
 }
 
 .debug-controls button {
