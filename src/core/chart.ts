@@ -299,7 +299,7 @@ export class Chart {
             }
 
             // 清空 yAxisCanvas
-            const yAxisWidth = this.opt.rightAxisWidth + (this.opt.priceLabelWidth || 60)
+            const yAxisWidth = yAxisCtx.canvas.width / vp.dpr
             if (yAxisCtx) {
                 yAxisCtx.setTransform(1, 0, 0, 1, 0, 0)
                 yAxisCtx.scale(vp.dpr, vp.dpr)
@@ -953,7 +953,7 @@ export class Chart {
             yAxisCanvas.id = `${spec.id}-yAxis`
             yAxisCanvas.className = 'right-axis'
             yAxisCanvas.style.position = 'absolute'
-            yAxisCanvas.style.right = '0'  // 用 right 定位，贴右边
+            yAxisCanvas.style.left = '0'
 
             const renderer = new PaneRenderer(
                 { plotCanvas, yAxisCanvas },
@@ -1123,6 +1123,7 @@ export class Chart {
             const dom = renderer.getDom()
             dom.plotCanvas.style.top = `${y}px`
             dom.yAxisCanvas.style.top = `${y}px`
+            dom.yAxisCanvas.style.left = `${vp.plotWidth}px`
 
             y += h + gap
         }

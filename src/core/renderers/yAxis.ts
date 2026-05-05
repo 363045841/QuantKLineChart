@@ -25,6 +25,7 @@ export function createYAxisRendererPlugin(options: {
 
       // Y 轴绘制到 yAxisCtx（如果提供）或使用 ctx
       const targetCtx = yAxisCtx || ctx
+      const axisWidth = yAxisCtx?.canvas ? (yAxisCtx.canvas.width / dpr) : options.axisWidth
 
       // 应用价格偏移，使刻度随拖拽平移
       const priceOffset = pane.yAxis.getPriceOffset()
@@ -34,7 +35,7 @@ export function createYAxisRendererPlugin(options: {
         drawScaleTicks({
           ctx: targetCtx,
           dpr,
-          axisWidth: options.axisWidth,
+          axisWidth,
           height: pane.height,
           paddingTop: pane.yAxis.getPaddingTop(),
           paddingBottom: pane.yAxis.getPaddingBottom(),
@@ -52,7 +53,7 @@ export function createYAxisRendererPlugin(options: {
         drawCrosshairPriceLabel(targetCtx, {
           x: 0,
           y: pane.top,
-          width: options.axisWidth,
+          width: axisWidth,
           height: pane.height,
           crosshairY: crosshair.y,
           priceRange: pane.priceRange,

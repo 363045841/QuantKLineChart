@@ -1,8 +1,7 @@
 import type { RendererPluginWithHost, PluginHost, RenderContext, BaseIndicatorState } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
 import { createIndicatorStateKey } from '@/plugin/stateKeys'
-import { alignToPhysicalPixelCenter, roundToPhysicalPixel } from '@/core/draw/pixelAlign'
-import { BORDER_COLORS, TEXT_COLORS, TAG_BG_COLORS } from '@/core/theme/colors'
+import { TEXT_COLORS } from '@/core/theme/colors'
 import { calculateTickCount } from '@/core/utils/tickCount'
 
 interface IndicatorScaleRenderState extends BaseIndicatorState {
@@ -50,8 +49,7 @@ export function drawScaleTicks(options: DrawScaleTicksOptions): void {
     const valueRange = valueMax - valueMin || 1
 
     ctx.save()
-    ctx.fillStyle = TAG_BG_COLORS.TRANSPARENT
-    ctx.fillRect(0, 0, axisWidth, height)
+    ctx.clearRect(0, 0, axisWidth, height)
 
     ctx.font = `12px -apple-system,BlinkMacSystemFont,Trebuchet MS,Roboto,Ubuntu,sans-serif`
     ctx.textBaseline = 'middle'
@@ -68,23 +66,15 @@ export function drawScaleTicks(options: DrawScaleTicksOptions): void {
     for (let i = 0; i < ticks; i++) {
         if (hideEdgeTicks && (i === 0 || i === ticks - 1)) continue
 
-        const value = valueMin + step * i
+        const value = valueMax - step * i  // 从上到下，价格递减
         const t = ticks <= 1 ? 0 : i / (ticks - 1)
-        const y = yStart + (1 - t) * viewH
-
-        ctx.strokeStyle = BORDER_COLORS.DARK
-        ctx.lineWidth = 1
-        ctx.beginPath()
-        const lineY = alignToPhysicalPixelCenter(y, dpr)
-        ctx.moveTo(0, lineY)
-        ctx.lineTo(4, lineY)
-        ctx.stroke()
+        const y = Math.round(yStart + t * viewH)  // 与网格线相同的 Y 坐标计算
 
         ctx.fillStyle = TEXT_COLORS.SECONDARY
         ctx.fillText(
             value.toFixed(decimals),
-            roundToPhysicalPixel(centerX, dpr),
-            roundToPhysicalPixel(y, dpr)
+            Math.round(centerX),
+            Math.round(y)
         )
     }
 

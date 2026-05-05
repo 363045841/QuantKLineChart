@@ -48,6 +48,10 @@ function createPane(overrides: Partial<PaneInfo> = {}): PaneInfo {
 
 function createContext(overrides: Partial<RenderContext> = {}): RenderContext {
   const ctx = {} as CanvasRenderingContext2D
+  Object.defineProperty(ctx, 'canvas', {
+    value: { width: 80, height: 200 },
+    configurable: true,
+  })
 
   return {
     ctx,
