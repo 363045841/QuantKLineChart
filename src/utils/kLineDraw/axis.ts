@@ -271,15 +271,15 @@ export function drawCrosshairPriceLabel(ctx: CanvasRenderingContext2D, opts: Cro
     // 背景条（黑色，占满整个轴宽度）
     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
     const rx = x
-    const ry = Math.round(rectY)
+    const ry = roundToPhysicalPixel(rectY, dpr)
     const rw = width
-    const rh = Math.round(rectH)
+    const rh = roundToPhysicalPixel(rectH, dpr)
     ctx.fillRect(rx, ry, rw, rh)
 
     // 绘制价格文字（白色，水平居中）
     const centerX = x + width / 2
     ctx.fillStyle = '#ffffff'
-    ctx.fillText(priceText, Math.round(centerX), Math.round(yy))
+    ctx.fillText(priceText, roundToPhysicalPixel(centerX, dpr), roundToPhysicalPixel(yy, dpr))
 
     ctx.restore()
 }

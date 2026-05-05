@@ -299,8 +299,8 @@ export class Chart {
             }
 
             // 清空 yAxisCanvas
-            const yAxisWidth = yAxisCtx.canvas.width / vp.dpr
             if (yAxisCtx) {
+                const yAxisWidth = yAxisCtx.canvas.width / vp.dpr
                 yAxisCtx.setTransform(1, 0, 0, 1, 0, 0)
                 yAxisCtx.scale(vp.dpr, vp.dpr)
                 yAxisCtx.clearRect(0, 0, yAxisWidth, pane.height + 2 / vp.dpr)

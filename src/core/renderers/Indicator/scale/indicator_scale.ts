@@ -3,6 +3,7 @@ import { RENDERER_PRIORITY } from '@/plugin'
 import { createIndicatorStateKey } from '@/plugin/stateKeys'
 import { TEXT_COLORS } from '@/core/theme/colors'
 import { calculateTickCount } from '@/core/utils/tickCount'
+import { roundToPhysicalPixel } from '@/core/draw/pixelAlign'
 
 interface IndicatorScaleRenderState extends BaseIndicatorState {
     valueMin: number
@@ -68,13 +69,13 @@ export function drawScaleTicks(options: DrawScaleTicksOptions): void {
 
         const value = valueMax - step * i  // 从上到下，价格递减
         const t = ticks <= 1 ? 0 : i / (ticks - 1)
-        const y = Math.round(yStart + t * viewH)  // 与网格线相同的 Y 坐标计算
+        const y = yStart + t * viewH  // 与网格线相同的 Y 坐标计算
 
         ctx.fillStyle = TEXT_COLORS.SECONDARY
         ctx.fillText(
             value.toFixed(decimals),
-            Math.round(centerX),
-            Math.round(y)
+            roundToPhysicalPixel(centerX, dpr),
+            roundToPhysicalPixel(y, dpr)
         )
     }
 

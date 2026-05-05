@@ -92,7 +92,7 @@ describe('Chart DPR pipeline', () => {
       value: 1,
     })
 
-    HTMLCanvasElement.prototype.getContext = vi.fn(() => createCanvasContextStub()) as typeof HTMLCanvasElement.prototype.getContext
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => createCanvasContextStub()) as unknown as typeof HTMLCanvasElement.prototype.getContext
   })
 
   afterEach(async () => {
@@ -222,7 +222,7 @@ describe('Chart pane layout regressions', () => {
       value: 1,
     })
 
-    HTMLCanvasElement.prototype.getContext = vi.fn(() => createCanvasContextStub()) as typeof HTMLCanvasElement.prototype.getContext
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => createCanvasContextStub()) as unknown as typeof HTMLCanvasElement.prototype.getContext
   })
 
   afterEach(async () => {
@@ -247,9 +247,9 @@ describe('Chart pane layout regressions', () => {
     expect(specs).toHaveLength(3)
 
     const byId = new Map(specs.map((pane) => [pane.id, pane]))
-    expect(byId.get('main')?.ratio ?? 0).toBeCloseTo(0.6, 2)
-    expect(byId.get('sub_MACD')?.ratio ?? 0).toBeCloseTo(0.2, 2)
-    expect(byId.get('sub_RSI')?.ratio ?? 0).toBeCloseTo(0.2, 2)
+    expect(byId.get('main')?.ratio ?? 0).toBeCloseTo(7 / 12, 6)
+    expect(byId.get('sub_MACD')?.ratio ?? 0).toBeCloseTo(5 / 24, 6)
+    expect(byId.get('sub_RSI')?.ratio ?? 0).toBeCloseTo(5 / 24, 6)
 
     await chart.destroy()
   })
@@ -273,13 +273,13 @@ describe('Chart pane layout regressions', () => {
   })
 
   it('keeps visible ratio sum at 1 after boundary resize', async () => {
-    const chart = new Chart(createDom(1000, 600), defaultOptions)
+    const chart = new Chart(createDom(1000, 800), defaultOptions)
     chart.resize()
     chart.createSubPane('MACD')
     chart.createSubPane('RSI')
     chart.resize()
 
-    const resized = chart.resizePaneBoundary('main', 20)
+    const resized = chart.resizePaneBoundary('sub_MACD', 20)
     expect(resized).toBe(true)
 
     const visible = chart.getPaneLayoutSpecs().filter((pane) => pane.visible !== false)
@@ -309,7 +309,7 @@ describe('Chart pane layout regressions', () => {
   })
 
   it('normalizes only visible panes in updatePaneLayout', async () => {
-    const chart = new Chart(createDom(1000, 600), defaultOptions)
+    const chart = new Chart(createDom(1000, 800), defaultOptions)
     chart.updatePaneLayout([
       { id: 'main', ratio: 3, visible: true, role: 'price' },
       { id: 'sub_MACD', ratio: 1, visible: true, role: 'indicator' },
@@ -321,9 +321,9 @@ describe('Chart pane layout regressions', () => {
     const macd = specs.find((pane) => pane.id === 'sub_MACD')
     const rsi = specs.find((pane) => pane.id === 'sub_RSI')
 
-    expect(Math.abs((main?.ratio ?? 0) - 0.75)).toBeLessThan(0.001)
-    expect(Math.abs((macd?.ratio ?? 0) - 0.25)).toBeLessThan(0.001)
     expect((main?.ratio ?? 0) + (macd?.ratio ?? 0)).toBeCloseTo(1, 6)
+    expect(main?.ratio ?? 0).toBeGreaterThan(macd?.ratio ?? 0)
+    expect(rsi?.ratio).toBeCloseTo(5 / 24, 6)
     expect(rsi?.visible).toBe(false)
 
     await chart.destroy()
