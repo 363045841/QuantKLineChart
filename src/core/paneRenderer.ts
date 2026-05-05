@@ -9,10 +9,11 @@ export type PaneRendererOptions = {
     priceLabelWidth?: number
 }
 
-/**
- * PaneRenderer：负责单个 Pane 的 Canvas 管理
- * 渲染逻辑由 Chart 通过 RendererPluginManager 统一调度
- */
+/* PaneRenderer：负责单个 Pane 的 Canvas 管理与运行时状态持有
+   创建并管理 plotCanvas / yAxisCanvas
+   持有 Pane 实例（布局、Y 轴、价格范围）
+   响应 Chart 的 resize / layout 信号
+   渲染逻辑由 RendererPluginManager 统一调度 */
 export class PaneRenderer {
     private dom: PaneRendererDom
     private pane: import('./layout/pane').Pane

@@ -611,59 +611,90 @@ export class Chart {
     }
 
     /**
-     * 调整相邻 pane 边界（upper 与其下方一个 pane）
-     * @param upperPaneId 上方 pane ID
-     * @param deltaY Y 方向位移（逻辑像素，正数表示边界向下）
+     * 调整相邻 pane 边界（支持连锁挤压）
+     * @param upperPaneId 上方 pane ID（边界位于此 pane 与其下方邻居之间）
+     * @param deltaY Y 方向位移（逻辑像素，正数表示边界向下，upper 增大；负数表示向上，upper 减小）
      */
     resizePaneBoundary(upperPaneId: string, deltaY: number): boolean {
+        // === 1. 参数校验 ===
         if (!Number.isFinite(deltaY) || deltaY === 0) return false
         const vp = this.viewport
         if (!vp) return false
 
+        // === 2. 定位相邻 pane 对（边界两侧） ===
         const visibleSpecs = this.opt.panes.filter(p => p.visible !== false)
-        const upperIndex = visibleSpecs.findIndex(p => p.id === upperPaneId)
-        if (upperIndex < 0 || upperIndex >= visibleSpecs.length - 1) return false
+        const boundaryIndex = visibleSpecs.findIndex(p => p.id === upperPaneId)
+        if (boundaryIndex < 0 || boundaryIndex >= visibleSpecs.length - 1) return false
 
-        const upperSpec = visibleSpecs[upperIndex]
-        const lowerSpec = visibleSpecs[upperIndex + 1]
+        const upperSpec = visibleSpecs[boundaryIndex]
+        const lowerSpec = visibleSpecs[boundaryIndex + 1]
         if (!upperSpec || !lowerSpec) return false
 
-        const upperRenderer = this.paneRenderers.find(r => r.getPane().id === upperSpec.id)
-        const lowerRenderer = this.paneRenderers.find(r => r.getPane().id === lowerSpec.id)
-        if (!upperRenderer || !lowerRenderer) return false
-
-        const upperPane = upperRenderer.getPane()
-        const lowerPane = lowerRenderer.getPane()
-        const pairTotal = upperPane.height + lowerPane.height
-        if (pairTotal <= 1) return false
-
-        const upperMin = this.getPaneMinHeight(upperSpec, vp.plotHeight)
-        const lowerMin = this.getPaneMinHeight(lowerSpec, vp.plotHeight)
-
-        const minUpper = Math.max(1, Math.min(upperMin, pairTotal - 1))
-        const maxUpper = Math.max(minUpper, pairTotal - Math.max(1, Math.min(lowerMin, pairTotal - 1)))
-        const nextUpper = Math.max(minUpper, Math.min(maxUpper, upperPane.height + deltaY))
-        const nextLower = pairTotal - nextUpper
-
-        if (Math.abs(nextUpper - upperPane.height) < 0.01 && Math.abs(nextLower - lowerPane.height) < 0.01) {
-            return false
+        // === 3. 收集所有 pane 当前高度 ===
+        const heights = new Map<string, number>()
+        for (const spec of visibleSpecs) {
+            const renderer = this.paneRenderers.find(r => r.getPane().id === spec.id)
+            if (renderer) {
+                heights.set(spec.id, renderer.getPane().height)
+            }
         }
 
+        // === 4. 连锁挤压/扩展 ===
+        // deltaY > 0: 边界下移，upper expand，lower shrink
+        // deltaY < 0: 边界上移，upper shrink，lower expand
+        const expandIdx = deltaY > 0 ? boundaryIndex : boundaryIndex + 1
+        const shrinkIdx = deltaY > 0 ? boundaryIndex + 1 : boundaryIndex
+        const expandDir = deltaY > 0 ? -1 : 1  // expand 方向（向边界方向找）
+        const shrinkDir = deltaY > 0 ? 1 : -1  // shrink 方向（远离边界方向找）
+
+        let remaining = Math.abs(deltaY)
+
+        // 先尝试 shrink（从 shrinkIdx 开始，沿 shrinkDir 方向连锁）
+        let shrinkCursor = shrinkIdx
+        while (remaining > 0 && shrinkCursor >= 0 && shrinkCursor < visibleSpecs.length) {
+            const spec = visibleSpecs[shrinkCursor]
+            if (!spec) break
+
+            const currentH = heights.get(spec.id) ?? 0
+            const minH = this.getPaneMinHeight(spec, vp.plotHeight)
+            const canShrink = Math.max(0, currentH - minH)
+
+            if (canShrink > 0) {
+                const shrink = Math.min(canShrink, remaining)
+                heights.set(spec.id, currentH - shrink)
+                remaining -= shrink
+            }
+
+            // 继续向 shrinkDir 方向找下一个可 shrink 的 pane
+            if (remaining > 0) {
+                shrinkCursor += shrinkDir
+            }
+        }
+
+        // 如果还有剩余（无法完全 shrink），说明拖拽无效
+        if (remaining > 0) return false
+
+        // 将节省的高度全部加到 expand 方
+        const expandSpec = visibleSpecs[expandIdx]
+        if (!expandSpec) return false
+        const expandCurrentH = heights.get(expandSpec.id) ?? 0
+        heights.set(expandSpec.id, expandCurrentH + Math.abs(deltaY))
+
+        // === 5. 将像素高度转换为 ratio ===
         const gap = Math.max(0, this.opt.paneGap ?? 0)
         const totalGaps = gap * Math.max(0, visibleSpecs.length - 1)
         const availableH = Math.max(1, vp.plotHeight - totalGaps)
 
-        const currentUpperRatio = this.paneRatios.get(upperSpec.id) ?? upperSpec.ratio ?? 0
-        const currentLowerRatio = this.paneRatios.get(lowerSpec.id) ?? lowerSpec.ratio ?? 0
-        const pairRatio = Math.max(1e-6, currentUpperRatio + currentLowerRatio)
+        for (const spec of visibleSpecs) {
+            const h = heights.get(spec.id) ?? 0
+            this.paneRatios.set(spec.id, h / availableH)
+        }
 
-        this.paneRatios.set(upperSpec.id, pairRatio * (nextUpper / pairTotal))
-        this.paneRatios.set(lowerSpec.id, pairRatio * (nextLower / pairTotal))
-
+        // === 6. 归一化并同步 ===
         this.normalizeVisiblePaneRatios(visibleSpecs)
         this.syncPaneRatiosToSpecs()
 
-        // 用最新 ratio 重排，保证所有 pane 一致
+        // === 7. 应用布局 ===
         this.layoutPanes()
         this.emitPaneLayoutChange()
         this.scheduleDraw()
@@ -1007,7 +1038,7 @@ export class Chart {
     }
 
     private getPaneMinHeight(spec: PaneSpec, plotHeight: number): number {
-        const fallback = this.opt.defaultPaneMinHeightPx ?? 60
+        const fallback = this.opt.defaultPaneMinHeightPx ?? 120 // 最小高度
         const raw = spec.minHeightPx ?? fallback
         return Math.max(1, Math.min(Math.round(raw), Math.max(1, plotHeight)))
     }

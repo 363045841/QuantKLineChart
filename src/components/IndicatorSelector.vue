@@ -3,10 +3,7 @@
     <div class="indicator-scroll-container">
       <div class="indicator-list">
         <!-- 已激活的指标 -->
-        <template
-          v-for="indicator in activeIndicatorsList"
-          :key="indicator.id"
-        >
+        <template v-for="indicator in activeIndicatorsList" :key="indicator.id">
           <div
             v-if="indicator.id === firstActiveSubIndicatorId"
             class="indicator-divider"
@@ -43,10 +40,7 @@
                 </span>
                 <!-- 悬浮操作层 -->
                 <Transition name="fade">
-                  <div
-                    v-if="hoveredIndicator === indicator.id"
-                    class="hover-overlay"
-                  >
+                  <div v-if="hoveredIndicator === indicator.id" class="hover-overlay">
                     <button
                       v-if="indicator.params"
                       class="action-btn settings-btn"
@@ -54,7 +48,9 @@
                       title="编辑参数"
                     >
                       <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                        <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                        <path
+                          d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+                        />
                       </svg>
                     </button>
                     <span v-if="indicator.params" class="divider"></span>
@@ -64,7 +60,9 @@
                       title="移除指标"
                     >
                       <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                        <path
+                          d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                        />
                       </svg>
                     </button>
                   </div>
@@ -76,14 +74,9 @@
 
         <!-- 添加按钮 -->
         <div class="indicator-item">
-          <button
-            ref="addBtnRef"
-            class="add-btn"
-            @click="toggleAddMenu"
-            title="添加指标"
-          >
+          <button ref="addBtnRef" class="add-btn" @click="toggleAddMenu" title="添加指标">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
             </svg>
           </button>
         </div>
@@ -93,12 +86,7 @@
     <!-- 添加指标菜单（使用 Teleport 解决层级问题） -->
     <Teleport to="body">
       <Transition name="slide">
-        <div
-          v-if="showAddMenu"
-          class="add-menu"
-          ref="addMenuRef"
-          :style="menuStyle"
-        >
+        <div v-if="showAddMenu" class="add-menu" ref="addMenuRef" :style="menuStyle">
           <div class="menu-section">
             <div class="menu-title">主图指标</div>
             <div class="menu-items">
@@ -111,12 +99,10 @@
                 @click="addIndicator(indicator.id)"
               >
                 {{ indicator.label }}
-                <span v-if="indicator.params" class="param-hint">
-                  ({{ indicator.name }})
-                </span>
+                <span v-if="indicator.params" class="param-hint"> ({{ indicator.name }}) </span>
                 <span v-if="isActive(indicator.id)" class="active-tag">
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                   </svg>
                 </span>
               </button>
@@ -134,12 +120,10 @@
                 @click="addIndicator(indicator.id)"
               >
                 {{ indicator.label }}
-                <span v-if="indicator.params" class="param-hint">
-                  ({{ indicator.name }})
-                </span>
+                <span v-if="indicator.params" class="param-hint"> ({{ indicator.name }}) </span>
                 <span v-if="isActive(indicator.id)" class="active-tag">
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                   </svg>
                 </span>
               </button>
@@ -165,7 +149,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watchEffect } from 'vue'
 import IndicatorParams, { type ParamConfig } from './IndicatorParams.vue'
 
 export interface Indicator {
@@ -187,10 +171,29 @@ const allIndicators: Indicator[] = [
     label: 'BOLL',
     name: '布林带',
     pane: 'main',
-    description: '布林带由三条轨道线组成，用于判断价格的波动范围和趋势强度。价格触及上轨可能超买，触及下轨可能超卖。',
+    description:
+      '布林带由三条轨道线组成，用于判断价格的波动范围和趋势强度。价格触及上轨可能超买，触及下轨可能超卖。',
     params: [
-      { key: 'period', label: '周期', type: 'number', min: 2, max: 100, step: 1, default: 20, description: '计算移动平均线的周期数，周期越长轨道越平滑' },
-      { key: 'multiplier', label: '倍数', type: 'number', min: 0.1, max: 5, step: 0.1, default: 2, description: '标准差倍数，决定轨道宽度，通常为 2' },
+      {
+        key: 'period',
+        label: '周期',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 20,
+        description: '计算移动平均线的周期数，周期越长轨道越平滑',
+      },
+      {
+        key: 'multiplier',
+        label: '倍数',
+        type: 'number',
+        min: 0.1,
+        max: 5,
+        step: 0.1,
+        default: 2,
+        description: '标准差倍数，决定轨道宽度，通常为 2',
+      },
     ],
   },
   {
@@ -198,10 +201,29 @@ const allIndicators: Indicator[] = [
     label: 'EXPMA',
     name: '指数平滑移动平均线',
     pane: 'main',
-    description: 'EXPMA 对近期价格给予更高权重，比普通 MA 更敏感。快线上穿慢线为金叉看涨，下穿为死叉看跌。',
+    description:
+      'EXPMA 对近期价格给予更高权重，比普通 MA 更敏感。快线上穿慢线为金叉看涨，下穿为死叉看跌。',
     params: [
-      { key: 'fastPeriod', label: '快线', type: 'number', min: 2, max: 100, step: 1, default: 12, description: '快线周期，对价格变化更敏感' },
-      { key: 'slowPeriod', label: '慢线', type: 'number', min: 2, max: 200, step: 1, default: 50, description: '慢线周期，用于判断趋势方向' },
+      {
+        key: 'fastPeriod',
+        label: '快线',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 12,
+        description: '快线周期，对价格变化更敏感',
+      },
+      {
+        key: 'slowPeriod',
+        label: '慢线',
+        type: 'number',
+        min: 2,
+        max: 200,
+        step: 1,
+        default: 50,
+        description: '慢线周期，用于判断趋势方向',
+      },
     ],
   },
   {
@@ -209,10 +231,29 @@ const allIndicators: Indicator[] = [
     label: 'ENE',
     name: '轨道线',
     pane: 'main',
-    description: 'ENE 轨道线由三条轨道组成，价格突破上轨可能超买，突破下轨可能超卖，适合判断震荡行情的买卖点。',
+    description:
+      'ENE 轨道线由三条轨道组成，价格突破上轨可能超买，突破下轨可能超卖，适合判断震荡行情的买卖点。',
     params: [
-      { key: 'period', label: '周期', type: 'number', min: 2, max: 100, step: 1, default: 10, description: '计算中轨的周期数' },
-      { key: 'deviation', label: '偏离率', type: 'number', min: 1, max: 30, step: 0.5, default: 11, description: '轨道偏离率百分比，决定轨道宽度' },
+      {
+        key: 'period',
+        label: '周期',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 10,
+        description: '计算中轨的周期数',
+      },
+      {
+        key: 'deviation',
+        label: '偏离率',
+        type: 'number',
+        min: 1,
+        max: 30,
+        step: 0.5,
+        default: 11,
+        description: '轨道偏离率百分比，决定轨道宽度',
+      },
     ],
   },
   {
@@ -220,11 +261,39 @@ const allIndicators: Indicator[] = [
     label: 'MACD',
     name: '指数平滑异同移动平均线',
     pane: 'sub',
-    description: 'MACD 通过快慢均线的交叉判断趋势方向和动量。DIF 上穿 DEA 为金叉看涨，下穿为死叉看跌。',
+    description:
+      'MACD 通过快慢均线的交叉判断趋势方向和动量。DIF 上穿 DEA 为金叉看涨，下穿为死叉看跌。',
     params: [
-      { key: 'fastPeriod', label: '快线', type: 'number', min: 2, max: 50, step: 1, default: 12, description: '快线 EMA 周期，对价格变化更敏感' },
-      { key: 'slowPeriod', label: '慢线', type: 'number', min: 2, max: 100, step: 1, default: 26, description: '慢线 EMA 周期，用于计算 DIF' },
-      { key: 'signalPeriod', label: '信号', type: 'number', min: 2, max: 50, step: 1, default: 9, description: 'DEA 的 EMA 周期，用于生成买卖信号' },
+      {
+        key: 'fastPeriod',
+        label: '快线',
+        type: 'number',
+        min: 2,
+        max: 50,
+        step: 1,
+        default: 12,
+        description: '快线 EMA 周期，对价格变化更敏感',
+      },
+      {
+        key: 'slowPeriod',
+        label: '慢线',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 26,
+        description: '慢线 EMA 周期，用于计算 DIF',
+      },
+      {
+        key: 'signalPeriod',
+        label: '信号',
+        type: 'number',
+        min: 2,
+        max: 50,
+        step: 1,
+        default: 9,
+        description: 'DEA 的 EMA 周期，用于生成买卖信号',
+      },
     ],
   },
   {
@@ -234,9 +303,36 @@ const allIndicators: Indicator[] = [
     pane: 'sub',
     description: 'RSI 衡量价格变动的速度和幅度，判断超买超卖状态。RSI > 70 超买，RSI < 30 超卖。',
     params: [
-      { key: 'period1', label: '周期 1', type: 'number', min: 2, max: 100, step: 1, default: 6, description: '第一条 RSI 周期，通常为 6（快线）' },
-      { key: 'period2', label: '周期 2', type: 'number', min: 2, max: 100, step: 1, default: 12, description: '第二条 RSI 周期，通常为 12（中线）' },
-      { key: 'period3', label: '周期 3', type: 'number', min: 2, max: 100, step: 1, default: 24, description: '第三条 RSI 周期，通常为 24（慢线）' },
+      {
+        key: 'period1',
+        label: '周期 1',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 6,
+        description: '第一条 RSI 周期，通常为 6（快线）',
+      },
+      {
+        key: 'period2',
+        label: '周期 2',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 12,
+        description: '第二条 RSI 周期，通常为 12（中线）',
+      },
+      {
+        key: 'period3',
+        label: '周期 3',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 24,
+        description: '第三条 RSI 周期，通常为 24（慢线）',
+      },
     ],
   },
   {
@@ -244,9 +340,19 @@ const allIndicators: Indicator[] = [
     label: 'CCI',
     name: '顺势指标',
     pane: 'sub',
-    description: 'CCI 衡量价格与统计平均值的偏离程度。CCI > 100 超买，CCI < -100 超卖，适合捕捉趋势反转。',
+    description:
+      'CCI 衡量价格与统计平均值的偏离程度。CCI > 100 超买，CCI < -100 超卖，适合捕捉趋势反转。',
     params: [
-      { key: 'period', label: '周期', type: 'number', min: 2, max: 100, step: 1, default: 14, description: '计算周期，周期越短信号越灵敏' },
+      {
+        key: 'period',
+        label: '周期',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 14,
+        description: '计算周期，周期越短信号越灵敏',
+      },
     ],
   },
   {
@@ -254,10 +360,29 @@ const allIndicators: Indicator[] = [
     label: 'STOCH',
     name: '随机指标',
     pane: 'sub',
-    description: 'KDJ 随机指标通过比较收盘价与价格区间判断超买超卖。K > 80 超买，K < 20 超卖，K 上穿 D 金叉。',
+    description:
+      'KDJ 随机指标通过比较收盘价与价格区间判断超买超卖。K > 80 超买，K < 20 超卖，K 上穿 D 金叉。',
     params: [
-      { key: 'n', label: 'K 周期', type: 'number', min: 2, max: 100, step: 1, default: 9, description: '计算 K 值的周期，统计 N 日内价格区间' },
-      { key: 'm', label: 'D 周期', type: 'number', min: 1, max: 50, step: 1, default: 3, description: 'D 值是 K 的 M 日移动平均，使信号更平滑' },
+      {
+        key: 'n',
+        label: 'K 周期',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 9,
+        description: '计算 K 值的周期，统计 N 日内价格区间',
+      },
+      {
+        key: 'm',
+        label: 'D 周期',
+        type: 'number',
+        min: 1,
+        max: 50,
+        step: 1,
+        default: 3,
+        description: 'D 值是 K 的 M 日移动平均，使信号更平滑',
+      },
     ],
   },
   {
@@ -265,9 +390,19 @@ const allIndicators: Indicator[] = [
     label: 'MOM',
     name: '动量指标',
     pane: 'sub',
-    description: '动量指标衡量价格变化的速度，MOM > 0 表示上涨动能，MOM < 0 表示下跌动能。适合判断趋势强度。',
+    description:
+      '动量指标衡量价格变化的速度，MOM > 0 表示上涨动能，MOM < 0 表示下跌动能。适合判断趋势强度。',
     params: [
-      { key: 'period', label: '周期', type: 'number', min: 2, max: 100, step: 1, default: 10, description: '与多少日前价格比较，周期越短越灵敏' },
+      {
+        key: 'period',
+        label: '周期',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 10,
+        description: '与多少日前价格比较，周期越短越灵敏',
+      },
     ],
   },
   {
@@ -277,7 +412,16 @@ const allIndicators: Indicator[] = [
     pane: 'sub',
     description: '威廉指标衡量超买超卖程度，范围为 -100 到 0。WMSR > -20 超买，WMSR < -80 超卖。',
     params: [
-      { key: 'period', label: '周期', type: 'number', min: 2, max: 100, step: 1, default: 14, description: '回溯周期，统计周期内最高最低价' },
+      {
+        key: 'period',
+        label: '周期',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 14,
+        description: '回溯周期，统计周期内最高最低价',
+      },
     ],
   },
   {
@@ -285,13 +429,59 @@ const allIndicators: Indicator[] = [
     label: 'KST',
     name: '确然指标',
     pane: 'sub',
-    description: 'KST 综合多个 ROC 判断长期趋势，KST 上穿信号线看涨，下穿看跌。适合捕捉主要趋势转换。',
+    description:
+      'KST 综合多个 ROC 判断长期趋势，KST 上穿信号线看涨，下穿看跌。适合捕捉主要趋势转换。',
     params: [
-      { key: 'roc1', label: 'ROC1', type: 'number', min: 2, max: 100, step: 1, default: 10, description: '短期变化率周期' },
-      { key: 'roc2', label: 'ROC2', type: 'number', min: 2, max: 100, step: 1, default: 15, description: '中短期变化率周期' },
-      { key: 'roc3', label: 'ROC3', type: 'number', min: 2, max: 100, step: 1, default: 20, description: '中长期变化率周期' },
-      { key: 'roc4', label: 'ROC4', type: 'number', min: 2, max: 100, step: 1, default: 30, description: '长期变化率周期' },
-      { key: 'signalPeriod', label: '信号', type: 'number', min: 2, max: 50, step: 1, default: 9, description: '信号线的 SMA 周期' },
+      {
+        key: 'roc1',
+        label: 'ROC1',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 10,
+        description: '短期变化率周期',
+      },
+      {
+        key: 'roc2',
+        label: 'ROC2',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 15,
+        description: '中短期变化率周期',
+      },
+      {
+        key: 'roc3',
+        label: 'ROC3',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 20,
+        description: '中长期变化率周期',
+      },
+      {
+        key: 'roc4',
+        label: 'ROC4',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 30,
+        description: '长期变化率周期',
+      },
+      {
+        key: 'signalPeriod',
+        label: '信号',
+        type: 'number',
+        min: 2,
+        max: 50,
+        step: 1,
+        default: 9,
+        description: '信号线的 SMA 周期',
+      },
     ],
   },
   {
@@ -299,9 +489,19 @@ const allIndicators: Indicator[] = [
     label: 'FASTK',
     name: '快速随机指标',
     pane: 'sub',
-    description: 'FASTK 是未经过平滑处理的随机指标，比普通 KDJ 更敏感，能更快捕捉价格转折点，但假信号也更多。',
+    description:
+      'FASTK 是未经过平滑处理的随机指标，比普通 KDJ 更敏感，能更快捕捉价格转折点，但假信号也更多。',
     params: [
-      { key: 'period', label: '周期', type: 'number', min: 2, max: 100, step: 1, default: 9, description: '计算周期，周期越短越敏感' },
+      {
+        key: 'period',
+        label: '周期',
+        type: 'number',
+        min: 2,
+        max: 100,
+        step: 1,
+        default: 9,
+        description: '计算周期，周期越短越敏感',
+      },
     ],
   },
 ]
@@ -337,7 +537,6 @@ const menuStyle = ref<{ left: string; bottom: string }>({ left: '0', bottom: '0'
 const dragOverIndicatorId = ref<string | null>(null)
 const draggingIndicatorId = ref<string | null>(null)
 
-
 // ─────────────────────────────────────────────────────────────────
 // 计算属性
 // ─────────────────────────────────────────────────────────────────
@@ -347,6 +546,11 @@ const activeIndicatorsList = computed(() => {
   return props.activeIndicators
     .map((id) => allIndicators.find((i) => i.id === id))
     .filter((i): i is Indicator => i !== undefined)
+    .sort((a, b) => {
+      if (a.pane === b.pane)
+        return 0 // 同类保持原始顺序
+      else return a.pane === 'main' ? -1 : 1
+    })
 })
 
 const firstActiveSubIndicatorId = computed(() => {
@@ -449,7 +653,12 @@ function onDragStart(event: DragEvent, indicatorId: string) {
 }
 
 function onDragOver(event: DragEvent, indicatorId: string) {
-  if (!draggingIndicatorId.value || !isSubIndicatorId(indicatorId) || draggingIndicatorId.value === indicatorId) return
+  if (
+    !draggingIndicatorId.value ||
+    !isSubIndicatorId(indicatorId) ||
+    draggingIndicatorId.value === indicatorId
+  )
+    return
   dragOverIndicatorId.value = indicatorId
   if (event.dataTransfer) {
     event.dataTransfer.dropEffect = 'move'
@@ -457,7 +666,8 @@ function onDragOver(event: DragEvent, indicatorId: string) {
 }
 
 function onDrop(event: DragEvent, targetIndicatorId: string) {
-  const sourceIndicatorId = draggingIndicatorId.value || event.dataTransfer?.getData('text/plain') || ''
+  const sourceIndicatorId =
+    draggingIndicatorId.value || event.dataTransfer?.getData('text/plain') || ''
   if (!sourceIndicatorId || sourceIndicatorId === targetIndicatorId) {
     onDragEnd()
     return
@@ -482,7 +692,10 @@ function onDrop(event: DragEvent, targetIndicatorId: string) {
   }
   next.splice(targetIndex, 0, moved)
 
-  emit('reorderSubIndicators', next.filter((id) => isSubIndicatorId(id)))
+  emit(
+    'reorderSubIndicators',
+    next.filter((id) => isSubIndicatorId(id)),
+  )
   onDragEnd()
 }
 
@@ -739,7 +952,10 @@ onUnmounted(() => {
   transform: translateX(-50%);
   background: #fff;
   border-radius: 8px;
-  box-shadow: 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 6px 16px 0 rgba(0, 0, 0, 0.08),
+    0 3px 6px -4px rgba(0, 0, 0, 0.12),
+    0 9px 28px 8px rgba(0, 0, 0, 0.05);
   padding: 8px 0;
   white-space: nowrap;
   z-index: 9999;
