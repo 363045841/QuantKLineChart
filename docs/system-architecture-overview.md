@@ -28,6 +28,66 @@
 
 ## 2. 分层与职责
 
+### 2.0 架构总览图
+
+```mermaid
+graph TB
+    subgraph Vue["Vue 组件层"]
+        KLineChart["KLineChart.vue<br/>(容器/事件/状态)"]
+        IndicatorSelector["IndicatorSelector.vue<br/>(指标选择器)"]
+        DebugPanel["DebugPanel.vue<br/>(调试面板)"]
+    end
+
+    subgraph Semantic["语义化控制层"]
+        SemanticController["SemanticChartController<br/>(配置校验/映射)"]
+        DataFetcher["DataFetcher<br/>(数据源拉取)"]
+    end
+
+    subgraph Core["Core 核心层"]
+        Chart["Chart<br/>(状态/视口/调度)"]
+        Interaction["InteractionController<br/>(拖拽/缩放/命中)"]
+        PaneRenderer["PaneRenderer<br/>(Canvas 布局)"]
+        Viewport["Viewport<br/>(可视范围计算)"]
+        Pane["Pane<br/>(价格轴/范围模型)"]
+    end
+
+    subgraph Plugin["Plugin 子系统"]
+        PluginHost["PluginHost<br/>(生命周期/状态宿主)"]
+        RendererManager["RendererPluginManager<br/>(渲染器调度)"]
+        HookSystem["HookSystem<br/>(优先级调度)"]
+        EventBus["EventBus<br/>(发布订阅)"]
+    end
+
+    subgraph Renderers["渲染器插件"]
+        Candle["candle"]
+        MA["ma/boll"]
+        Grid["gridLines"]
+        YAxis["yAxis"]
+        TimeAxis["timeAxis<br/>(system)"]
+        CustomMarkers["customMarkers"]
+    end
+
+    KLineChart --> Chart
+    KLineChart --> Interaction
+    KLineChart --> SemanticController
+
+    SemanticController --> Chart
+    SemanticController --> DataFetcher
+
+    Chart --> PaneRenderer
+    Chart --> Viewport
+    Chart --> Pane
+    Chart --> RendererManager
+
+    Interaction --> Chart
+    PaneRenderer --> Pane
+
+    RendererManager --> Renderers
+    PluginHost --> HookSystem
+    PluginHost --> EventBus
+    RendererManager --> PluginHost
+```
+
 ### 2.1 Vue 组件层
 
 入口：`src/components/KLineChart.vue`
@@ -85,6 +145,57 @@
 
 ## 3. 渲染与交互主链路
 
+### 3.0 单帧渲染流程图
+
+```mermaid
+flowchart TD
+    subgraph Input["输入触发"]
+        A1[ResizeObserver]
+        A2[setData]
+        A3[用户交互]
+    end
+
+    subgraph Viewport["视口计算"]
+        B1[computeViewport]
+        B2[getEffectiveDpr]
+        B3[MAX_CANVAS_PIXELS 检查]
+        B4[产出 viewport 快照]
+    end
+
+    subgraph Range["范围计算"]
+        C1[getVisibleRange]
+        C2[calcKLinePositions]
+    end
+
+    subgraph Render["渲染调度"]
+        D1[遍历 panes]
+        D2[清空 canvas]
+        D3[构建 RenderContext]
+        D4[rendererPluginManager.render]
+        D5[renderPlugin 'timeAxis']
+    end
+
+    subgraph Plugins["渲染器执行"]
+        E1[global 渲染器<br/>gridLines/crosshair]
+        E2[pane-local 渲染器<br/>candle/ma/boll]
+        E3[system 渲染器<br/>timeAxis]
+    end
+
+    A1 --> B1
+    A2 --> B1
+    A3 --> B1
+
+    B1 --> B2 --> B3 --> B4
+    B4 --> C1 --> C2 --> D1
+
+    D1 --> D2 --> D3 --> D4
+    D4 --> D5
+
+    D4 --> E1
+    D4 --> E2
+    D5 --> E3
+```
+
 ### 3.1 视口与 DPR 链路
 
 入口：`Chart.computeViewport()`
@@ -113,6 +224,50 @@
 
 ### 3.3 交互链路
 
+```mermaid
+flowchart LR
+    subgraph Events["指针事件"]
+        E1[pointerdown]
+        E2[pointermove]
+        E3[pointerup]
+        E4[wheel]
+    end
+
+    subgraph Interaction["InteractionController"]
+        I1[坐标转换]
+        I2[命中测试]
+        I3[十字线更新]
+        I4[缩放/平移]
+    end
+
+    subgraph HitTest["命中测试"]
+        H1{pane.capabilities<br/>.candleHitTest?}
+        H2[candle body/wick]
+        H3[marker hit]
+        H4[跳过]
+    end
+
+    subgraph Actions["动作"]
+        A1[setCrosshair]
+        A2[zoomAt]
+        A3[translate]
+        A4[emit event]
+    end
+
+    E1 --> I1 --> I2
+    E2 --> I1 --> I2
+    E3 --> I1
+    E4 --> I4
+
+    I2 --> H1
+    H1 -->|true| H2 --> A1
+    H1 -->|false| H4
+    I2 --> H3 --> A4
+
+    I4 --> A2
+    I4 --> A3
+```
+
 入口：`InteractionController`
 
 特性：
@@ -124,6 +279,68 @@
 ---
 
 ## 4. 渲染器插件体系（当前语义）
+
+### 4.0 渲染器调度流程图
+
+```mermaid
+flowchart TD
+    subgraph Manager["RendererPluginManager"]
+        M1[getRenderers]
+        M2[render]
+        M3[renderPlugin]
+        M4[notifyResize]
+        M5[notifyDataUpdate]
+    end
+
+    subgraph Registry["渲染器注册表"]
+        R1["业务渲染器<br/>(candle, ma, boll)"]
+        R2["全局渲染器<br/>(paneId=GLOBAL)"]
+        R3["系统渲染器<br/>(isSystem=true)"]
+    end
+
+    subgraph Render["render(paneId)"]
+        L1[查找 pane-local]
+        L2[合并 global]
+        L3[过滤 isSystem]
+        L4[按优先级排序]
+        L5[依次调用 render]
+    end
+
+    subgraph Single["renderPlugin(name)"]
+        S1[按名查找]
+        S2[直接绘制]
+    end
+
+    M1 --> R1 & R2 & R3
+    M2 --> L1 --> L2 --> L3 --> L4 --> L5
+    M3 --> S1 --> S2
+    M4 --> L1
+    M5 --> R1 & R2
+```
+
+```mermaid
+graph LR
+    subgraph 分类["渲染器分类"]
+        C1["业务渲染器<br/>paneId 指向具体 pane"]
+        C2["全局渲染器<br/>paneId = GLOBAL_PANE_ID"]
+        C3["系统渲染器<br/>isSystem = true"]
+    end
+
+    subgraph 生命周期["生命周期钩子"]
+        H1[onRender]
+        H2[onResize]
+        H3[onDataUpdate]
+        H4[beforeInstall/afterInstall]
+        H5[beforeUninstall/afterUninstall]
+    end
+
+    C1 --> H1 & H2 & H3
+    C2 --> H1 & H2
+    C3 --> H1 & H2
+
+    H4 -.->|安装时| C1 & C2 & C3
+    H5 -.->|卸载时| C1 & C2 & C3
+```
 
 ### 4.1 渲染器分类
 

@@ -4,7 +4,7 @@ services:
   # Baostock 后端服务
   stockbao:
     build:
-      context: ../stockbao
+      context: /home/web/kmap/stockbao
       dockerfile: Dockerfile
     container_name: stockbao-backend
     ports:
