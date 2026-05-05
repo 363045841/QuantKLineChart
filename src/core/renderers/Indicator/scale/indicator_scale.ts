@@ -115,6 +115,8 @@ export function createIndicatorScaleRendererPlugin(options: IndicatorScaleRender
             const state = pluginHost.getSharedState<IndicatorScaleRenderState>(stateKey)
             if (!state) return
 
+            // 应用价格偏移，使刻度随拖拽平移
+            const priceOffset = pane.yAxis.getPriceOffset()
             drawScaleTicks({
                 ctx: yAxisCtx,
                 dpr,
@@ -122,11 +124,11 @@ export function createIndicatorScaleRendererPlugin(options: IndicatorScaleRender
                 height: pane.height,
                 paddingTop: pane.yAxis.getPaddingTop(),
                 paddingBottom: pane.yAxis.getPaddingBottom(),
-                valueMin: state.valueMin,
-                valueMax: state.valueMax,
+                valueMin: state.valueMin + priceOffset,
+                valueMax: state.valueMax + priceOffset,
                 isMain: false,
                 decimals,
-                hideEdgeTicks: true,
+                hideEdgeTicks: false,
             })
         },
     }

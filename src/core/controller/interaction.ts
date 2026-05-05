@@ -633,7 +633,7 @@ export class InteractionController {
 
         // 7. Tooltip 命中判定
         const k = typeof this.crosshairIndex === 'number' ? data[this.crosshairIndex] : undefined
-        if (!k || !pane || pane.id !== 'main') {
+        if (!k || !pane || !pane.capabilities.candleHitTest) {
             this.hoveredIndex = null
             return
         }

@@ -3,9 +3,11 @@ import {
   createPluginHost,
   ConfigManager,
   RendererPluginManager,
+  GLOBAL_PANE_ID,
   type Plugin,
   type RendererPlugin,
   type PaneInfo,
+  type RenderContext,
 } from '@/plugin'
 
 describe('Plugin System', () => {
@@ -165,6 +167,13 @@ describe('Plugin System', () => {
   describe('RendererPluginManager', () => {
     const pane: PaneInfo = {
       id: 'main',
+      role: 'price',
+      capabilities: {
+        showPriceAxisTicks: true,
+        showCrosshairPriceLabel: true,
+        candleHitTest: true,
+        supportsPriceTranslate: true,
+      },
       top: 0,
       height: 120,
       yAxis: {
@@ -177,34 +186,103 @@ describe('Plugin System', () => {
       priceRange: { maxPrice: 1, minPrice: 0 },
     }
 
-    it('should notify resize to enabled system and normal renderers', () => {
-      const manager = new RendererPluginManager()
-      const systemResize = vi.fn()
-      const normalResize = vi.fn()
 
-      const systemPlugin: RendererPlugin = {
-        name: 'system-resize',
-        paneId: 'main',
-        priority: 1,
-        isSystem: true,
-        draw: vi.fn(),
-        onResize: systemResize,
+    it('should fallback to global renderers for unknown pane', () => {
+      const manager = new RendererPluginManager()
+      const globalDraw = vi.fn()
+
+      const globalPlugin: RendererPlugin = {
+        name: 'global-overlay',
+        paneId: GLOBAL_PANE_ID,
+        priority: 10,
+        draw: globalDraw,
       }
 
-      const normalPlugin: RendererPlugin = {
-        name: 'normal-resize',
+      manager.register(globalPlugin)
+
+      const renderers = manager.getRenderers('sub_UNKNOWN')
+      expect(renderers.map((renderer) => renderer.name)).toEqual(['global-overlay'])
+    })
+
+    it('should merge pane and global renderers with pane-first tie on equal priority', () => {
+      const manager = new RendererPluginManager()
+
+      const panePlugin: RendererPlugin = {
+        name: 'pane-30',
         paneId: 'main',
-        priority: 2,
+        priority: 30,
         draw: vi.fn(),
-        onResize: normalResize,
+      }
+      const globalSamePriority: RendererPlugin = {
+        name: 'global-30',
+        paneId: GLOBAL_PANE_ID,
+        priority: 30,
+        draw: vi.fn(),
+      }
+      const globalLater: RendererPlugin = {
+        name: 'global-40',
+        paneId: GLOBAL_PANE_ID,
+        priority: 40,
+        draw: vi.fn(),
+      }
+
+      manager.register(globalSamePriority)
+      manager.register(globalLater)
+      manager.register(panePlugin)
+
+      const renderers = manager.getRenderers('main')
+      expect(renderers.map((renderer) => renderer.name)).toEqual(['pane-30', 'global-30', 'global-40'])
+    })
+
+    it('should exclude system renderer from getRenderers but allow renderPlugin by name', () => {
+      const manager = new RendererPluginManager()
+      const systemDraw = vi.fn()
+
+      const systemPlugin: RendererPlugin = {
+        name: 'time-axis-system',
+        paneId: GLOBAL_PANE_ID,
+        priority: -20,
+        isSystem: true,
+        draw: systemDraw,
       }
 
       manager.register(systemPlugin)
-      manager.register(normalPlugin)
+
+      expect(manager.getRenderers('main')).toEqual([])
+
+      const ctx = {} as RenderContext
+      manager.renderPlugin('time-axis-system', ctx)
+      expect(systemDraw).toHaveBeenCalledTimes(1)
+    })
+
+    it('should skip disabled renderers in notifyResize', () => {
+      const manager = new RendererPluginManager()
+      const enabledResize = vi.fn()
+      const disabledResize = vi.fn()
+
+      const enabledPlugin: RendererPlugin = {
+        name: 'enabled-main-resize',
+        paneId: 'main',
+        priority: 5,
+        draw: vi.fn(),
+        onResize: enabledResize,
+      }
+      const disabledPlugin: RendererPlugin = {
+        name: 'disabled-main-resize',
+        paneId: 'main',
+        priority: 6,
+        draw: vi.fn(),
+        onResize: disabledResize,
+      }
+
+      manager.register(enabledPlugin)
+      manager.register(disabledPlugin)
+      manager.setEnabled('disabled-main-resize', false)
+
       manager.notifyResize('main', pane)
 
-      expect(systemResize).toHaveBeenCalledTimes(1)
-      expect(normalResize).toHaveBeenCalledTimes(1)
+      expect(enabledResize).toHaveBeenCalledTimes(1)
+      expect(disabledResize).toHaveBeenCalledTimes(0)
     })
   })
 

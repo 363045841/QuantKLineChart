@@ -51,7 +51,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick, shallowRef, type Ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, shallowRef } from 'vue'
 import type { MarkerEntity, CustomMarkerEntity } from '@/core/marker/registry'
 import { SemanticChartController, type SemanticChartConfig } from '@/semantic'
 import { createCustomMarkersRenderer } from '@/core/renderers/customMarkers'
@@ -163,7 +163,7 @@ const isDragging = ref(false)
 const isResizingPane = ref(false)
 const isHoveringPaneSeparator = ref(false)
 
-const paneRatios = ref<Record<string, number>>({ main: 1 })
+const paneRatios = ref<Record<string, number>>({ main: 3 })
 
 // tooltip/hover 必须是 Vue 可追踪的响应式状态（Chart 内部普通属性 Vue 不会自动追踪）
 const hoveredIdx = ref<number | null>(null)
@@ -211,16 +211,6 @@ function syncPaneInteractionState() {
   isHoveringPaneSeparator.value = interaction.isHoveringPaneBoundaryState()
 }
 
-function syncPaneRatiosFromChart() {
-  const chart = chartRef.value
-  if (!chart) return
-  const specs = chart.getPaneLayoutSpecs()
-  const next: Record<string, number> = {}
-  for (const spec of specs) {
-    next[spec.id] = spec.ratio
-  }
-  paneRatios.value = next
-}
 
 function syncHoverState() {
   const interaction = chartRef.value?.interaction
@@ -277,7 +267,6 @@ function onPointerUp(e: PointerEvent) {
   chartRef.value?.interaction.onPointerUp(e)
   isDragging.value = chartRef.value?.interaction.isDraggingState() ?? false
   syncHoverState()
-  syncPaneRatiosFromChart()
 }
 
 function onPointerLeave(e: PointerEvent) {
@@ -316,26 +305,21 @@ const maxSubPanes = 4
 // 副图指标列表
 const SUB_PANE_INDICATORS: SubIndicatorType[] = ['VOLUME', 'MACD', 'RSI', 'CCI', 'STOCH', 'MOM', 'WMSR', 'KST', 'FASTK']
 
-// 布局配置（ratio 由 Chart 内部维护并回流）
-const layoutPanes = computed<PaneSpec[]>(() => {
-  const mainRatio = paneRatios.value['main'] ?? 1
-  if (subPanes.value.length === 0) {
-    return [{ id: 'main', ratio: mainRatio, visible: true }]
-  }
-  return [
-    { id: 'main', ratio: mainRatio, visible: true },
-    ...subPanes.value.map((pane) => ({
-      id: pane.id,
-      ratio: paneRatios.value[pane.id] ?? 1,
-      visible: true,
-    })),
-  ]
-})
+function buildPaneLayoutIntent(): PaneSpec[] {
+  const mainRatio = paneRatios.value['main'] ?? 3
+  return subPanes.value.length === 0
+    ? [{ id: 'main', ratio: mainRatio, visible: true, role: 'price' }]
+    : [
+      { id: 'main', ratio: mainRatio, visible: true, role: 'price' },
+      ...subPanes.value.map((pane) => ({
+        id: pane.id,
+        ratio: paneRatios.value[pane.id] ?? 1,
+        visible: true,
+        role: 'indicator' as const,
+      })),
+    ]
+}
 
-// 监听布局变化，更新 Chart
-watch(layoutPanes, (newPanes) => {
-  chartRef.value?.updatePaneLayout(newPanes)
-}, { flush: 'post' })
 
 // 获取指标默认参数
 function getDefaultParams(indicatorId: SubIndicatorType): Record<string, number> {
@@ -386,8 +370,7 @@ function addSubPane(indicatorId: SubIndicatorType = 'VOLUME', params?: Record<st
     params: params ?? getDefaultParams(indicatorId)
   })
 
-  // 新增副图后，从 Chart 回流 ratio
-  syncPaneRatiosFromChart()
+  // 新增副图后，由 Chart 回流 ratio
 
   // 更新 activeIndicators
   if (!activeIndicators.value.includes(indicatorId)) {
@@ -414,8 +397,7 @@ function removeSubPane(paneId: string): void {
   // 更新本地状态
   subPanes.value.splice(index, 1)
 
-  // 移除副图后，从 Chart 回流 ratio
-  syncPaneRatiosFromChart()
+  // 移除副图后，由 Chart 回流 ratio
 
   // 更新 activeIndicators
   const hasOtherPane = subPanes.value.some(p => p.indicatorId === pane.indicatorId)
@@ -436,7 +418,6 @@ function clearAllSubPanes(): void {
 
   // 清空本地状态
   subPanes.value = []
-  syncPaneRatiosFromChart()
   activeIndicators.value = activeIndicators.value.filter(id => !SUB_PANE_INDICATORS.includes(id as SubIndicatorType))
 }
 
@@ -777,8 +758,11 @@ function handleReorderSubIndicators(orderedIndicatorIds: string[]) {
   const subIndicatorOrder = subPanes.value.map((pane) => pane.indicatorId)
   activeIndicators.value = [...currentMainIndicators, ...subIndicatorOrder]
 
-  scheduleRender()
+  const chart = chartRef.value
+  if (!chart) return
+  chart.updatePaneLayout(buildPaneLayoutIntent())
 }
+
 
 /* 计算总宽度：使用物理像素对齐后的值，确保与渲染一致 */
 const totalWidth = computed(() => {
@@ -894,8 +878,9 @@ onMounted(() => {
     getCrosshair: () => {
       const pos = chart.interaction.crosshairPos
       const price = chart.interaction.crosshairPrice
+      const activePaneId = chart.interaction.activePaneId
       if (pos && price !== null) {
-        return { y: pos.y, price }
+        return { y: pos.y, price, activePaneId }
       }
       return null
     },
@@ -961,10 +946,16 @@ onMounted(() => {
   chart.setOnViewportChange((vp) => {
     viewportDpr.value = vp.dpr
   })
+  chart.setOnPaneLayoutChange((panes) => {
+    const next: Record<string, number> = {}
+    for (const pane of panes) {
+      next[pane.id] = pane.ratio
+    }
+    paneRatios.value = next
+  })
   chartRef.value = chart
   viewportDpr.value = chart.getCurrentDpr()
   chart.resize()
-  syncPaneRatiosFromChart()
 
   // 初始化语义化控制器
   semanticController.value = new SemanticChartController(chart)
@@ -982,7 +973,6 @@ onMounted(() => {
 
     // 同步副图状态（副图由 Chart API 动态创建）
     syncSubPanesFromChart()
-    syncPaneRatiosFromChart()
 
     nextTick(() => scrollToRight())
   })

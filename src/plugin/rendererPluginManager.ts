@@ -43,7 +43,7 @@ export class RendererPluginManager {
   private mergedCache: Map<string | symbol, RendererPlugin[]> = new Map()
 
   // 已知的 paneId 集合（用于动态 pane 管理）
-  private knownPaneIds: Set<string> = new Set(['main'])
+  private knownPaneIds: Set<string> = new Set()
 
   private cacheInvalid = true
   private onInvalidate: (() => void) | null = null
@@ -70,9 +70,11 @@ export class RendererPluginManager {
     this.cacheInvalid = true
   }
 
-  /** 获取所有已知的 paneId */
-  getKnownPaneIds(): string[] {
-    return Array.from(this.knownPaneIds)
+
+  /** 覆盖已知 paneId 集合 */
+  setKnownPaneIds(paneIds: string[]): void {
+    this.knownPaneIds = new Set(paneIds)
+    this.cacheInvalid = true
   }
 
   /** 注册渲染器插件 */
@@ -217,7 +219,9 @@ export class RendererPluginManager {
 
     let cached = this.mergedCache.get(paneId)
     if (!cached) {
-      cached = this.mergedCache.get(GLOBAL_CACHE_KEY) ?? []
+      const paneRenderers = this.groupCache.get(paneId) ?? []
+      const globalRenderers = this.groupCache.get(GLOBAL_CACHE_KEY) ?? []
+      cached = this.mergeSorted(paneRenderers, globalRenderers)
       this.mergedCache.set(paneId, cached)
     }
 
@@ -227,12 +231,6 @@ export class RendererPluginManager {
   /** 获取指定 pane 的渲染器（已缓存，无穿透） */
   getRenderers(paneId: string): RendererPlugin[] {
     const cached = this.getMergedRenderers(paneId)
-
-    // 调试日志
-    if (import.meta.env.DEV) {
-      const paneRenderers = this.groupCache.get(paneId) ?? []
-      const globalRenderers = this.groupCache.get(GLOBAL_CACHE_KEY) ?? []
-    }
 
     // 根据启用状态过滤，同时排除系统渲染器
     return cached.filter((p) => {

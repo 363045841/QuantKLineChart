@@ -206,3 +206,126 @@ describe('Chart DPR pipeline', () => {
     expect(ro?.disconnect).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('Chart pane layout regressions', () => {
+  const originalResizeObserver = globalThis.ResizeObserver
+  const originalDevicePixelRatio = window.devicePixelRatio
+  const originalGetContext = HTMLCanvasElement.prototype.getContext
+
+  beforeEach(() => {
+    ResizeObserverMock.reset()
+    globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver
+
+    Object.defineProperty(window, 'devicePixelRatio', {
+      configurable: true,
+      writable: true,
+      value: 1,
+    })
+
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => createCanvasContextStub()) as typeof HTMLCanvasElement.prototype.getContext
+  })
+
+  afterEach(async () => {
+    globalThis.ResizeObserver = originalResizeObserver
+    Object.defineProperty(window, 'devicePixelRatio', {
+      configurable: true,
+      writable: true,
+      value: originalDevicePixelRatio,
+    })
+    HTMLCanvasElement.prototype.getContext = originalGetContext
+    vi.restoreAllMocks()
+  })
+
+  it('allocates initial pane ratios as 3:1:1 for main+MACD+RSI', async () => {
+    const chart = new Chart(createDom(1000, 600), defaultOptions)
+    chart.resize()
+
+    expect(chart.createSubPane('MACD')).toBe(true)
+    expect(chart.createSubPane('RSI')).toBe(true)
+
+    const specs = chart.getPaneLayoutSpecs().filter((pane) => pane.visible !== false)
+    expect(specs).toHaveLength(3)
+
+    const byId = new Map(specs.map((pane) => [pane.id, pane]))
+    expect(byId.get('main')?.ratio ?? 0).toBeCloseTo(0.6, 2)
+    expect(byId.get('sub_MACD')?.ratio ?? 0).toBeCloseTo(0.2, 2)
+    expect(byId.get('sub_RSI')?.ratio ?? 0).toBeCloseTo(0.2, 2)
+
+    await chart.destroy()
+  })
+
+  it('keeps indicator pane heights equal for main+MACD+RSI', async () => {
+    const chart = new Chart(createDom(1000, 600), defaultOptions)
+    chart.resize()
+    chart.createSubPane('MACD')
+    chart.createSubPane('RSI')
+    chart.resize()
+
+    const panes = chart.getPaneRenderers().map((renderer) => renderer.getPane())
+    const macd = panes.find((pane) => pane.id === 'sub_MACD')
+    const rsi = panes.find((pane) => pane.id === 'sub_RSI')
+
+    expect(macd).toBeDefined()
+    expect(rsi).toBeDefined()
+    expect(Math.abs((macd?.height ?? 0) - (rsi?.height ?? 0))).toBeLessThanOrEqual(1)
+
+    await chart.destroy()
+  })
+
+  it('keeps visible ratio sum at 1 after boundary resize', async () => {
+    const chart = new Chart(createDom(1000, 600), defaultOptions)
+    chart.resize()
+    chart.createSubPane('MACD')
+    chart.createSubPane('RSI')
+    chart.resize()
+
+    const resized = chart.resizePaneBoundary('main', 20)
+    expect(resized).toBe(true)
+
+    const visible = chart.getPaneLayoutSpecs().filter((pane) => pane.visible !== false)
+    const sum = visible.reduce((acc, pane) => acc + pane.ratio, 0)
+    expect(sum).toBeCloseTo(1, 6)
+
+    await chart.destroy()
+  })
+
+  it('returns false and keeps layout unchanged for invalid boundary resize input', async () => {
+    const chart = new Chart(createDom(1000, 600), defaultOptions)
+    chart.resize()
+    chart.createSubPane('MACD')
+    chart.createSubPane('RSI')
+    chart.resize()
+
+    const before = chart.getPaneLayoutSpecs()
+    const invalidId = chart.resizePaneBoundary('missing-pane-id', 20)
+    const zeroDelta = chart.resizePaneBoundary('main', 0)
+    const after = chart.getPaneLayoutSpecs()
+
+    expect(invalidId).toBe(false)
+    expect(zeroDelta).toBe(false)
+    expect(after).toEqual(before)
+
+    await chart.destroy()
+  })
+
+  it('normalizes only visible panes in updatePaneLayout', async () => {
+    const chart = new Chart(createDom(1000, 600), defaultOptions)
+    chart.updatePaneLayout([
+      { id: 'main', ratio: 3, visible: true, role: 'price' },
+      { id: 'sub_MACD', ratio: 1, visible: true, role: 'indicator' },
+      { id: 'sub_RSI', ratio: 100, visible: false, role: 'indicator' },
+    ])
+
+    const specs = chart.getPaneLayoutSpecs()
+    const main = specs.find((pane) => pane.id === 'main')
+    const macd = specs.find((pane) => pane.id === 'sub_MACD')
+    const rsi = specs.find((pane) => pane.id === 'sub_RSI')
+
+    expect(Math.abs((main?.ratio ?? 0) - 0.75)).toBeLessThan(0.001)
+    expect(Math.abs((macd?.ratio ?? 0) - 0.25)).toBeLessThan(0.001)
+    expect((main?.ratio ?? 0) + (macd?.ratio ?? 0)).toBeCloseTo(1, 6)
+    expect(rsi?.visible).toBe(false)
+
+    await chart.destroy()
+  })
+})

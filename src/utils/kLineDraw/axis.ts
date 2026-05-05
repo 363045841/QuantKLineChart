@@ -158,6 +158,10 @@ export interface CrosshairPriceLabelOptions {
     textColor?: string
     fontSize?: number
     paddingX?: number
+    /** 价格偏移量（用于价格轴平移时同步显示） */
+    priceOffset?: number
+    /** 优先显示的价格（如十字线已按 active pane 算好） */
+    price?: number
 }
 
 export interface CrosshairTimeLabelOptions {
@@ -242,14 +246,16 @@ export function drawCrosshairPriceLabel(ctx: CanvasRenderingContext2D, opts: Cro
         yPaddingPx = 0,
         dpr,
         fontSize = 16,
+        priceOffset = 0,
+        price,
     } = opts
 
     const pad = Math.max(0, Math.min(yPaddingPx, Math.floor(height / 2) - 1))
     const { maxPrice, minPrice } = priceRange
 
-    // 将 y 反算回价格
-    const price = yToPrice(crosshairY - y, maxPrice, minPrice, height, pad, pad)
-    const priceText = price.toFixed(2)
+    // 优先使用外部传入价格（active pane 已计算），否则按当前 pane 反算并应用偏移
+    const displayPrice = price ?? (yToPrice(crosshairY - y, maxPrice, minPrice, height, pad, pad) + priceOffset)
+    const priceText = displayPrice.toFixed(2)
 
     ctx.save()
     ctx.font = `${fontSize}px -apple-system,BlinkMacSystemFont,Trebuchet MS,Roboto,Ubuntu,sans-serif`

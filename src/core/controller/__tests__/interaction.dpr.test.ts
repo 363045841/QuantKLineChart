@@ -2,7 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { InteractionController } from '@/core/controller/interaction'
 import type { KLineData } from '@/types/price'
 
-function createChartStub(args: { dpr: number; plotWidth: number; plotHeight: number }) {
+function createChartStub(args: {
+  dpr: number
+  plotWidth: number
+  plotHeight: number
+  paneByY?: Array<{
+    id: string
+    top: number
+    height: number
+    candleHitTest: boolean
+  }>
+}) {
   const container = document.createElement('div') as HTMLDivElement
   Object.defineProperty(container, 'scrollLeft', { configurable: true, writable: true, value: 0 })
   Object.defineProperty(container, 'clientWidth', { configurable: true, value: 320 })
@@ -31,18 +41,27 @@ function createChartStub(args: { dpr: number; plotWidth: number; plotHeight: num
     },
   ]
 
-  const pane = {
-    id: 'main',
-    top: 0,
-    height: 160,
-    yAxis: {
-      yToPrice: (y: number) => y,
-      priceToY: (p: number) => p,
-      getPaddingTop: () => 0,
-      getPaddingBottom: () => 0,
-      getPriceOffset: () => 0,
-    },
-  }
+  const paneDefs = args.paneByY ?? [{ id: 'main', top: 0, height: 160, candleHitTest: true }]
+  const paneRenderers = paneDefs.map((paneDef) => ({
+    getPane: () => ({
+      id: paneDef.id,
+      top: paneDef.top,
+      height: paneDef.height,
+      capabilities: {
+        showPriceAxisTicks: true,
+        showCrosshairPriceLabel: true,
+        candleHitTest: paneDef.candleHitTest,
+        supportsPriceTranslate: true,
+      },
+      yAxis: {
+        yToPrice: (y: number) => y,
+        priceToY: (p: number) => p,
+        getPaddingTop: () => 0,
+        getPaddingBottom: () => 0,
+        getPriceOffset: () => 0,
+      },
+    }),
+  }))
 
   const markerManager = {
     hitTest: () => null,
@@ -62,7 +81,7 @@ function createChartStub(args: { dpr: number; plotWidth: number; plotHeight: num
     }),
     getCurrentDpr: () => args.dpr,
     getMarkerManager: () => markerManager,
-    getPaneRenderers: () => [{ getPane: () => pane }],
+    getPaneRenderers: () => paneRenderers,
     getData: () => data,
     translatePrice: () => undefined,
     scheduleDraw: () => undefined,
@@ -100,5 +119,67 @@ describe('InteractionController DPR consumption', () => {
 
     interactionDpr2.onMouseMove({ clientX: 8, clientY: 40 } as MouseEvent)
     expect(interactionDpr2.crosshairIndex).toBe(1)
+  })
+})
+
+describe('InteractionController pane capability gating', () => {
+  it('does not set hoveredIndex when pointer is in indicator pane', () => {
+    const chart = createChartStub({
+      dpr: 1,
+      plotWidth: 300,
+      plotHeight: 200,
+      paneByY: [
+        { id: 'main', top: 0, height: 100, candleHitTest: true },
+        { id: 'sub_MACD', top: 100, height: 100, candleHitTest: false },
+      ],
+    })
+    const interaction = new InteractionController(chart as never)
+
+    interaction.setKLinePositions([0, 10], { start: 0, end: 2 }, 10)
+    interaction.onMouseMove({ clientX: 5, clientY: 140 } as MouseEvent)
+
+    expect(interaction.activePaneId).toBe('sub_MACD')
+    expect(interaction.hoveredIndex).toBeNull()
+  })
+
+  it('sets hoveredIndex when candle is hit in price pane', () => {
+    const chart = createChartStub({
+      dpr: 1,
+      plotWidth: 300,
+      plotHeight: 200,
+      paneByY: [
+        { id: 'main', top: 0, height: 100, candleHitTest: true },
+        { id: 'sub_MACD', top: 100, height: 100, candleHitTest: false },
+      ],
+    })
+    const interaction = new InteractionController(chart as never)
+
+    interaction.setKLinePositions([0, 10], { start: 0, end: 2 }, 10)
+    interaction.onMouseMove({ clientX: 5, clientY: 10 } as MouseEvent)
+
+    expect(interaction.activePaneId).toBe('main')
+    expect(interaction.crosshairIndex).not.toBeNull()
+    expect(interaction.hoveredIndex).toBe(interaction.crosshairIndex)
+  })
+
+  it('clears hoveredIndex when moving from price pane to indicator pane', () => {
+    const chart = createChartStub({
+      dpr: 1,
+      plotWidth: 300,
+      plotHeight: 200,
+      paneByY: [
+        { id: 'main', top: 0, height: 100, candleHitTest: true },
+        { id: 'sub_MACD', top: 100, height: 100, candleHitTest: false },
+      ],
+    })
+    const interaction = new InteractionController(chart as never)
+
+    interaction.setKLinePositions([0, 10], { start: 0, end: 2 }, 10)
+    interaction.onMouseMove({ clientX: 5, clientY: 10 } as MouseEvent)
+    expect(interaction.hoveredIndex).toBe(interaction.crosshairIndex)
+
+    interaction.onMouseMove({ clientX: 5, clientY: 140 } as MouseEvent)
+    expect(interaction.activePaneId).toBe('sub_MACD')
+    expect(interaction.hoveredIndex).toBeNull()
   })
 })

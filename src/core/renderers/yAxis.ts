@@ -5,12 +5,12 @@ import { drawScaleTicks } from '@/core/renderers/Indicator/scale/indicator_scale
 
 /**
  * 创建 Y 轴渲染器插件
- * 仅渲染主图价格刻度；副图刻度由指标刻度插件负责
+ * 按 pane capability 决定是否绘制刻度与价格标签
  */
 export function createYAxisRendererPlugin(options: {
   axisWidth: number
   yPaddingPx: number
-  getCrosshair?: () => { y: number; price: number } | null
+  getCrosshair?: () => { y: number; price: number; activePaneId: string | null } | null
 }): RendererPlugin {
   return {
     name: 'yAxis',
@@ -26,26 +26,29 @@ export function createYAxisRendererPlugin(options: {
       // Y 轴绘制到 yAxisCtx（如果提供）或使用 ctx
       const targetCtx = yAxisCtx || ctx
 
-      // 副图不再走系统 Y 轴，避免与指标刻度叠加
-      if (pane.id !== 'main') return
+      // 应用价格偏移，使刻度随拖拽平移
+      const priceOffset = pane.yAxis.getPriceOffset()
 
-      drawScaleTicks({
-        ctx: targetCtx,
-        dpr,
-        axisWidth: options.axisWidth,
-        height: pane.height,
-        paddingTop: pane.yAxis.getPaddingTop(),
-        paddingBottom: pane.yAxis.getPaddingBottom(),
-        valueMin: pane.priceRange.minPrice,
-        valueMax: pane.priceRange.maxPrice,
-        isMain: true,
-        decimals: 2,
-        hideEdgeTicks: true,
-      })
+      // 按 capability 绘制价格轴刻度
+      if (pane.capabilities.showPriceAxisTicks) {
+        drawScaleTicks({
+          ctx: targetCtx,
+          dpr,
+          axisWidth: options.axisWidth,
+          height: pane.height,
+          paddingTop: pane.yAxis.getPaddingTop(),
+          paddingBottom: pane.yAxis.getPaddingBottom(),
+          valueMin: pane.priceRange.minPrice + priceOffset,
+          valueMax: pane.priceRange.maxPrice + priceOffset,
+          isMain: true,
+          decimals: 2,
+          hideEdgeTicks: false,
+        })
+      }
 
-      // 绘制十字线价格标签（仅主图）
+      // 绘制十字线价格标签（按 active pane）
       const crosshair = options.getCrosshair?.()
-      if (crosshair && crosshair.price !== null) {
+      if (crosshair && crosshair.activePaneId === pane.id && crosshair.price !== null) {
         drawCrosshairPriceLabel(targetCtx, {
           x: 0,
           y: pane.top,
@@ -56,6 +59,8 @@ export function createYAxisRendererPlugin(options: {
           yPaddingPx: options.yPaddingPx,
           dpr,
           fontSize: 12,
+          priceOffset,
+          price: crosshair.price,
         })
       }
     },

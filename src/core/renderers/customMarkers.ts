@@ -1,5 +1,5 @@
 import type { RendererPlugin, RenderContext, MarkerManagerLike } from '@/plugin'
-import { RENDERER_PRIORITY } from '@/plugin'
+import { RENDERER_PRIORITY, GLOBAL_PANE_ID } from '@/plugin'
 import type { KLineData } from '@/types/price'
 import type { CustomMarkerEntity, CustomMarkerShape } from '@/core/marker/registry'
 import { drawShape, drawLabel, hitTestShape } from '@/semantic/drawShape'
@@ -36,7 +36,7 @@ export function createCustomMarkersRenderer(): RendererPlugin {
         version: '1.0.0',
         description: '自定义标记渲染器',
         debugName: '自定义标记',
-        paneId: 'main',
+        paneId: GLOBAL_PANE_ID,
         priority: RENDERER_PRIORITY.OVERLAY,
 
         draw(context: RenderContext): void {
@@ -48,7 +48,7 @@ export function createCustomMarkersRenderer(): RendererPlugin {
 
             const klineData = data as KLineData[]
             if (!klineData.length) return
-            if (pane.id !== 'main') return
+            if (pane.role !== 'price') return
 
             ctx.save()
             ctx.translate(-scrollLeft, 0)

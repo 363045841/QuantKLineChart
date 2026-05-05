@@ -2,6 +2,7 @@
 
 # KLineChart 演示网站部署脚本
 # 使用方法: ./deploy.sh [环境]
+# 在项目目录内执行，从 Gitee 拉取最新代码并部署
 
 set -e
 
@@ -13,8 +14,6 @@ NC='\033[0m' # No Color
 
 # 配置
 GITEE_REPO="https://gitee.com/yyt363045841/klinechart.git"
-PROJECT_DIR="klinechart"
-LEGACY_DIR="kmap"  # 旧版本目录名
 ENV=${1:-production}
 
 echo -e "${GREEN}=================================${NC}"
@@ -42,44 +41,27 @@ fi
 # 拉取代码
 echo -e "${GREEN}[1/5] 拉取代码...${NC}"
 
-# 清理旧版本目录（如果存在且不是当前项目目录）
-if [ -d "$LEGACY_DIR" ] && [ "$LEGACY_DIR" != "$PROJECT_DIR" ]; then
-    echo -e "${YELLOW}发现旧版本目录 '$LEGACY_DIR'，正在清理...${NC}"
-    rm -rf "$LEGACY_DIR"
+# 检查当前目录是否是 git 仓库
+if [ ! -d ".git" ]; then
+    echo -e "${RED}错误: 当前目录不是 git 仓库${NC}"
+    echo -e "请在项目根目录执行此脚本"
+    exit 1
 fi
 
-# 检查项目目录状态
-if [ -d "$PROJECT_DIR" ]; then
-    cd "$PROJECT_DIR"
-
-    # 检查是否是 git 仓库
-    if [ ! -d ".git" ]; then
-        echo -e "${YELLOW}目录存在但不是 git 仓库，重新克隆...${NC}"
-        cd ..
-        rm -rf "$PROJECT_DIR"
-        git clone "$GITEE_REPO" "$PROJECT_DIR"
-        cd "$PROJECT_DIR"
-    else
-        # 检查远程地址是否正确
-        CURRENT_REMOTE=$(git remote get-url origin 2>/dev/null || echo "")
-        if [ "$CURRENT_REMOTE" != "$GITEE_REPO" ]; then
-            echo -e "${YELLOW}远程地址不匹配，重新克隆...${NC}"
-            cd ..
-            rm -rf "$PROJECT_DIR"
-            git clone "$GITEE_REPO" "$PROJECT_DIR"
-            cd "$PROJECT_DIR"
-        else
-            echo -e "项目目录已存在，拉取最新代码..."
-            git fetch origin
-            git reset --hard origin/main
-            git pull origin main
-        fi
-    fi
-else
-    echo -e "克隆项目仓库..."
-    git clone "$GITEE_REPO" "$PROJECT_DIR"
-    cd "$PROJECT_DIR"
+# 检查远程地址
+CURRENT_REMOTE=$(git remote get-url origin 2>/dev/null || echo "")
+if [ "$CURRENT_REMOTE" != "$GITEE_REPO" ]; then
+    echo -e "${YELLOW}远程地址不匹配，正在更新...${NC}"
+    echo -e "当前: $CURRENT_REMOTE"
+    echo -e "目标: $GITEE_REPO"
+    git remote set-url origin "$GITEE_REPO"
 fi
+
+# 拉取最新代码
+echo -e "拉取最新代码..."
+git fetch origin
+git reset --hard origin/main
+git pull origin main
 
 # 检查环境变量文件
 if [ ! -f .env.deploy ]; then

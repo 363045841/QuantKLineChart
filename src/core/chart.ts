@@ -13,6 +13,8 @@ import {
     type RendererPluginWithHost,
     type RenderContext,
     wrapPaneInfo,
+    type PaneRole,
+    type PaneCapabilities,
 } from '@/plugin'
 import { createSubIndicatorRenderer, type SubIndicatorType } from '@/core/renderers/Indicator'
 
@@ -37,7 +39,14 @@ export type ChartDom = {
  * @property ratio Pane 高度占比
  * @property visible 是否可见（默认 true）
  */
-export type PaneSpec = { id: string; ratio: number; visible?: boolean; minHeightPx?: number }
+export type PaneSpec = {
+    id: string
+    ratio: number
+    visible?: boolean
+    minHeightPx?: number
+    role?: PaneRole
+    capabilities?: Partial<PaneCapabilities>
+}
 
 export type PaneRendererDom = {
     plotCanvas: HTMLCanvasElement
@@ -108,6 +117,9 @@ export class Chart {
 
     /** 视口变化回调（供外部同步 DPR/尺寸） */
     private onViewportChange?: (viewport: Viewport) => void
+
+    /** pane 布局回流回调（Chart -> UI 单向） */
+    private onPaneLayoutChange?: (panes: PaneSpec[]) => void
 
     /**
      * 创建图表实例
@@ -326,7 +338,26 @@ export class Chart {
         if (xAxisCtx) {
             const timeAxisContext: RenderContext = {
                 ctx: xAxisCtx,
-                pane: { id: 'xAxis', top: 0, height: this.opt.bottomAxisHeight, yAxis: { priceToY: () => 0, yToPrice: () => 0, getPaddingTop: () => 0, getPaddingBottom: () => 0, getPriceOffset: () => 0 }, priceRange: { maxPrice: 0, minPrice: 0 } },
+                pane: {
+                    id: 'xAxis',
+                    role: 'auxiliary',
+                    capabilities: {
+                        showPriceAxisTicks: false,
+                        showCrosshairPriceLabel: false,
+                        candleHitTest: false,
+                        supportsPriceTranslate: false,
+                    },
+                    top: 0,
+                    height: this.opt.bottomAxisHeight,
+                    yAxis: {
+                        priceToY: () => 0,
+                        yToPrice: () => 0,
+                        getPaddingTop: () => 0,
+                        getPaddingBottom: () => 0,
+                        getPriceOffset: () => 0,
+                    },
+                    priceRange: { maxPrice: 0, minPrice: 0 },
+                },
                 data: this.data,
                 range,
                 scrollLeft: vp.scrollLeft,
@@ -419,6 +450,11 @@ export class Chart {
         this.onViewportChange = cb
     }
 
+    /** 注册 pane 布局回流回调 */
+    setOnPaneLayoutChange(cb: (panes: PaneSpec[]) => void) {
+        this.onPaneLayoutChange = cb
+    }
+
     /** 获取所有 PaneRenderer */
     getPaneRenderers(): PaneRenderer[] {
         return this.paneRenderers
@@ -486,9 +522,14 @@ export class Chart {
      * @param partial 部分配置项
      */
     updateOptions(partial: Partial<ChartOptions>) {
+        if (partial.panes) {
+            const nextPanes = partial.panes.map((pane) => ({ ...pane }))
+            this.opt = { ...this.opt, ...partial, panes: nextPanes }
+            this.applyPaneLayoutSpecs(nextPanes)
+            return
+        }
+
         this.opt = { ...this.opt, ...partial }
-        // 1. panes 变化需要重建布局
-        if (partial.panes) this.initPanes()
         this.resize()
     }
 
@@ -496,10 +537,46 @@ export class Chart {
      * @param panes 新的 pane 配置数组
      */
     updatePaneLayout(panes: PaneSpec[]): void {
-        this.opt.panes = panes.map(spec => ({ ...spec }))
-        this.syncPaneRatiosFromSpecs(this.opt.panes)
-        this.layoutPanes()
-        this.scheduleDraw()
+        this.applyPaneLayoutSpecs(panes)
+    }
+
+    setPaneDefinitions(defs: PaneSpec[]): void {
+        this.applyPaneLayoutSpecs(defs)
+    }
+
+    upsertPane(def: PaneSpec): void {
+        const idx = this.opt.panes.findIndex((pane) => pane.id === def.id)
+        if (idx === -1) {
+            this.applyPaneLayoutSpecs([...this.opt.panes, { ...def }])
+            return
+        }
+
+        const next = [...this.opt.panes]
+        next[idx] = { ...next[idx], ...def }
+        this.applyPaneLayoutSpecs(next)
+    }
+
+    removePaneDefinition(paneId: string): void {
+        if (!this.opt.panes.some((pane) => pane.id === paneId)) return
+        this.paneRatios.delete(paneId)
+        this.applyPaneLayoutSpecs(this.opt.panes.filter((pane) => pane.id !== paneId))
+    }
+
+    bindIndicatorToPane(paneId: string, indicatorId: SubIndicatorType, params?: Record<string, number>): void {
+        const paneExists = this.opt.panes.some((pane) => pane.id === paneId)
+        if (!paneExists) {
+            this.upsertPane({ id: paneId, ratio: 1, visible: true, role: 'indicator' })
+        }
+
+        const rendererName = `${indicatorId.toLowerCase()}_${paneId}`
+        const existing = this.getRenderer(rendererName)
+        if (existing) {
+            if (params) this.updateRendererConfig(rendererName, params)
+            return
+        }
+
+        const renderer = createSubIndicatorRenderer({ indicatorId, paneId })
+        this.useRenderer(renderer, params)
     }
 
     /** 获取当前 pane 布局快照（含 ratio） */
@@ -510,8 +587,27 @@ export class Chart {
         return this.opt.panes.map((spec) => {
             const base = this.paneRatios.get(spec.id) ?? spec.ratio ?? 0
             const ratio = spec.visible === false ? base : base / safeSum
-            return { ...spec, ratio }
+            const pane = this.paneRenderers.find((r) => r.getPane().id === spec.id)?.getPane()
+            return {
+                ...spec,
+                ratio,
+                role: pane?.role ?? spec.role,
+                capabilities: pane ? { ...pane.capabilities } : spec.capabilities,
+            }
         })
+    }
+
+    private emitPaneLayoutChange(): void {
+        this.onPaneLayoutChange?.(this.getPaneLayoutSpecs())
+    }
+
+    private applyPaneLayoutSpecs(panes: PaneSpec[]): void {
+        this.opt.panes = panes.map((spec) => ({ ...spec }))
+        this.syncPaneRatiosFromSpecs(this.opt.panes)
+        this.initPanes()
+        this.layoutPanes()
+        this.emitPaneLayoutChange()
+        this.scheduleDraw()
     }
 
     /**
@@ -569,59 +665,29 @@ export class Chart {
 
         // 用最新 ratio 重排，保证所有 pane 一致
         this.layoutPanes()
+        this.emitPaneLayoutChange()
         this.scheduleDraw()
         return true
     }
 
-    /**
-     * 动态添加 pane
-     * @param paneId pane 标识符
-     */
+    private resolvePaneRole(spec: PaneSpec, index: number): PaneRole {
+        if (spec.role) return spec.role
+        return index === 0 ? 'price' : 'indicator'
+    }
+
+
     addPane(paneId: string): void {
-        // 检查是否已存在
-        if (this.paneRenderers.some(r => r.getPane().id === paneId)) {
+        if (this.opt.panes.some((spec) => spec.id === paneId)) {
             console.warn(`Pane "${paneId}" already exists`)
             return
         }
 
-        const pane = new Pane(paneId)
-
-        const plotCanvas = document.createElement('canvas')
-        const yAxisCanvas = document.createElement('canvas')
-
-        const isMain = paneId === 'main'
-        plotCanvas.id = `${paneId}-plot`
-        plotCanvas.className = isMain ? 'plot-canvas main' : 'plot-canvas sub'
-        plotCanvas.style.position = 'absolute'
-        plotCanvas.style.left = '0'
-        plotCanvas.style.top = '0'
-
-        yAxisCanvas.id = `${paneId}-yAxis`
-        yAxisCanvas.className = 'right-axis'
-        yAxisCanvas.style.position = 'absolute'
-        yAxisCanvas.style.right = '0'  // 用 right 定位，贴右边
-
-        const renderer = new PaneRenderer(
-            { plotCanvas, yAxisCanvas },
-            pane,
-            {
-                rightAxisWidth: this.opt.rightAxisWidth,
-                yPaddingPx: 0, // 副图无 padding
-                priceLabelWidth: this.opt.priceLabelWidth,
-            }
-        )
-
-        this.paneRenderers.push(renderer)
-
-        // 添加到 DOM
-        const canvasLayer = this.dom.canvasLayer
-        if (canvasLayer) {
-            canvasLayer.appendChild(plotCanvas)
-            canvasLayer.appendChild(yAxisCanvas)
-        }
-
-        // 通知渲染器管理器
-        this.rendererPluginManager.addKnownPaneId(paneId)
+        const hasPricePane = this.opt.panes.some((spec, index) => this.resolvePaneRole(spec, index) === 'price')
+        const role: PaneRole = hasPricePane ? 'indicator' : 'price'
+        this.applyPaneLayoutSpecs([
+            ...this.opt.panes,
+            { id: paneId, ratio: 1, visible: true, role },
+        ])
     }
 
     /**
@@ -629,23 +695,11 @@ export class Chart {
      * @param paneId pane 标识符
      */
     removePane(paneId: string): void {
-        const index = this.paneRenderers.findIndex(r => r.getPane().id === paneId)
-        if (index === -1) return
+        if (!this.opt.panes.some((spec) => spec.id === paneId)) return
 
-        const renderer = this.paneRenderers[index]
-        if (!renderer) return
-
-        const dom = renderer.getDom()
-
-        // 从 DOM 移除
-        dom.plotCanvas.remove()
-        dom.yAxisCanvas.remove()
-
-        // 从数组移除
-        this.paneRenderers.splice(index, 1)
-
-        // 通知渲染器管理器
-        this.rendererPluginManager.removeKnownPaneId(paneId)
+        const next = this.opt.panes.filter((spec) => spec.id !== paneId)
+        this.paneRatios.delete(paneId)
+        this.applyPaneLayoutSpecs(next)
     }
 
     /**
@@ -653,7 +707,7 @@ export class Chart {
      * @param paneId pane 标识符
      */
     hasPane(paneId: string): boolean {
-        return this.paneRenderers.some(r => r.getPane().id === paneId)
+        return this.opt.panes.some((spec) => spec.id === paneId)
     }
 
     // ========== 副图管理 API ==========
@@ -669,27 +723,33 @@ export class Chart {
      */
     createSubPane(indicatorId: SubIndicatorType, params?: Record<string, number>): boolean {
         const paneId = `${Chart.SUB_PANE_PREFIX}${indicatorId}`
+        const rendererName = `${indicatorId.toLowerCase()}_${paneId}`
 
-        // 已存在则更新参数
-        if (this.hasPane(paneId)) {
-            const rendererName = `${indicatorId.toLowerCase()}_${paneId}`
-            if (params) {
-                this.updateRendererConfig(rendererName, params)
-            }
+        const existingRenderer = this.getRenderer(rendererName)
+        if (existingRenderer) {
+            if (params) this.updateRendererConfig(rendererName, params)
             return true
         }
 
-        // 创建 pane
-        this.addPane(paneId)
+        const visibleSpecs = this.opt.panes.filter((pane) => pane.visible !== false)
+        const pricePanes = visibleSpecs.filter((pane, index) => this.resolvePaneRole(pane, index) === 'price')
+        const indicatorPanes = visibleSpecs.filter((pane, index) => this.resolvePaneRole(pane, index) === 'indicator')
 
-        // 创建并注册渲染器
-        const renderer = createSubIndicatorRenderer({ indicatorId, paneId })
-        this.useRenderer(renderer, params)
+        if (pricePanes.length === 1) {
+            const pricePane = pricePanes[0]
+            if (pricePane) {
+                this.paneRatios.set(pricePane.id, 3)
+            }
+            for (const pane of indicatorPanes) {
+                this.paneRatios.set(pane.id, 1)
+            }
+            this.paneRatios.set(paneId, 1)
+        } else {
+            this.paneRatios.set(paneId, 1)
+        }
 
-        // 重新布局
-        this.layoutPanes()
-        this.scheduleDraw()
-
+        this.upsertPane({ id: paneId, ratio: this.paneRatios.get(paneId) ?? 1, visible: true, role: 'indicator' })
+        this.bindIndicatorToPane(paneId, indicatorId, params)
         return true
     }
 
@@ -706,37 +766,38 @@ export class Chart {
         const rendererName = `${indicatorId.toLowerCase()}_${paneId}`
         this.removeRenderer(rendererName)
 
-        // 移除 pane
-        this.removePane(paneId)
-
-        // 重新布局
-        this.layoutPanes()
-        this.scheduleDraw()
+        this.paneRatios.delete(paneId)
+        this.applyPaneLayoutSpecs(this.opt.panes.filter((spec) => spec.id !== paneId))
     }
 
     /**
      * 清除所有副图面板
      */
     clearSubPanes(): void {
-        const subPaneIds = this.paneRenderers
-            .map(r => r.getPane().id)
-            .filter(id => id.startsWith(Chart.SUB_PANE_PREFIX))
+        const subPaneIds = this.opt.panes
+            .map((spec) => spec.id)
+            .filter((id) => id.startsWith(Chart.SUB_PANE_PREFIX))
+
+        if (subPaneIds.length === 0) return
 
         for (const paneId of subPaneIds) {
-            // 提取 indicatorId
             const indicatorId = paneId.slice(Chart.SUB_PANE_PREFIX.length) as SubIndicatorType
-            this.removeSubPane(indicatorId)
+            const rendererName = `${indicatorId.toLowerCase()}_${paneId}`
+            this.removeRenderer(rendererName)
+            this.paneRatios.delete(paneId)
         }
+
+        this.applyPaneLayoutSpecs(this.opt.panes.filter((spec) => !spec.id.startsWith(Chart.SUB_PANE_PREFIX)))
     }
 
     /**
      * 获取当前所有副图指标类型
      */
     getSubPaneIndicators(): SubIndicatorType[] {
-        return this.paneRenderers
-            .map(r => r.getPane().id)
-            .filter(id => id.startsWith(Chart.SUB_PANE_PREFIX))
-            .map(id => id.slice(Chart.SUB_PANE_PREFIX.length) as SubIndicatorType)
+        return this.opt.panes
+            .map((spec) => spec.id)
+            .filter((id) => id.startsWith(Chart.SUB_PANE_PREFIX))
+            .map((id) => id.slice(Chart.SUB_PANE_PREFIX.length) as SubIndicatorType)
     }
 
     /**
@@ -749,6 +810,8 @@ export class Chart {
         if (!renderer) return
 
         const pane = renderer.getPane()
+        if (!pane.capabilities.supportsPriceTranslate) return
+
         const priceOffset = pane.yAxis.deltaYToPriceOffset(deltaY)
         const currentOffset = pane.yAxis.getPriceOffset()
         pane.yAxis.setPriceOffset(currentOffset + priceOffset)
@@ -801,6 +864,7 @@ export class Chart {
             return
         }
         this.layoutPanes()
+        this.emitPaneLayoutChange()
         this.scheduleDraw()
     }
 
@@ -833,18 +897,22 @@ export class Chart {
 
         this.onZoomChange = undefined
         this.onViewportChange = undefined
+        this.onPaneLayoutChange = undefined
         await this.pluginHost.destroy()
     }
 
     /** 初始化所有 pane */
     private initPanes() {
-        this.paneRenderers = this.opt.panes.map((spec) => {
-            const pane = new Pane(spec.id)
+        this.paneRenderers = this.opt.panes.map((spec, index) => {
+            const pane = new Pane(spec.id, {
+                role: this.resolvePaneRole(spec, index),
+                capabilities: spec.capabilities,
+            })
 
             const plotCanvas = document.createElement('canvas')
             const yAxisCanvas = document.createElement('canvas')
 
-            const isMain = spec.id === 'main'
+            const isMain = pane.role === 'price'
             plotCanvas.id = `${spec.id}-plot`
             plotCanvas.className = isMain ? 'plot-canvas main' : 'plot-canvas sub'
             plotCanvas.style.position = 'absolute'
@@ -880,6 +948,8 @@ export class Chart {
                 canvasLayer.appendChild(dom.yAxisCanvas)
             })
         }
+
+        this.rendererPluginManager.setKnownPaneIds(this.paneRenderers.map((renderer) => renderer.getPane().id))
     }
 
 
@@ -1015,11 +1085,7 @@ export class Chart {
             const h = paneHeights[i] ?? 1
 
             pane.setLayout(y, h)
-            if (pane.id !== 'main') {
-                pane.setPadding(0, 0)
-            } else {
-                pane.setPadding(this.opt.yPaddingPx, this.opt.yPaddingPx)
-            }
+            pane.setPadding(this.opt.yPaddingPx, this.opt.yPaddingPx)
 
             renderer.resize(vp.plotWidth, h, vp.dpr)
             this.rendererPluginManager.notifyResize(pane.id, wrapPaneInfo(pane))

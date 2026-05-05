@@ -119,9 +119,22 @@ export interface PluginHost {
 
 // ============ 渲染器插件类型 ============
 
+/** Pane 角色 */
+export type PaneRole = 'price' | 'indicator' | 'auxiliary'
+
+/** Pane 能力开关 */
+export interface PaneCapabilities {
+  showPriceAxisTicks: boolean
+  showCrosshairPriceLabel: boolean
+  candleHitTest: boolean
+  supportsPriceTranslate: boolean
+}
+
 /** Pane 信息接口 */
 export interface PaneInfo {
   id: string
+  role: PaneRole
+  capabilities: PaneCapabilities
   top: number
   height: number
   yAxis: {
@@ -147,6 +160,8 @@ export interface PaneInfo {
  */
 export function wrapPaneInfo(pane: {
   id: string
+  role: PaneRole
+  capabilities: PaneCapabilities
   top: number
   height: number
   yAxis: PaneInfo['yAxis']
@@ -154,6 +169,8 @@ export function wrapPaneInfo(pane: {
 }): Readonly<PaneInfo> {
   return {
     id: pane.id,
+    role: pane.role,
+    capabilities: { ...pane.capabilities },
     top: pane.top,
     height: pane.height,
     yAxis: {

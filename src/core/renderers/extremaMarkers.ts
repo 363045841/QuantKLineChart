@@ -1,5 +1,5 @@
 import type { RendererPlugin, RenderContext } from '@/plugin'
-import { RENDERER_PRIORITY } from '@/plugin'
+import { RENDERER_PRIORITY, GLOBAL_PANE_ID } from '@/plugin'
 import type { KLineData } from '@/types/price'
 import { roundToPhysicalPixel, createHorizontalLineRect } from '@/core/draw/pixelAlign'
 import { TEXT_COLORS, PRICE_COLORS } from '@/core/theme/colors'
@@ -13,14 +13,14 @@ export function createExtremaMarkersRendererPlugin(): RendererPlugin {
         version: '1.0.0',
         description: '可视区最高/最低价标注渲染器',
         debugName: '极值标记',
-        paneId: 'main',
+        paneId: GLOBAL_PANE_ID,
         priority: RENDERER_PRIORITY.OVERLAY,
 
         draw(context: RenderContext) {
             const { ctx, pane, data, range, scrollLeft, kWidth, dpr, paneWidth, kLinePositions } = context
             const klineData = data as KLineData[]
             if (!klineData.length) return
-            if (pane.id !== 'main') return
+            if (pane.role !== 'price') return
 
             const start = Math.max(0, range.start)
             const end = Math.min(klineData.length, range.end)

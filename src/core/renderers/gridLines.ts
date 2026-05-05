@@ -25,7 +25,7 @@ export function createGridLinesRendererPlugin(): RendererPlugin {
             const klineData = data as KLineData[]
             if (!klineData.length) return
 
-            const tickCount = calculateTickCount(pane.height, pane.id === 'main')
+            const tickCount = calculateTickCount(pane.height)
 
             ctx.save()
             ctx.fillStyle = GRID_COLORS.HORIZONTAL
