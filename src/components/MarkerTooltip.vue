@@ -1,8 +1,10 @@
 <template>
   <div
     v-if="marker"
+    :ref="onRef"
     class="marker-tooltip"
-    :style="{ left: `${pos.x + 12}px`, top: `${pos.y + 12}px` }"
+    :class="[{ 'use-anchor': useAnchor }, anchorPlacementClass]"
+    :style="useAnchor ? undefined : { left: `${pos.x + 12}px`, top: `${pos.y + 12}px` }"
   >
     <div class="marker-tooltip__title">{{ title }}</div>
     <div v-if="hasMetadata" class="marker-tooltip__content">
@@ -16,13 +18,26 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { ComponentPublicInstance } from 'vue'
 import type { MarkerEntity, CustomMarkerEntity } from '@/core/marker/registry'
 import { MARKER_TYPE_DESCRIPTIONS } from '@/core/marker/registry'
 
 const props = defineProps<{
   marker: MarkerEntity | CustomMarkerEntity | null
   pos: { x: number; y: number }
+  useAnchor?: boolean
+  anchorPlacement?: 'right-bottom' | 'left-bottom'
+  setEl?: (el: HTMLDivElement | null) => void
 }>()
+
+const useAnchor = computed(() => props.useAnchor === true)
+const anchorPlacementClass = computed(() =>
+  props.anchorPlacement === 'left-bottom' ? 'anchor-left-bottom' : 'anchor-right-bottom',
+)
+
+function onRef(el: Element | ComponentPublicInstance | null) {
+  props.setEl?.(el as HTMLDivElement | null)
+}
 
 const isCustomMarker = computed(() => {
   return props.marker && 'date' in props.marker
@@ -103,4 +118,22 @@ function formatValue(value: unknown): string {
 .marker-tooltip__content .row span:first-child {
   color: rgba(0, 0, 0, 0.56);
 }
+
+@supports (anchor-name: --kmap-anchor) and (position-anchor: --kmap-anchor) {
+  .marker-tooltip.use-anchor {
+    position: absolute;
+    position-anchor: --marker-tooltip-anchor;
+    left: anchor(left);
+    top: anchor(top);
+  }
+
+  .marker-tooltip.use-anchor.anchor-right-bottom {
+    transform: translate(12px, 12px);
+  }
+
+  .marker-tooltip.use-anchor.anchor-left-bottom {
+    transform: translate(calc(-100% - 12px), 12px);
+  }
+}
+
 </style>

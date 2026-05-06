@@ -3,7 +3,8 @@
     v-if="k"
     :ref="onRef"
     class="kline-tooltip"
-    :style="{ left: `${pos.x}px`, top: `${pos.y}px` }"
+    :class="[{ 'use-anchor': useAnchor }, anchorPlacementClass]"
+    :style="useAnchor ? undefined : { left: `${pos.x}px`, top: `${pos.y}px` }"
   >
     <div class="kline-tooltip__title">
       <!-- <span>{{ props.index }}</span> -->
@@ -70,9 +71,16 @@ const props = defineProps<{
   index: number | null
   data: KLineData[]
   pos: { x: number; y: number }
+  useAnchor?: boolean
+  anchorPlacement?: 'right-bottom' | 'left-bottom'
   /** 把 tooltip 根元素回传给父组件（用于测量宽高） */
   setEl?: (el: HTMLDivElement | null) => void
 }>()
+
+const useAnchor = computed(() => props.useAnchor === true)
+const anchorPlacementClass = computed(() =>
+  props.anchorPlacement === 'left-bottom' ? 'anchor-left-bottom' : 'anchor-right-bottom',
+)
 
 function onRef(el: Element | ComponentPublicInstance | null) {
   props.setEl?.(el as HTMLDivElement | null)
@@ -140,4 +148,22 @@ const changeColor = computed(() => {
 .kline-tooltip__grid .row span:first-child {
   color: rgba(0, 0, 0, 0.56);
 }
+
+@supports (anchor-name: --kmap-anchor) and (position-anchor: --kmap-anchor) {
+  .kline-tooltip.use-anchor {
+    position: absolute;
+    position-anchor: --kline-tooltip-anchor;
+    left: anchor(left);
+    top: anchor(top);
+  }
+
+  .kline-tooltip.use-anchor.anchor-right-bottom {
+    transform: translate(14px, 14px);
+  }
+
+  .kline-tooltip.use-anchor.anchor-left-bottom {
+    transform: translate(calc(-100% - 14px), 14px);
+  }
+}
 </style>
+

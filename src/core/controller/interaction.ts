@@ -44,6 +44,8 @@ export class InteractionController {
     tooltipPos: { x: number; y: number } = { x: 0, y: 0 }
     /** tooltip 尺寸 */
     tooltipSize: { width: number; height: number } = { width: 220, height: 180 }
+    /** tooltip 锚定位放置方向 */
+    tooltipAnchorPlacement: 'right-bottom' | 'left-bottom' = 'right-bottom'
 
     /** 当前 hover 的 marker ID */
     hoveredMarkerId: string | null = null
@@ -174,6 +176,10 @@ export class InteractionController {
      */
     setTooltipSize(size: { width: number; height: number }) {
         this.tooltipSize = size
+    }
+
+    setTooltipAnchorPositioning(enabled: boolean) {
+        this.useTooltipAnchorPositioning = enabled
     }
 
     /**
@@ -716,6 +722,20 @@ export class InteractionController {
         }
 
         this.hoveredIndex = this.crosshairIndex
+
+        if (this.useTooltipAnchorPositioning) {
+            const padding = 12
+            const preferGap = 14
+            const tooltipW = this.tooltipSize.width
+            const rightCandidateX = mouseX + preferGap
+            const rightWouldOverflow = rightCandidateX + tooltipW + padding > plotWidth
+            this.tooltipAnchorPlacement = rightWouldOverflow ? 'left-bottom' : 'right-bottom'
+            this.tooltipPos = {
+                x: Math.min(Math.max(mouseX, padding), Math.max(padding, plotWidth - padding)),
+                y: Math.min(Math.max(mouseY, padding), Math.max(padding, plotHeight - padding)),
+            }
+            return
+        }
 
         // 7.4 tooltip 防溢出定位
         const padding = 12

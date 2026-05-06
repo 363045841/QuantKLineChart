@@ -23,6 +23,19 @@
           <!-- 底部时间轴（随 X 滚动，但画布不移动） -->
           <canvas class="x-axis-canvas" ref="xAxisCanvasRef"></canvas>
 
+          <div
+            v-if="hovered"
+            class="tooltip-anchor kline-tooltip-anchor"
+            :class="{ 'use-anchor': useAnchorPositioning }"
+            :style="{ left: `${tooltipPos.x}px`, top: `${tooltipPos.y}px` }"
+          ></div>
+          <div
+            v-if="hoveredMarker || hoveredCustomMarker"
+            class="tooltip-anchor marker-tooltip-anchor"
+            :class="{ 'use-anchor': useAnchorPositioning }"
+            :style="{ left: `${mousePos.x}px`, top: `${mousePos.y}px` }"
+          ></div>
+
           <!-- 悬浮浮窗：放在 sticky 的 canvas-layer 内，避免随 scroll-content 横向滚动而偏移 -->
           <KLineTooltip
             v-if="hovered"
@@ -31,11 +44,16 @@
             :data="chartData"
             :pos="tooltipPos"
             :set-el="setTooltipEl"
+            :use-anchor="useAnchorPositioning"
+            :anchor-placement="tooltipAnchorPlacement"
           />
           <MarkerTooltip
             v-if="hoveredMarker || hoveredCustomMarker"
             :marker="hoveredMarker || hoveredCustomMarker"
             :pos="mousePos"
+            :use-anchor="useAnchorPositioning"
+            :anchor-placement="markerTooltipAnchorPlacement"
+            :set-el="setMarkerTooltipEl"
           />
         </div>
       </div>
@@ -153,10 +171,20 @@ function setTooltipEl(el: HTMLDivElement | null) {
   })
 }
 
+function setMarkerTooltipEl(el: HTMLDivElement | null) {
+  if (!el) return
+  const r = el.getBoundingClientRect()
+  markerTooltipSize.value = {
+    width: Math.max(120, Math.round(r.width)),
+    height: Math.max(60, Math.round(r.height)),
+  }
+}
+
 // ===== Marker tooltip 状态 =====
 const hoveredMarker = ref<MarkerEntity | null>(null)
 const hoveredCustomMarker = ref<CustomMarkerEntity | null>(null)
 const mousePos = ref({ x: 0, y: 0 })
+const useAnchorPositioning = ref(false)
 
 // ===== 交互状态 =====
 const isDragging = ref(false)
@@ -169,6 +197,8 @@ const paneRatios = ref<Record<string, number>>({ main: 3 })
 const hoveredIdx = ref<number | null>(null)
 const crosshairIdx = ref<number | null>(null)
 const tooltipPosition = ref({ x: 0, y: 0 })
+const tooltipAnchorPlacement = ref<'right-bottom' | 'left-bottom'>('right-bottom')
+const markerTooltipSize = ref({ width: 220, height: 120 })
 
 // 数据版本号，用于强制 chartData computed 重新求值
 const dataVersion = ref(0)
@@ -185,6 +215,17 @@ const hovered = computed(() => {
 })
 const hoveredIndex = computed(() => hoveredIdx.value)
 const tooltipPos = computed(() => tooltipPosition.value)
+const markerTooltipAnchorPlacement = computed<'right-bottom' | 'left-bottom'>(() => {
+  const chart = chartRef.value
+  const viewport = chart?.getViewport()
+  const container = containerRef.value
+  const plotWidth = viewport?.plotWidth ?? (container ? container.clientWidth : 0)
+  const padding = 12
+  const gap = 12
+  const rightCandidateX = mousePos.value.x + gap
+  const wouldOverflowRight = rightCandidateX + markerTooltipSize.value.width + padding > plotWidth
+  return wouldOverflowRight ? 'left-bottom' : 'right-bottom'
+})
 
 // 获取当前图表数据
 const chartData = computed(() => {
@@ -226,6 +267,9 @@ function syncHoverState() {
   crosshairIdx.value = interaction.crosshairIndex ?? null
   hoveredMarker.value = (interaction as any).hoveredMarkerData ?? null
   hoveredCustomMarker.value = (interaction as any).hoveredCustomMarker ?? null
+
+  const placement = interaction.tooltipAnchorPlacement
+  if (placement) tooltipAnchorPlacement.value = placement
 
   const pos = interaction.tooltipPos
   if (pos) tooltipPosition.value = { x: pos.x, y: pos.y }
@@ -852,6 +896,11 @@ defineExpose({
 })
 
 onMounted(() => {
+  useAnchorPositioning.value =
+    typeof CSS !== 'undefined' &&
+    CSS.supports('anchor-name: --kmap-anchor') &&
+    CSS.supports('position-anchor: --kmap-anchor')
+
   const container = containerRef.value
   const canvasLayer = canvasLayerRef.value
   const xAxisCanvas = xAxisCanvasRef.value
@@ -1004,6 +1053,7 @@ onMounted(() => {
     paneRatios.value = next
   })
   chartRef.value = chart
+  chart.interaction.setTooltipAnchorPositioning(useAnchorPositioning.value)
   viewportDpr.value = chart.getCurrentDpr()
   chart.resize()
 
@@ -1159,6 +1209,21 @@ watch(
   top: 0;
   /* width/height 由 JS 在 render() 中设置为视口大小 */
   pointer-events: none;
+}
+
+.tooltip-anchor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.tooltip-anchor.kline-tooltip-anchor.use-anchor {
+  anchor-name: --kline-tooltip-anchor;
+}
+
+.tooltip-anchor.marker-tooltip-anchor.use-anchor {
+  anchor-name: --marker-tooltip-anchor;
 }
 </style>
 

@@ -86,7 +86,13 @@
     <!-- 添加指标菜单（使用 Teleport 解决层级问题） -->
     <Teleport to="body">
       <Transition name="slide">
-        <div v-if="showAddMenu" class="add-menu" ref="addMenuRef" :style="menuStyle">
+        <div
+          v-if="showAddMenu"
+          class="add-menu"
+          :class="{ 'use-anchor': useAnchorPositioning }"
+          ref="addMenuRef"
+          :style="useAnchorPositioning ? undefined : menuStyle"
+        >
           <div class="menu-section">
             <div class="menu-title">主图指标</div>
             <div class="menu-items">
@@ -534,6 +540,7 @@ const currentIndicatorId = ref<string | null>(null)
 const hoveredIndicator = ref<string | null>(null)
 const showAddMenu = ref(false)
 const menuStyle = ref<{ left: string; bottom: string }>({ left: '0', bottom: '0' })
+const useAnchorPositioning = ref(false)
 const dragOverIndicatorId = ref<string | null>(null)
 const draggingIndicatorId = ref<string | null>(null)
 
@@ -708,22 +715,18 @@ function onDragEnd() {
 
 // 切换菜单显示
 function toggleAddMenu() {
-  if (!showAddMenu.value && addBtnRef.value) {
+  if (!showAddMenu.value && addBtnRef.value && !useAnchorPositioning.value) {
     const btnRect = addBtnRef.value.getBoundingClientRect()
     const viewportWidth = window.innerWidth
 
-    // 计算按钮中心位置
     let left = btnRect.left + btnRect.width / 2
 
-    // 边界检测：假设菜单最大宽度 320px，检查右侧空间
     const estimatedMenuWidth = 320
     const halfMenuWidth = estimatedMenuWidth / 2
 
-    // 如果右侧空间不足，调整位置
     if (left + halfMenuWidth > viewportWidth - 8) {
       left = viewportWidth - halfMenuWidth - 8
     }
-    // 如果左侧空间不足，调整位置
     if (left - halfMenuWidth < 8) {
       left = halfMenuWidth + 8
     }
@@ -757,6 +760,10 @@ function handleResize() {
 // 生命周期
 // ─────────────────────────────────────────────────────────────────
 onMounted(() => {
+  useAnchorPositioning.value =
+    typeof CSS !== 'undefined' &&
+    CSS.supports('anchor-name: --kmap-anchor') &&
+    CSS.supports('position-anchor: --kmap-anchor')
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('resize', handleResize)
 })
@@ -927,6 +934,7 @@ onUnmounted(() => {
 
 /* 添加按钮 */
 .add-btn {
+  anchor-name: --indicator-add-btn;
   flex-shrink: 0;
   width: 32px;
   height: 32px;
@@ -961,6 +969,17 @@ onUnmounted(() => {
   padding: 8px 0;
   white-space: nowrap;
   z-index: 9999;
+}
+
+@supports (anchor-name: --kmap-anchor) and (position-anchor: --kmap-anchor) {
+  .add-menu.use-anchor {
+    position: fixed;
+    position-anchor: --indicator-add-btn;
+    left: anchor(center);
+    top: anchor(top);
+    transform: translate(-50%, calc(-100% - 8px));
+    max-width: calc(100vw - 16px);
+  }
 }
 
 .menu-section {
