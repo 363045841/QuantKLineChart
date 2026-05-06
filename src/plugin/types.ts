@@ -211,6 +211,10 @@ export interface RenderContext {
   yAxisCtx?: CanvasRenderingContext2D
   xAxisCtx?: CanvasRenderingContext2D
   borderCtx?: CanvasRenderingContext2D
+  /** 当前缩放级别（1 ~ zoomLevels） */
+  zoomLevel?: number
+  /** 总缩放级别数 */
+  zoomLevelCount?: number
 }
 
 /** 全局 Pane ID（渲染到所有 pane） */

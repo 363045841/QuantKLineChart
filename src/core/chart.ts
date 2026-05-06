@@ -71,6 +71,19 @@ export type ChartOptions = {
 
     /** pane 最小高度（逻辑像素，默认 60） */
     defaultPaneMinHeightPx?: number
+
+    /**
+     * 缩放级别数量（默认 10）
+     * - 将 minKWidth ~ maxKWidth 划分为多少个离散级别
+     * - 例如 10 表示有 10 个缩放级别（1-10）
+     */
+    zoomLevels?: number
+
+    /**
+     * 初始缩放级别（1 ~ zoomLevels，默认居中）
+     * 未指定时自动计算为中间级别
+     */
+    initialZoomLevel?: number
 }
 
 /** K 线起始 x 坐标数组，positions[i] 表示第 i 根 K 线的起始 x 坐标（逻辑像素） */
@@ -121,6 +134,15 @@ export class Chart {
     /** pane 布局回流回调（Chart -> UI 单向） */
     private onPaneLayoutChange?: (panes: PaneSpec[]) => void
 
+    /** 缩放级别变化回调 */
+    private onZoomLevelChange?: (level: number, kWidth: number) => void
+
+    /** 当前缩放级别（1 ~ zoomLevelCount） */
+    private currentZoomLevel: number = 1
+
+    /** 缩放级别总数 */
+    private readonly zoomLevelCount: number
+
     /**
      * 创建图表实例
      * @param dom 由 Vue 组件传入的 DOM 句柄
@@ -139,6 +161,17 @@ export class Chart {
         this.rendererPluginManager.setInvalidateCallback(() => this.scheduleDraw())
 
         this.syncPaneRatiosFromSpecs(this.opt.panes)
+
+        // 初始化缩放级别
+        this.zoomLevelCount = Math.max(2, Math.round(this.opt.zoomLevels ?? 10))
+        this.currentZoomLevel = this.opt.initialZoomLevel
+            ?? Math.round(this.zoomLevelCount / 2)
+        this.currentZoomLevel = Math.max(1, Math.min(this.zoomLevelCount, this.currentZoomLevel))
+
+        // 根据初始 zoomLevel 设置 kWidth
+        const initialKWidth = this.zoomLevelToKWidth(this.currentZoomLevel)
+        this.opt.kWidth = initialKWidth
+
         this.initPanes()
         this.initResizeObserver()
     }
@@ -321,6 +354,8 @@ export class Chart {
                 markerManager: this.markerManager,
                 crosshairIndex: this.interaction.getCrosshairIndex(),
                 yAxisCtx: yAxisCtx ?? undefined,
+                zoomLevel: this.currentZoomLevel,
+                zoomLevelCount: this.zoomLevelCount,
             }
 
             // 插件渲染器绘制
@@ -422,6 +457,14 @@ export class Chart {
         const container = this.dom.container
         const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth)
         container.scrollLeft = Math.min(Math.max(0, newScrollLeft), maxScrollLeft)
+
+        // 同步更新 zoomLevel
+        const newLevel = this.kWidthToZoomLevel(newKWidth)
+        if (newLevel !== this.currentZoomLevel) {
+            this.currentZoomLevel = newLevel
+            this.onZoomLevelChange?.(this.currentZoomLevel, newKWidth)
+        }
+
         this.scheduleDraw()
     }
 
@@ -433,6 +476,9 @@ export class Chart {
      */
     applyZoom(kWidth: number, kGap: number) {
         this.opt = { ...this.opt, kWidth, kGap }
+        // 同步更新 zoomLevel
+        this.currentZoomLevel = this.kWidthToZoomLevel(kWidth)
+        this.onZoomLevelChange?.(this.currentZoomLevel, kWidth)
         this.scheduleDraw()
     }
 
@@ -445,6 +491,117 @@ export class Chart {
      */
     setOnZoomChange(cb: (kWidth: number, kGap: number, targetScrollLeft: number) => void) {
         this.onZoomChange = cb
+    }
+
+    // ========== Zoom Level API ==========
+
+    /**
+     * 将缩放级别转换为 K 线宽度
+     * @param level 缩放级别（1 ~ zoomLevels）
+     * @returns K 线宽度（逻辑像素）
+     */
+    private zoomLevelToKWidth(level: number): number {
+        const min = this.opt.minKWidth
+        const max = this.opt.maxKWidth
+        const t = (level - 1) / (this.zoomLevelCount - 1)
+        return min + t * (max - min)
+    }
+
+    /**
+     * 将 K 线宽度转换为缩放级别
+     * @param kWidth K 线宽度
+     * @returns 缩放级别（1 ~ zoomLevels）
+     */
+    private kWidthToZoomLevel(kWidth: number): number {
+        const min = this.opt.minKWidth
+        const max = this.opt.maxKWidth
+        const t = Math.max(0, Math.min(1, (kWidth - min) / (max - min)))
+        return Math.round(1 + t * (this.zoomLevelCount - 1))
+    }
+
+    /**
+     * 缩放到指定级别
+     * @param level 目标级别（1 ~ zoomLevels）
+     * @param anchorX 缩放中心点（相对 container 左侧的 x 坐标，默认为中心）
+     */
+    zoomToLevel(level: number, anchorX?: number) {
+        const targetLevel = Math.max(1, Math.min(this.zoomLevelCount, Math.round(level)))
+        if (targetLevel === this.currentZoomLevel) return
+
+        const container = this.dom.container
+        const newKWidth = this.zoomLevelToKWidth(targetLevel)
+        const dpr = this.getEffectiveDpr()
+
+        // 计算新的 kGap（物理固定 3px）
+        const PHYS_K_GAP = 3
+        const newKGap = PHYS_K_GAP / dpr
+
+        // 确定缩放中心
+        const plotWidth = this.viewport?.plotWidth ?? container.clientWidth
+        const centerX = anchorX ?? plotWidth / 2
+        const scrollLeft = container.scrollLeft
+
+        // 计算缩放中心点对应的 K 线索引
+        const oldUnit = this.opt.kWidth + this.opt.kGap
+        const centerIndex = (scrollLeft + centerX) / oldUnit
+
+        // 校正滚动位置，使缩放后中心点仍指向同一根 K 线
+        const newUnit = newKWidth + newKGap
+        const newScrollLeft = centerIndex * newUnit - centerX
+
+        // 更新状态
+        this.currentZoomLevel = targetLevel
+
+        if (this.onZoomChange) {
+            this.onZoomChange(newKWidth, newKGap, newScrollLeft)
+        } else {
+            this.opt = { ...this.opt, kWidth: newKWidth, kGap: newKGap }
+            const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth)
+            container.scrollLeft = Math.min(Math.max(0, newScrollLeft), maxScrollLeft)
+        }
+
+        this.onZoomLevelChange?.(this.currentZoomLevel, newKWidth)
+        this.scheduleDraw()
+    }
+
+    /**
+     * 获取当前缩放级别
+     * @returns 当前级别（1 ~ zoomLevels）
+     */
+    getZoomLevel(): number {
+        return this.currentZoomLevel
+    }
+
+    /**
+     * 获取总缩放级别数
+     * @returns 级别总数
+     */
+    getZoomLevelCount(): number {
+        return this.zoomLevelCount
+    }
+
+    /**
+     * 放大一级
+     * @param anchorX 缩放中心点（默认为中心）
+     */
+    zoomIn(anchorX?: number) {
+        this.zoomToLevel(this.currentZoomLevel + 1, anchorX)
+    }
+
+    /**
+     * 缩小一级
+     * @param anchorX 缩放中心点（默认为中心）
+     */
+    zoomOut(anchorX?: number) {
+        this.zoomToLevel(this.currentZoomLevel - 1, anchorX)
+    }
+
+    /**
+     * 注册缩放级别变化回调
+     * @param cb 回调函数，参数为 (level, kWidth)
+     */
+    setOnZoomLevelChange(cb: (level: number, kWidth: number) => void) {
+        this.onZoomLevelChange = cb
     }
 
     /** 注册视口变化回调 */

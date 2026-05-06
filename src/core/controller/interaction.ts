@@ -46,6 +46,8 @@ export class InteractionController {
     tooltipSize: { width: number; height: number } = { width: 220, height: 180 }
     /** tooltip 锚定位放置方向 */
     tooltipAnchorPlacement: 'right-bottom' | 'left-bottom' = 'right-bottom'
+    /** 是否使用 CSS 锚定位 */
+    private useTooltipAnchorPositioning = false
 
     /** 当前 hover 的 marker ID */
     hoveredMarkerId: string | null = null

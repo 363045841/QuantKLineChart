@@ -127,6 +127,11 @@ const props = withDefaults(
     bottomAxisHeight?: number
     /** 价格标签额外宽度（用于显示涨跌幅，默认 60px） */
     priceLabelWidth?: number
+
+    /** 缩放级别数量（默认 10） */
+    zoomLevels?: number
+    /** 初始缩放级别（1 ~ zoomLevels，默认居中） */
+    initialZoomLevel?: number
   }>(),
   {
     kWidth: 10,
@@ -137,6 +142,8 @@ const props = withDefaults(
     rightAxisWidth: 0,
     bottomAxisHeight: 24,
     priceLabelWidth: 60,
+    zoomLevels: 10,
+    initialZoomLevel: undefined,
   },
 )
 
@@ -147,6 +154,10 @@ const containerRef = ref<HTMLDivElement | null>(null)
 // 内部动态K线宽度和间隙
 const currentKWidth = ref(props.kWidth)
 const currentKGap = ref(props.kGap)
+
+const emit = defineEmits<{
+  (e: 'zoomLevelChange', level: number, kWidth: number): void
+}>()
 
 /* ========== 十字线（鼠标悬停位置） ========== */
 const chartRef = shallowRef<Chart | null>(null)
@@ -893,6 +904,13 @@ defineExpose({
   get plugin() {
     return chartRef.value?.plugin
   },
+
+  // Zoom Level API
+  zoomToLevel: (level: number, anchorX?: number) => chartRef.value?.zoomToLevel(level, anchorX),
+  zoomIn: (anchorX?: number) => chartRef.value?.zoomIn(anchorX),
+  zoomOut: (anchorX?: number) => chartRef.value?.zoomOut(anchorX),
+  getZoomLevel: () => chartRef.value?.getZoomLevel() ?? 1,
+  getZoomLevelCount: () => chartRef.value?.getZoomLevelCount() ?? 10,
 })
 
 onMounted(() => {
@@ -929,6 +947,10 @@ onMounted(() => {
 
       // 主/副图之间真实留白，形成视觉断开
       paneGap: 0,
+
+      // 缩放级别配置
+      zoomLevels: props.zoomLevels,
+      initialZoomLevel: props.initialZoomLevel,
     },
   )
 
@@ -952,6 +974,11 @@ onMounted(() => {
     // 5) scrollLeft 已落地，现在才让 Chart 更新 opt 并渲染
     //    这一帧看到的 (kWidth, kGap, scrollLeft) 是完全一致的
     chart.applyZoom(kWidth, kGap)
+  })
+
+  // 监听缩放级别变化
+  chart.setOnZoomLevelChange((level, kWidth) => {
+    emit('zoomLevelChange', level, kWidth)
   })
 
   // 注册主图渲染器插件
