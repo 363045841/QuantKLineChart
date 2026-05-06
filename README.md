@@ -184,9 +184,14 @@ const config = ref<SemanticChartConfig>({
 免费开源的 Python 证券数据接口，每日支持十万次 API 调用。
 
 ```bash
+# 方式一：手动安装并启动
 uv pip install baostock
 git clone https://github.com/363045841/stockbao.git
-python server.py  # 启动服务
+cd stockbao
+uv run python ./server.py
+
+# 方式二：使用项目内置脚本（需将 stockbao 克隆到父目录）
+pnpm stockbao
 ```
 
 ### AKTools

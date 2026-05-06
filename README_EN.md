@@ -184,9 +184,14 @@ For detailed configuration, please refer to [Semantic Configuration Documentatio
 Free and open-source Python securities data interface.
 
 ```bash
+# Option 1: Manual install and start
 uv pip install baostock
 git clone https://github.com/363045841/stockbao.git
-python server.py  # Start service
+cd stockbao
+uv run python ./server.py
+
+# Option 2: Use built-in project script (requires stockbao in parent directory)
+pnpm stockbao
 ```
 
 ### AKTools
