@@ -715,4 +715,9 @@ export class InteractionController {
         this.visibleRange = null
         this.kWidthPx = null
     }
+
+    /** 获取十字线指向的 K 线索引 */
+    getCrosshairIndex(): number | null {
+        return this.crosshairIndex
+    }
 }

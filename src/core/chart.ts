@@ -319,6 +319,7 @@ export class Chart {
                 paneWidth: vp.plotWidth,
                 kLinePositions,
                 markerManager: this.markerManager,
+                crosshairIndex: this.interaction.getCrosshairIndex(),
                 yAxisCtx: yAxisCtx ?? undefined,
             }
 

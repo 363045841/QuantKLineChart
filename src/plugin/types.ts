@@ -203,6 +203,8 @@ export interface RenderContext {
   paneWidth: number
   kLinePositions: number[]
   markerManager?: MarkerManagerLike
+  /** 十字线指向的 K 线索引（无十字线时为 null） */
+  crosshairIndex?: number | null
   // 可选的其他 Canvas 上下文
   yAxisCtx?: CanvasRenderingContext2D
   xAxisCtx?: CanvasRenderingContext2D

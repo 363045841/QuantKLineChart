@@ -48,7 +48,7 @@ export function createMainIndicatorLegendRendererPlugin(options: {
     enabled: true,
 
     draw(context: RenderContext) {
-      const { ctx, data, range } = context
+      const { ctx, data, range, crosshairIndex } = context
       const klineData = data as KLineData[]
       if (!klineData.length) return
 
@@ -61,7 +61,8 @@ export function createMainIndicatorLegendRendererPlugin(options: {
       ctx.font = `${fontSize}px Arial`
       ctx.textAlign = 'left'
 
-      const lastIndex = Math.min(range.end - 1, klineData.length - 1)
+      // 使用十字线指向的 K 线索引，无十字线时使用最后一根
+      const targetIndex = crosshairIndex ?? Math.min(range.end - 1, klineData.length - 1)
 
       // 收集需要绘制的行
       const rows: Array<{ draw: (rowIndex: number) => void }> = []
@@ -79,17 +80,17 @@ export function createMainIndicatorLegendRendererPlugin(options: {
                 items.push({
                   label: `MA${p}`,
                   color: MA_COLORS[colorKey] || MA_COLORS.MA5,
-                  value: calcMAAtIndex(klineData, lastIndex, p),
+                  value: calcMAAtIndex(klineData, targetIndex, p),
                 })
               })
             } else {
               // 默认显示 5, 10, 20, 30, 60
               items.push(
-                { label: 'MA5', color: MA_COLORS.MA5, value: calcMAAtIndex(klineData, lastIndex, 5) },
-                { label: 'MA10', color: MA_COLORS.MA10, value: calcMAAtIndex(klineData, lastIndex, 10) },
-                { label: 'MA20', color: MA_COLORS.MA20, value: calcMAAtIndex(klineData, lastIndex, 20) },
-                { label: 'MA30', color: MA_COLORS.MA30, value: calcMAAtIndex(klineData, lastIndex, 30) },
-                { label: 'MA60', color: MA_COLORS.MA60, value: calcMAAtIndex(klineData, lastIndex, 60) }
+                { label: 'MA5', color: MA_COLORS.MA5, value: calcMAAtIndex(klineData, targetIndex, 5) },
+                { label: 'MA10', color: MA_COLORS.MA10, value: calcMAAtIndex(klineData, targetIndex, 10) },
+                { label: 'MA20', color: MA_COLORS.MA20, value: calcMAAtIndex(klineData, targetIndex, 20) },
+                { label: 'MA30', color: MA_COLORS.MA30, value: calcMAAtIndex(klineData, targetIndex, 30) },
+                { label: 'MA60', color: MA_COLORS.MA60, value: calcMAAtIndex(klineData, targetIndex, 60) }
               )
             }
 
@@ -120,7 +121,7 @@ export function createMainIndicatorLegendRendererPlugin(options: {
           draw: (rowIndex: number) => {
             const period = (bollIndicator.params.period as number) ?? 20
             const multiplier = (bollIndicator.params.multiplier as number) ?? 2
-            const boll = calcBOLLAtIndex(klineData, lastIndex, period, multiplier)
+            const boll = calcBOLLAtIndex(klineData, targetIndex, period, multiplier)
 
             let x = legendX
             const y = config.yPaddingPx / 2 + fontSize + rowIndex * lineHeight
@@ -152,7 +153,7 @@ export function createMainIndicatorLegendRendererPlugin(options: {
           draw: (rowIndex: number) => {
             const fastPeriod = (expmaIndicator.params.fastPeriod as number) ?? 12
             const slowPeriod = (expmaIndicator.params.slowPeriod as number) ?? 50
-            const expma = calcEXPMAAtIndex(klineData, lastIndex, fastPeriod, slowPeriod)
+            const expma = calcEXPMAAtIndex(klineData, targetIndex, fastPeriod, slowPeriod)
 
             let x = legendX
             const y = config.yPaddingPx / 2 + fontSize + rowIndex * lineHeight
@@ -180,7 +181,7 @@ export function createMainIndicatorLegendRendererPlugin(options: {
           draw: (rowIndex: number) => {
             const period = (eneIndicator.params.period as number) ?? 10
             const deviation = (eneIndicator.params.deviation as number) ?? 11
-            const ene = calcENEAtIndex(klineData, lastIndex, period, deviation)
+            const ene = calcENEAtIndex(klineData, targetIndex, period, deviation)
 
             let x = legendX
             const y = config.yPaddingPx / 2 + fontSize + rowIndex * lineHeight
