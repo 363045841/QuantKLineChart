@@ -4,38 +4,22 @@
 
 这是一个基于 Canvas 的金融图表绘制库，提供 Vue 组件封装。专注于高性能 K 线图渲染，支持**语义化 JSON 配置**，便于 AI Agent 直接控制图表渲染。特性包括横向滚动、多种技术指标（MA/BOLL/MACD/RSI 等）、自定义标记标注、多数据源支持（BaoStock、东方财富）。
 
-## 重要更新：渲染链路已重构为 ResizeObserver 单链路
-
-当前版本已完成 Canvas 尺寸与 DPR 处理链路重构，核心变化如下：
-
-- 尺寸与 DPR 统一由 `Chart` 内部 `ResizeObserver` 维护（单一真源）
-- 优先使用 `devicePixelContentBoxSize` 获取精确 DPR，回退 `window.devicePixelRatio`
-- `canvas.width/height` 始终按 `逻辑尺寸 × 当前 DPR` 设置，绘制前统一 `ctx.scale(dpr, dpr)`
-- 交互命中边界与渲染 viewport 对齐，减少缩放/跨屏后的坐标漂移
-- Vue 组件层移除重复 resize observer，避免双链路竞争
-
-这次重构的目标是：在浏览器缩放、跨屏拖动、容器 resize 等场景下保持持续清晰绘制。
-
-详细说明见：[架构文档（ResizeObserver 重构版）](./docs/architecture.md)
-
-新增文档：
-- [系统架构综述](./docs/system-architecture-overview.md)
-- [渲染器开发指南](./docs/renderer-development-guide.md)
-
-![pasted-image-1777718129484.webp](https://files.seeusercontent.com/2026/05/02/Lm0w/pasted-image-1777718129484.webp)
-![(ZOS$O}EP(_NKI273RXBV17.png](https://files.seeusercontent.com/2026/04/29/olU0/ZOSOEP_NKI273RXBV17.png)
-![YU8@~$21%{NBJLGIZ}KTKED.png](https://files.seeusercontent.com/2026/04/29/akQ8/YU821NBJLGIZKTKED.png)
-
+[NPM](https://www.npmjs.com/package/@363045841yyt/klinechart) | [GitHub](https://github.com/363045841/KLineChartQuant)
 
 ## 功能特性
 
 - **基于 Canvas**：使用 Canvas 实现高性能的 K 线图绘制
 - **响应式设计**：适配不同屏幕尺寸，支持所有设备像素比（DPR），不同 DPR 下绘制清晰
+- **ResizeObserver 驱动的高清渲染**：单一链路自动维护 Canvas 尺寸与 DPR，浏览器缩放、跨屏拖动、容器 resize 时持续清晰绘制
 - **影线处理**：统一 DPR 坐标计算，底层保证影线在不同 DPR 屏幕下绝对居中并绘制清晰
 - **像素对齐**：统一坐标源，在物理坐标层面实现像素对齐，消除亚像素渲染，确保线条锐利清晰
 - **框架无关**：核心逻辑完全独立，不依赖特定框架
 - **插件化架构**：渲染器插件支持动态注册、配置和生命周期管理
 - **量价关系标注**：自动识别并标注量价齐升、量价背离、量增价跌、量缩价跌四种形态
+
+![pasted-image-1778063749574.webp](https://files.seeusercontent.com/2026/05/06/2Udv/pasted-image-1778063749574.webp)
+![pasted-image-1778063691961.webp](https://files.seeusercontent.com/2026/05/06/q1Cq/pasted-image-1778063691961.webp)
+![pasted-image-1778063638151.webp](https://files.seeusercontent.com/2026/05/06/uv3R/pasted-image-1778063638151.webp)
 
 ### Agent 语义化控制
 
@@ -246,6 +230,8 @@ pnpm preview  # 预览生产包
 
 ## 相关链接
 
+- [NPM 包地址](https://www.npmjs.com/package/@363045841yyt/klinechart)
+- [GitHub 仓库](https://github.com/363045841/KLineChartQuant)
 - [Vue.js 官方文档](https://vuejs.org/guide/introduction.html)
 - [Vite 官方文档](https://vite.dev/guide/)
 - [BaoStock 官方文档](http://baostock.com/)

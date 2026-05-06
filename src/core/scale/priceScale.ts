@@ -13,6 +13,9 @@ export class PriceScale {
     /** 价格偏移量（用于上下拖动平移价格轴） */
     private priceOffset = 0
 
+    /** 垂直缩放系数（1=默认，>1 放大，<1 缩小） */
+    private verticalScale = 1
+
     setRange(r: PriceRange) {
         this.range = r
     }
@@ -60,6 +63,33 @@ export class PriceScale {
         this.priceOffset = 0
     }
 
+    /**
+     * 按拖拽位移缩放 Y 轴（deltaY < 0 放大，deltaY > 0 缩小）
+     */
+    scaleByDelta(deltaY: number): void {
+        if (!Number.isFinite(deltaY) || deltaY === 0) return
+        const factor = Math.exp(-deltaY * 0.01)
+        const nextScale = this.verticalScale * factor
+        this.verticalScale = Math.min(8, Math.max(0.2, nextScale))
+    }
+
+    getVerticalScale(): number {
+        return this.verticalScale
+    }
+
+    getDisplayRange(baseRange?: PriceRange): PriceRange {
+        const src = baseRange ?? this.range
+        const baseMin = src.minPrice
+        const baseMax = src.maxPrice
+        const baseRangeSize = baseMax - baseMin || 1
+        const centerPrice = (baseMax + baseMin) / 2 + this.priceOffset
+        const halfRange = baseRangeSize / (2 * this.verticalScale)
+        return {
+            maxPrice: centerPrice + halfRange,
+            minPrice: centerPrice - halfRange,
+        }
+    }
+
     priceToY(price: number): number {
         const { maxPrice, minPrice } = this.range
         // 应用价格偏移
@@ -67,14 +97,18 @@ export class PriceScale {
         const range = maxPrice - minPrice || 1
         const ratio = (adjustedPrice - minPrice) / range
         const viewHeight = Math.max(1, this.height - this.paddingTop - this.paddingBottom)
-        return this.paddingTop + viewHeight * (1 - ratio)
+        const baseY = this.paddingTop + viewHeight * (1 - ratio)
+        const centerY = this.paddingTop + viewHeight / 2
+        return centerY + (baseY - centerY) * this.verticalScale
     }
 
     yToPrice(y: number): number {
         const { maxPrice, minPrice } = this.range
         const range = maxPrice - minPrice || 1
         const viewHeight = Math.max(1, this.height - this.paddingTop - this.paddingBottom)
-        const ratio = 1 - (y - this.paddingTop) / viewHeight
+        const centerY = this.paddingTop + viewHeight / 2
+        const unscaledY = centerY + (y - centerY) / this.verticalScale
+        const ratio = 1 - (unscaledY - this.paddingTop) / viewHeight
         // 应用价格偏移（反向）
         return minPrice + ratio * range + this.priceOffset
     }

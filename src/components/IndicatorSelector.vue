@@ -554,6 +554,8 @@ const activeIndicatorsList = computed(() => {
 })
 
 const firstActiveSubIndicatorId = computed(() => {
+  const hasMain = activeIndicatorsList.value.some((indicator) => indicator.pane === 'main')
+  if (!hasMain) return null
   const firstSub = activeIndicatorsList.value.find((indicator) => indicator.pane === 'sub')
   return firstSub?.id ?? null
 })

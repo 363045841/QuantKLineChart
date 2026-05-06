@@ -3,6 +3,7 @@ import { RENDERER_PRIORITY } from '@/plugin'
 import { createIndicatorStateKey } from '@/plugin/stateKeys'
 import { TEXT_COLORS } from '@/core/theme/colors'
 import { calculateTickCount } from '@/core/utils/tickCount'
+import { drawCrosshairPriceLabel } from '@/utils/kLineDraw/axis'
 import { roundToPhysicalPixel } from '@/core/draw/pixelAlign'
 
 interface IndicatorScaleRenderState extends BaseIndicatorState {
@@ -16,6 +17,8 @@ export interface IndicatorScaleRendererOptions {
     indicatorKey: string
     label: string
     decimals?: number
+    yPaddingPx?: number
+    getCrosshair?: () => { y: number; price: number; activePaneId: string | null } | null
 }
 
 export interface DrawScaleTicksOptions {
@@ -83,7 +86,7 @@ export function drawScaleTicks(options: DrawScaleTicksOptions): void {
 }
 
 export function createIndicatorScaleRendererPlugin(options: IndicatorScaleRendererOptions): RendererPluginWithHost {
-    const { axisWidth, paneId, indicatorKey, label, decimals = 2 } = options
+    const { axisWidth, paneId, indicatorKey, label, decimals = 2, yPaddingPx = 0, getCrosshair } = options
     const stateKey = createIndicatorStateKey(indicatorKey, paneId)
     let pluginHost: PluginHost | null = null
 
@@ -106,8 +109,11 @@ export function createIndicatorScaleRendererPlugin(options: IndicatorScaleRender
             const state = pluginHost.getSharedState<IndicatorScaleRenderState>(stateKey)
             if (!state) return
 
-            // 应用价格偏移，使刻度随拖拽平移
-            const priceOffset = pane.yAxis.getPriceOffset()
+            const displayRange = pane.yAxis.getDisplayRange({
+                minPrice: state.valueMin,
+                maxPrice: state.valueMax,
+            })
+
             drawScaleTicks({
                 ctx: yAxisCtx,
                 dpr,
@@ -115,11 +121,38 @@ export function createIndicatorScaleRendererPlugin(options: IndicatorScaleRender
                 height: pane.height,
                 paddingTop: pane.yAxis.getPaddingTop(),
                 paddingBottom: pane.yAxis.getPaddingBottom(),
-                valueMin: state.valueMin + priceOffset,
-                valueMax: state.valueMax + priceOffset,
+                valueMin: displayRange.minPrice,
+                valueMax: displayRange.maxPrice,
                 isMain: false,
                 decimals,
                 hideEdgeTicks: false,
+            })
+
+            const crosshair = getCrosshair?.()
+            if (!crosshair || crosshair.activePaneId !== pane.id) return
+
+            const localY = crosshair.y - pane.top
+            const paddingTop = pane.yAxis.getPaddingTop()
+            const paddingBottom = pane.yAxis.getPaddingBottom()
+            const yStart = paddingTop
+            const yEnd = Math.max(paddingTop, pane.height - paddingBottom)
+            const viewH = Math.max(1, yEnd - yStart)
+            const clampedY = Math.min(Math.max(localY, yStart), yEnd)
+            const t = (clampedY - yStart) / viewH
+            const displayPrice = displayRange.maxPrice - t * (displayRange.maxPrice - displayRange.minPrice)
+
+            drawCrosshairPriceLabel(yAxisCtx, {
+                x: 0,
+                y: 0,
+                width: axisWidth,
+                height: pane.height,
+                crosshairY: localY,
+                priceRange: displayRange,
+                yPaddingPx,
+                dpr,
+                fontSize: 12,
+                priceOffset: 0,
+                price: displayPrice,
             })
         },
     }

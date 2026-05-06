@@ -921,20 +921,23 @@ onMounted(() => {
   chart.useRenderer(createLastPriceLineRendererPlugin())
   chart.useRenderer(createCustomMarkersRenderer()) // 自定义标记渲染器
 
+  const axisWidth = props.rightAxisWidth + props.priceLabelWidth
+  const getAxisCrosshair = () => {
+    const pos = chart.interaction.crosshairPos
+    const price = chart.interaction.crosshairPrice
+    const activePaneId = chart.interaction.activePaneId
+    if (pos && price !== null) {
+      return { y: pos.y, price, activePaneId }
+    }
+    return null
+  }
+
   // 系统渲染器插件
   chart.useRenderer(
     createYAxisRendererPlugin({
-      axisWidth: props.rightAxisWidth + props.priceLabelWidth,
+      axisWidth,
       yPaddingPx: props.yPaddingPx,
-      getCrosshair: () => {
-        const pos = chart.interaction.crosshairPos
-        const price = chart.interaction.crosshairPrice
-        const activePaneId = chart.interaction.activePaneId
-        if (pos && price !== null) {
-          return { y: pos.y, price, activePaneId }
-        }
-        return null
-      },
+      getCrosshair: getAxisCrosshair,
     }),
   )
   // 主图指标图例（统一管理 MA、BOLL 等）
@@ -944,54 +947,27 @@ onMounted(() => {
     }),
   )
 
-  chart.useRenderer(
-    createMacdScaleRendererPlugin({
-      axisWidth: props.rightAxisWidth + props.priceLabelWidth,
-      paneId: 'sub_MACD',
-    }),
-  )
-  chart.useRenderer(
-    createRsiScaleRendererPlugin({
-      axisWidth: props.rightAxisWidth + props.priceLabelWidth,
-      paneId: 'sub_RSI',
-    }),
-  )
-  chart.useRenderer(
-    createCciScaleRendererPlugin({
-      axisWidth: props.rightAxisWidth + props.priceLabelWidth,
-      paneId: 'sub_CCI',
-    }),
-  )
-  chart.useRenderer(
-    createStochScaleRendererPlugin({
-      axisWidth: props.rightAxisWidth + props.priceLabelWidth,
-      paneId: 'sub_STOCH',
-    }),
-  )
-  chart.useRenderer(
-    createMomScaleRendererPlugin({
-      axisWidth: props.rightAxisWidth + props.priceLabelWidth,
-      paneId: 'sub_MOM',
-    }),
-  )
-  chart.useRenderer(
-    createWmsrScaleRendererPlugin({
-      axisWidth: props.rightAxisWidth + props.priceLabelWidth,
-      paneId: 'sub_WMSR',
-    }),
-  )
-  chart.useRenderer(
-    createKstScaleRendererPlugin({
-      axisWidth: props.rightAxisWidth + props.priceLabelWidth,
-      paneId: 'sub_KST',
-    }),
-  )
-  chart.useRenderer(
-    createFastkScaleRendererPlugin({
-      axisWidth: props.rightAxisWidth + props.priceLabelWidth,
-      paneId: 'sub_FASTK',
-    }),
-  )
+  const subScaleRenderers = [
+    { create: createMacdScaleRendererPlugin, paneId: 'sub_MACD' },
+    { create: createRsiScaleRendererPlugin, paneId: 'sub_RSI' },
+    { create: createCciScaleRendererPlugin, paneId: 'sub_CCI' },
+    { create: createStochScaleRendererPlugin, paneId: 'sub_STOCH' },
+    { create: createMomScaleRendererPlugin, paneId: 'sub_MOM' },
+    { create: createWmsrScaleRendererPlugin, paneId: 'sub_WMSR' },
+    { create: createKstScaleRendererPlugin, paneId: 'sub_KST' },
+    { create: createFastkScaleRendererPlugin, paneId: 'sub_FASTK' },
+  ] as const
+
+  for (const renderer of subScaleRenderers) {
+    chart.useRenderer(
+      renderer.create({
+        axisWidth,
+        paneId: renderer.paneId,
+        yPaddingPx: props.yPaddingPx,
+        getCrosshair: getAxisCrosshair,
+      }),
+    )
+  }
 
   chart.useRenderer(
     createCrosshairRendererPlugin({

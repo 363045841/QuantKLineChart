@@ -15,7 +15,7 @@ export interface MarkerHoverEvent {
 export class InteractionController {
     private chart: Chart
     private isDragging = false
-    private dragMode: 'none' | 'pan' | 'resize-separator' = 'none'
+    private dragMode: 'none' | 'pan' | 'resize-separator' | 'scale-price' = 'none'
     private dragStartX = 0
     private scrollStartX = 0
 
@@ -142,6 +142,19 @@ export class InteractionController {
         })
         const pane = renderer?.getPane() || null
 
+        const viewport = this.chart.getViewport()
+        const plotWidth = viewport?.plotWidth ?? Math.max(1, Math.round(container.clientWidth))
+        const isOnRightAxis = mouseX >= plotWidth
+        if (isOnRightAxis && pane) {
+            this.isDragging = true
+            this.dragMode = 'scale-price'
+            this.dragStartY = e.clientY
+            this.activePaneIdOnDrag = pane.id
+            this.updateHoverFromPoint(e.clientX, e.clientY)
+            this.chart.scheduleDraw()
+            return
+        }
+
         //4. 没有点击 marker，开始拖拽
         this.isDragging = true
         this.dragMode = 'pan'
@@ -240,6 +253,20 @@ export class InteractionController {
         })
         const pane = renderer?.getPane() || null
 
+        const viewport = this.chart.getViewport()
+        const plotWidth = viewport?.plotWidth ?? Math.max(1, Math.round(container.clientWidth))
+        const isOnRightAxis = mouseX >= plotWidth
+        if (isOnRightAxis && pane) {
+            this.isDragging = true
+            this.dragMode = 'scale-price'
+            this.dragStartY = e.clientY
+            this.activePaneIdOnDrag = pane.id
+            this.updateHoverFromPoint(e.clientX, e.clientY)
+            this.chart.scheduleDraw()
+            e.preventDefault()
+            return
+        }
+
         // 4. 没有点击 marker，开始拖拽
         this.isDragging = true
         this.dragMode = 'pan'
@@ -272,14 +299,23 @@ export class InteractionController {
                 return
             }
 
+            if (this.dragMode === 'scale-price') {
+                const deltaY = e.clientY - this.dragStartY
+                if (deltaY !== 0 && this.activePaneIdOnDrag) {
+                    this.chart.scalePrice(this.activePaneIdOnDrag, deltaY)
+                    this.dragStartY = e.clientY
+                }
+                return
+            }
+
             if (this.dragMode === 'pan') {
                 // 1. 水平拖拽：更新滚动位置
                 const deltaX = this.dragStartX - e.clientX
                 container.scrollLeft = this.scrollStartX + deltaX
 
-                // 2. 垂直拖拽：平移价格轴
+                // 2. 仅主图支持上下拖动平移价格轴
                 const deltaY = e.clientY - this.dragStartY
-                if (deltaY !== 0 && this.activePaneIdOnDrag) {
+                if (deltaY !== 0 && this.activePaneIdOnDrag === 'main') {
                     this.chart.translatePrice(this.activePaneIdOnDrag, deltaY)
                     this.dragStartY = e.clientY
                 }
@@ -351,14 +387,23 @@ export class InteractionController {
                 return
             }
 
+            if (this.dragMode === 'scale-price') {
+                const deltaY = e.clientY - this.dragStartY
+                if (deltaY !== 0 && this.activePaneIdOnDrag) {
+                    this.chart.scalePrice(this.activePaneIdOnDrag, deltaY)
+                    this.dragStartY = e.clientY
+                }
+                return
+            }
+
             if (this.dragMode === 'pan') {
                 // 1. 水平拖拽：更新滚动位置
                 const deltaX = this.dragStartX - e.clientX
                 container.scrollLeft = this.scrollStartX + deltaX
 
-                // 2. 垂直拖拽：平移价格轴
+                // 2. 仅主图支持上下拖动平移价格轴
                 const deltaY = e.clientY - this.dragStartY
-                if (deltaY !== 0 && this.activePaneIdOnDrag) {
+                if (deltaY !== 0 && this.activePaneIdOnDrag === 'main') {
                     this.chart.translatePrice(this.activePaneIdOnDrag, deltaY)
                     this.dragStartY = e.clientY
                 }

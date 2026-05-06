@@ -356,6 +356,7 @@ export class Chart {
                         getPaddingTop: () => 0,
                         getPaddingBottom: () => 0,
                         getPriceOffset: () => 0,
+                        getDisplayRange: (baseRange) => baseRange ?? { maxPrice: 0, minPrice: 0 },
                     },
                     priceRange: { maxPrice: 0, minPrice: 0 },
                 },
@@ -833,7 +834,7 @@ export class Chart {
     }
 
     /**
-     * 平移价格轴（用于上下拖动）
+     * 平移价格轴（用于主图区域上下拖动）
      * @param paneId 目标 pane ID
      * @param deltaY Y轴像素偏移（正数向下拖动）
      */
@@ -850,6 +851,21 @@ export class Chart {
         this.scheduleDraw()
     }
 
+    /**
+     * 缩放价格轴（用于右侧刻度栏上下拖动）
+     * @param paneId 目标 pane ID
+     * @param deltaY Y轴像素偏移（向上拖动放大，向下拖动缩小）
+     */
+    scalePrice(paneId: string, deltaY: number): void {
+        const renderer = this.paneRenderers.find(r => r.getPane().id === paneId)
+        if (!renderer) return
+
+        const pane = renderer.getPane()
+        if (!pane.capabilities.supportsPriceTranslate) return
+
+        pane.yAxis.scaleByDelta(deltaY)
+        this.scheduleDraw()
+    }
     /**
      * 更新数据并请求重绘
      * @param data K 线数据数组

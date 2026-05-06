@@ -4,19 +4,22 @@ English | [简体中文](README.md)
 
 A financial charting library based on Vue 3 and Canvas, focusing on high-performance K-line (candlestick) chart rendering. The library supports horizontal scrolling, moving average (MA) display, and financial data retrieval from multiple sources including **BaoStock** and AKTools.
 
-![pasted-image-1777718129484.webp](https://files.seeusercontent.com/2026/05/02/Lm0w/pasted-image-1777718129484.webp)
-![(ZOS$O}EP(_NKI273RXBV17.png](https://files.seeusercontent.com/2026/04/29/olU0/ZOSOEP_NKI273RXBV17.png)
-![YU8@~$21%{NBJLGIZ}KTKED.png](https://files.seeusercontent.com/2026/04/29/akQ8/YU821NBJLGIZKTKED.png)
+[NPM](https://www.npmjs.com/package/@363045841yyt/klinechart) | [GitHub](https://github.com/363045841/KLineChartQuant)
 
 ## Features
 
 - **Canvas-based**: High-performance K-line chart rendering using Canvas
 - **Responsive Design**: Adapts to different screen sizes, supports all device pixel ratios (DPR) for crisp rendering
+- **ResizeObserver-driven HD Rendering**: Single-chain automatic maintenance of Canvas size and DPR, ensuring consistently crisp drawing during browser zoom, cross-screen dragging, and container resizing
 - **Wick Handling**: Unified DPR coordinate calculation ensures wicks are perfectly centered and crisp across all DPR screens
 - **Pixel Alignment**: Unified coordinate source with physical-level pixel alignment, eliminating sub-pixel rendering for sharp, crisp lines
 - **Framework-agnostic**: Core logic is completely independent, not tied to any specific framework
 - **Plugin Architecture**: Renderer plugins support dynamic registration, configuration and lifecycle management
 - **Volume-Price Annotation**: Automatically identifies and annotates four patterns: volume-price rise, divergence, etc.
+
+![pasted-image-1777718129484.webp](https://files.seeusercontent.com/2026/05/02/Lm0w/pasted-image-1777718129484.webp)
+![(ZOS$O}EP(_NKI273RXBV17.png](https://files.seeusercontent.com/2026/04/29/olU0/ZOSOEP_NKI273RXBV17.png)
+![YU8@~$21%{NBJLGIZ}KTKED.png](https://files.seeusercontent.com/2026/04/29/akQ8/YU821NBJLGIZKTKED.png)
 
 ### Agent Semantic Control
 
@@ -56,6 +59,12 @@ src/
 │   ├── theme/               # Theme configuration
 │   ├── marker/              # Marker system
 │   └── utils/               # Core utilities
+├── semantic/                # Semantic configuration module (Agent control)
+│   ├── types.ts             # Type definitions
+│   ├── schema.json          # JSON Schema
+│   ├── validator.ts         # Validator
+│   ├── controller.ts        # Controller
+│   └── drawShape.ts         # Shape drawing
 ├── plugin/                  # Plugin system
 │   ├── types.ts             # Type definitions
 │   ├── PluginHost.ts        # Plugin host
@@ -221,12 +230,18 @@ pnpm preview  # Preview production build
 
 ## Related Links
 
+- [NPM Package](https://www.npmjs.com/package/@363045841yyt/klinechart)
+- [GitHub Repository](https://github.com/363045841/KLineChartQuant)
 - [Vue.js Documentation](https://vuejs.org/guide/introduction.html)
 - [Vite Documentation](https://vite.dev/guide/)
 - [BaoStock Documentation](http://baostock.com/)
 - [AKTools Documentation](https://github.com/akfamily/aktools)
 - [Canvas API MDN](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API)
 - [Vitest Documentation](https://vitest.dev/)
+- [Semantic Configuration Documentation](./docs/semantic-config.md)
+- [Architecture Documentation (ResizeObserver Refactored)](./docs/architecture.md)
+- [System Architecture Overview](./docs/system-architecture-overview.md)
+- [Renderer Development Guide](./docs/renderer-development-guide.md)
 
 ## License
 

@@ -27,8 +27,8 @@ export function createYAxisRendererPlugin(options: {
       const targetCtx = yAxisCtx || ctx
       const axisWidth = yAxisCtx?.canvas ? (yAxisCtx.canvas.width / dpr) : options.axisWidth
 
-      // 应用价格偏移，使刻度随拖拽平移
-      const priceOffset = pane.yAxis.getPriceOffset()
+      // 应用价格偏移与垂直缩放后的可视范围
+      const displayRange = pane.yAxis.getDisplayRange(pane.priceRange)
 
       // 按 capability 绘制价格轴刻度
       if (pane.capabilities.showPriceAxisTicks) {
@@ -39,8 +39,8 @@ export function createYAxisRendererPlugin(options: {
           height: pane.height,
           paddingTop: pane.yAxis.getPaddingTop(),
           paddingBottom: pane.yAxis.getPaddingBottom(),
-          valueMin: pane.priceRange.minPrice + priceOffset,
-          valueMax: pane.priceRange.maxPrice + priceOffset,
+          valueMin: displayRange.minPrice,
+          valueMax: displayRange.maxPrice,
           isMain: true,
           decimals: 2,
           hideEdgeTicks: false,
@@ -56,11 +56,11 @@ export function createYAxisRendererPlugin(options: {
           width: axisWidth,
           height: pane.height,
           crosshairY: crosshair.y,
-          priceRange: pane.priceRange,
+          priceRange: displayRange,
           yPaddingPx: options.yPaddingPx,
           dpr,
           fontSize: 12,
-          priceOffset,
+          priceOffset: 0,
           price: crosshair.price,
         })
       }
