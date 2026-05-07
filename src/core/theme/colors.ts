@@ -54,7 +54,7 @@ export const PRICE_COLORS = {
     NEUTRAL: 'rgba(0, 0, 0, 0.78)',
 
     /** 最新价颜色 */
-    LAST_PRICE: 'rgb(183, 22, 22)',
+    LAST_PRICE: 'rgba(196, 74, 86, 0.95)',
 } as const
 
 /**

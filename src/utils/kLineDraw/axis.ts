@@ -155,6 +155,7 @@ export interface CrosshairPriceLabelOptions {
     yPaddingPx?: number
     dpr: number
     bgColor?: string
+    borderColor?: string
     textColor?: string
     fontSize?: number
     paddingX?: number
@@ -246,6 +247,9 @@ export function drawCrosshairPriceLabel(ctx: CanvasRenderingContext2D, opts: Cro
         priceRange,
         yPaddingPx = 0,
         dpr,
+        bgColor = 'rgba(0, 0, 0, 0.8)',
+        borderColor,
+        textColor = '#ffffff',
         fontSize = 16,
         priceOffset = 0,
         price,
@@ -270,17 +274,28 @@ export function drawCrosshairPriceLabel(ctx: CanvasRenderingContext2D, opts: Cro
     const yy = Math.min(Math.max(crosshairY, y + rectH / 2), y + height - rectH / 2)
     const rectY = yy - rectH / 2
 
-    // 背景条（黑色，占满整个轴宽度）
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
+    // 背景条
     const rx = x
     const ry = roundToPhysicalPixel(rectY, dpr)
     const rw = width
     const rh = roundToPhysicalPixel(rectH, dpr)
+    ctx.fillStyle = bgColor
     ctx.fillRect(rx, ry, rw, rh)
 
-    // 绘制价格文字（白色，水平居中）
+    if (borderColor) {
+        ctx.strokeStyle = borderColor
+        ctx.lineWidth = 1
+        ctx.strokeRect(
+            alignToPhysicalPixelCenter(rx, dpr),
+            alignToPhysicalPixelCenter(ry, dpr),
+            Math.max(0, rw - 1 / dpr),
+            Math.max(0, rh - 1 / dpr)
+        )
+    }
+
+    // 绘制价格文字
     const centerX = x + width / 2
-    ctx.fillStyle = '#ffffff'
+    ctx.fillStyle = textColor
     ctx.fillText(priceText, roundToPhysicalPixel(centerX, dpr), roundToPhysicalPixel(yy, dpr))
 
     ctx.restore()

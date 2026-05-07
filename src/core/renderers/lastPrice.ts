@@ -16,7 +16,7 @@ export function createLastPriceLineRendererPlugin(): RendererPlugin {
         priority: RENDERER_PRIORITY.FOREGROUND,
 
         draw(context: RenderContext) {
-            const { ctx, pane, data, scrollLeft, kWidth, dpr, kLinePositions } = context
+            const { ctx, pane, data, scrollLeft, kWidth, dpr, kLinePositions, paneWidth } = context
             const klineData = data as KLineData[]
             const last = klineData[klineData.length - 1]
             if (!last) return
@@ -28,7 +28,8 @@ export function createLastPriceLineRendererPlugin(): RendererPlugin {
 
             // 使用统一的 kLinePositions 计算绘制范围
             const startX = kLinePositions[0] ?? 0
-            const endX = (kLinePositions[kLinePositions.length - 1] ?? 0) + kWidth
+            // 虚线始终画到 pane 最右侧，而不是最后一条K线
+            const endX = paneWidth + scrollLeft
 
             ctx.strokeStyle = PRICE_COLORS.LAST_PRICE
             ctx.lineWidth = 1

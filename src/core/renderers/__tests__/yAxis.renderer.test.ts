@@ -58,7 +58,7 @@ function createContext(overrides: Partial<RenderContext> = {}): RenderContext {
     ctx,
     yAxisCtx: ctx,
     pane: createPane(),
-    data: [],
+    data: [{ close: 101 }],
     range: { start: 0, end: 0 },
     scrollLeft: 0,
     kWidth: 10,
@@ -116,6 +116,22 @@ describe('yAxis renderer', () => {
     )
   })
 
+  it('draws last price label for main pane', () => {
+    const plugin = createYAxisRendererPlugin({ axisWidth: 80, yPaddingPx: 0 })
+    const context = createContext({ pane: createPane({ id: 'main' }) })
+
+    plugin.draw(context)
+
+    expect(drawCrosshairPriceLabel).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        price: 101,
+        borderColor: expect.any(String),
+        bgColor: expect.any(String),
+      }),
+    )
+  })
+
   it('draws crosshair price label only for active pane', () => {
     const plugin = createYAxisRendererPlugin({
       axisWidth: 80,
@@ -126,7 +142,7 @@ describe('yAxis renderer', () => {
 
     plugin.draw(context)
 
-    expect(drawCrosshairPriceLabel).toHaveBeenCalledTimes(1)
+    expect(drawCrosshairPriceLabel).toHaveBeenCalledTimes(2)
   })
 
   it('does not draw crosshair price label when getCrosshair returns null', () => {
@@ -139,6 +155,6 @@ describe('yAxis renderer', () => {
 
     plugin.draw(context)
 
-    expect(drawCrosshairPriceLabel).toHaveBeenCalledTimes(0)
+    expect(drawCrosshairPriceLabel).toHaveBeenCalledTimes(1)
   })
 })

@@ -2,6 +2,8 @@ import type { RendererPlugin, RenderContext } from '@/plugin'
 import { RENDERER_PRIORITY, GLOBAL_PANE_ID } from '@/plugin'
 import { drawCrosshairPriceLabel } from '@/utils/kLineDraw/axis'
 import { drawScaleTicks } from '@/core/renderers/Indicator/scale/indicator_scale'
+import { PRICE_COLORS } from '@/core/theme/colors'
+import type { KLineData } from '@/types/price'
 
 /**
  * 创建 Y 轴渲染器插件
@@ -21,16 +23,12 @@ export function createYAxisRendererPlugin(options: {
     priority: RENDERER_PRIORITY.SYSTEM_YAXIS,
 
     draw(context: RenderContext) {
-      const { ctx, pane, dpr, yAxisCtx } = context
+      const { ctx, pane, dpr, yAxisCtx, data } = context
 
-      // Y 轴绘制到 yAxisCtx（如果提供）或使用 ctx
       const targetCtx = yAxisCtx || ctx
       const axisWidth = yAxisCtx?.canvas ? (yAxisCtx.canvas.width / dpr) : options.axisWidth
-
-      // 应用价格偏移与垂直缩放后的可视范围
       const displayRange = pane.yAxis.getDisplayRange(pane.priceRange)
 
-      // 按 capability 绘制价格轴刻度
       if (pane.capabilities.showPriceAxisTicks) {
         drawScaleTicks({
           ctx: targetCtx,
@@ -47,7 +45,28 @@ export function createYAxisRendererPlugin(options: {
         })
       }
 
-      // 绘制十字线价格标签（按 active pane）
+      const klineData = data as KLineData[]
+      const last = pane.id === 'main' ? klineData[klineData.length - 1] : null
+      if (last) {
+        const lastPriceY = pane.yAxis.priceToY(last.close)
+        drawCrosshairPriceLabel(targetCtx, {
+          x: 0,
+          y: pane.top,
+          width: axisWidth,
+          height: pane.height,
+          crosshairY: lastPriceY + pane.top,
+          priceRange: displayRange,
+          yPaddingPx: options.yPaddingPx,
+          dpr,
+          bgColor: 'rgba(255, 247, 248, 0.98)',
+          borderColor: PRICE_COLORS.LAST_PRICE,
+          textColor: PRICE_COLORS.LAST_PRICE,
+          fontSize: 12,
+          priceOffset: 0,
+          price: last.close,
+        })
+      }
+
       const crosshair = options.getCrosshair?.()
       if (crosshair && crosshair.activePaneId === pane.id && crosshair.price !== null) {
         drawCrosshairPriceLabel(targetCtx, {
