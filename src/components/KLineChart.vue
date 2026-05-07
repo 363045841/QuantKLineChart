@@ -7,6 +7,7 @@
         'is-resizing-pane': isResizingPane,
         'is-hovering-pane-separator': isHoveringPaneSeparator,
         'is-hovering-right-axis': isHoveringRightAxis,
+        'is-hovering-kline': hoveredIdx !== null,
       }"
       ref="containerRef"
       @scroll.passive="onScroll"
@@ -117,8 +118,6 @@ const props = withDefaults(
     /** 语义化配置（必需，唯一控制源） */
     semanticConfig: SemanticChartConfig
 
-    kWidth?: number
-    kGap?: number
     yPaddingPx?: number
     minKWidth?: number
     maxKWidth?: number
@@ -135,26 +134,20 @@ const props = withDefaults(
     initialZoomLevel?: number
   }>(),
   {
-    kWidth: 10,
-    kGap: 2,
     yPaddingPx: 0,
     minKWidth: 2,
     maxKWidth: 50,
     rightAxisWidth: 0,
     bottomAxisHeight: 24,
     priceLabelWidth: 60,
-    zoomLevels: 10,
-    initialZoomLevel: undefined,
+    zoomLevels: 20,
+    initialZoomLevel: 3,
   },
 )
 
 const xAxisCanvasRef = ref<HTMLCanvasElement | null>(null)
 const canvasLayerRef = ref<HTMLDivElement | null>(null)
 const containerRef = ref<HTMLDivElement | null>(null)
-
-// 内部动态K线宽度和间隙
-const currentKWidth = ref(props.kWidth)
-const currentKGap = ref(props.kGap)
 
 const emit = defineEmits<{
   (e: 'zoomLevelChange', level: number, kWidth: number): void
@@ -875,21 +868,24 @@ function handleReorderSubIndicators(orderedIndicatorIds: string[]) {
   chart.updatePaneLayout(buildPaneLayoutIntent())
 }
 
-/* 计算总宽度：使用物理像素对齐后的值，确保与渲染一致 */
+/* 计算总宽度：从 Chart 读取状态，保持与渲染一致 */
 const totalWidth = computed(() => {
+  const chart = chartRef.value
   const n = dataLength.value
+  if (!chart || n === 0) return 0
+
   const dpr = viewportDpr.value
+  const opt = chart.getOption()
+  const kWidth = opt.kWidth ?? props.minKWidth
+  const kGap = opt.kGap ?? 3 / dpr
 
-  // 使用物理像素对齐后的配置
-  const { startXPx, unitPx } = getPhysicalKLineConfig(currentKWidth.value, currentKGap.value, dpr)
-
-  // 实际需要的 plot 宽度（物理像素转回逻辑像素）
+  const { startXPx, unitPx } = getPhysicalKLineConfig(kWidth, kGap, dpr)
   const plotWidth = (startXPx + n * unitPx) / dpr
   const yAxisTotalWidth = props.rightAxisWidth + props.priceLabelWidth
   return plotWidth + yAxisTotalWidth
 })
 
-// 注意：缩放时由 Chart.setOnZoomChange 回调负责同步 kWidth/kGap + scrollLeft，避免重复 clamp。
+// 缩放由 Chart 回调驱动 scrollLeft 与渲染时序。
 
 function scrollToRight() {
   const container = containerRef.value
@@ -935,12 +931,11 @@ onMounted(() => {
   }
   container.addEventListener('wheel', onWheelHandler, { passive: false })
 
-  // 初始只有主图，副图通过 addSubPane 动态添加
+// 主图初始创建，副图由 addSubPane 动态添加
   const chart = new Chart(
     { container, canvasLayer, xAxisCanvas },
     {
-      kWidth: currentKWidth.value,
-      kGap: currentKGap.value,
+  // kWidth/kGap 由 zoomLevel 派生，不从 props 注入
       yPaddingPx: props.yPaddingPx,
       rightAxisWidth: props.rightAxisWidth,
       bottomAxisHeight: props.bottomAxisHeight,
@@ -958,26 +953,21 @@ onMounted(() => {
     },
   )
 
-  // 缩放回调：同步 kWidth/kGap -> 等 DOM 更新 scrollWidth -> 再设置 scrollLeft -> 最后 applyZoom
-  chart.setOnZoomChange(async (kWidth, kGap, targetScrollLeft) => {
-    // 1) 先更新响应式变量，驱动 totalWidth 计算
-    currentKWidth.value = kWidth
-    currentKGap.value = kGap
-
-    // 2) 等 Vue 更新 scroll-content 的 width
+  // 缩放回调：处理 scrollLeft 同步
+  chart.setOnZoomChange(async (level, kWidth, kGap, targetScrollLeft) => {
+    // 等 Vue 更新 scroll-content 的 width（totalWidth 是 computed，会自动更新）
     await nextTick()
-    // 3) 再等一帧，确保浏览器完成布局刷新 scrollWidth
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
 
-    // 4) scrollLeft 落地
+    // scrollLeft 落地
     const c = containerRef.value
     if (!c) return
     const maxScrollLeft = Math.max(0, c.scrollWidth - c.clientWidth)
     c.scrollLeft = Math.min(Math.max(0, targetScrollLeft), maxScrollLeft)
 
     // 5) scrollLeft 已落地，现在才让 Chart 更新 opt 并渲染
-    //    这一帧看到的 (kWidth, kGap, scrollLeft) 是完全一致的
-    chart.applyZoom(kWidth, kGap)
+    // 保证 draw() 读取到一致的缩放参数与滚动位置
+    chart.applyZoom(level)
   })
 
   // 监听缩放级别变化
@@ -1144,15 +1134,8 @@ onUnmounted(() => {
   chartRef.value = null
 })
 
-watch(
-  () => [props.kWidth, props.kGap],
-  ([newWidth, newGap]) => {
-    if (typeof newWidth === 'number') currentKWidth.value = newWidth
-    if (typeof newGap === 'number') currentKGap.value = newGap
-
-    chartRef.value?.updateOptions({ kWidth: currentKWidth.value, kGap: currentKGap.value })
-  },
-)
+// kWidth/kGap 由 zoomLevel 派生，不再通过 props 直接修改
+// 如需程序化控制缩放，请使用 expose 的 zoomToLevel/zoomIn/zoomOut 方法
 
 // 监听 yPaddingPx 变化
 watch(
@@ -1225,6 +1208,10 @@ watch(
 .chart-container.is-resizing-pane,
 .chart-container.is-hovering-pane-separator {
   cursor: row-resize;
+}
+
+.chart-container.is-hovering-kline {
+  cursor: pointer;
 }
 
 .chart-container:hover.is-hovering-right-axis {
