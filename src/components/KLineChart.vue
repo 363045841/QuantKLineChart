@@ -72,7 +72,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, shallowRef } from 'vue'
-import type { MarkerEntity, CustomMarkerEntity } from '@/core/marker/registry'
 import { SemanticChartController, type SemanticChartConfig } from '@/semantic'
 import { createCustomMarkersRenderer } from '@/core/renderers/customMarkers'
 import KLineTooltip from './KLineTooltip.vue'
@@ -113,6 +112,7 @@ import { createFastkScaleRendererPlugin } from '@/core/renderers/Indicator/scale
 import { createTimeAxisRendererPlugin } from '@/core/renderers/timeAxis'
 import { createCrosshairRendererPlugin } from '@/core/renderers/crosshair'
 import { createPaneTitleRendererPlugin, type TitleInfo } from '@/core/renderers/paneTitle'
+import type { InteractionSnapshot } from '@/core/controller/interaction'
 
 const props = withDefaults(
   defineProps<{
@@ -187,31 +187,44 @@ function setMarkerTooltipEl(el: HTMLDivElement | null) {
 }
 
 // ===== Marker tooltip 状态 =====
-const hoveredMarker = ref<MarkerEntity | null>(null)
-const hoveredCustomMarker = ref<CustomMarkerEntity | null>(null)
 const mousePos = ref({ x: 0, y: 0 })
 const useAnchorPositioning = ref(false)
 
-// ===== 交互状态 =====
-const isDragging = ref(false)
-const isResizingPane = ref(false)
-const isHoveringPaneSeparator = ref(false)
-const isHoveringRightAxis = ref(false)
+// ===== 交互状态（单一来源：InteractionController snapshot） =====
+const interactionState = shallowRef<InteractionSnapshot>({
+  crosshairPos: null,
+  crosshairIndex: null,
+  crosshairPrice: null,
+  hoveredIndex: null,
+  activePaneId: null,
+  tooltipPos: { x: 0, y: 0 },
+  tooltipAnchorPlacement: 'right-bottom',
+  hoveredMarkerData: null,
+  hoveredCustomMarker: null,
+  isDragging: false,
+  isResizingPaneBoundary: false,
+  isHoveringPaneBoundary: false,
+  isHoveringRightAxis: false,
+})
 
 const paneRatios = ref<Record<string, number>>({ main: 3 })
 
-// tooltip/hover 必须是 Vue 可追踪的响应式状态（Chart 内部普通属性 Vue 不会自动追踪）
-const hoveredIdx = ref<number | null>(null)
-const crosshairIdx = ref<number | null>(null)
-const tooltipPosition = ref({ x: 0, y: 0 })
-const tooltipAnchorPlacement = ref<'right-bottom' | 'left-bottom'>('right-bottom')
 const markerTooltipSize = ref({ width: 220, height: 120 })
 
 // 数据版本号，用于强制 chartData computed 重新求值
 const dataVersion = ref(0)
 
+const hoveredMarker = computed(() => interactionState.value.hoveredMarkerData)
+const hoveredCustomMarker = computed(() => interactionState.value.hoveredCustomMarker)
+const isDragging = computed(() => interactionState.value.isDragging)
+const isResizingPane = computed(() => interactionState.value.isResizingPaneBoundary)
+const isHoveringPaneSeparator = computed(() => interactionState.value.isHoveringPaneBoundary)
+const isHoveringRightAxis = computed(() => interactionState.value.isHoveringRightAxis)
+const hoveredIdx = computed(() => interactionState.value.hoveredIndex)
+const crosshairIdx = computed(() => interactionState.value.crosshairIndex)
+
 const hovered = computed(() => {
-  const idx = hoveredIdx.value
+  const idx = interactionState.value.hoveredIndex
   if (typeof idx !== 'number') return null
   void dataVersion.value // 建立响应式依赖
   const data = chartRef.value?.getData()
@@ -220,8 +233,9 @@ const hovered = computed(() => {
   }
   return null
 })
-const hoveredIndex = computed(() => hoveredIdx.value)
-const tooltipPos = computed(() => tooltipPosition.value)
+const hoveredIndex = computed(() => interactionState.value.hoveredIndex)
+const tooltipPos = computed(() => interactionState.value.tooltipPos)
+const tooltipAnchorPlacement = computed(() => interactionState.value.tooltipAnchorPlacement)
 const markerTooltipAnchorPlacement = computed<'right-bottom' | 'left-bottom'>(() => {
   const chart = chartRef.value
   const viewport = chart?.getViewport()
@@ -245,61 +259,8 @@ function notifyDataChange() {
   dataVersion.value++
 }
 
-// RAF 节流：避免高频 pointermove 触发过多响应式更新
-let hoverRafId: number | null = null
-
-function syncPaneInteractionState() {
-  const interaction = chartRef.value?.interaction
-  if (!interaction) {
-    isResizingPane.value = false
-    isHoveringPaneSeparator.value = false
-    isHoveringRightAxis.value = false
-    return
-  }
-  isResizingPane.value = interaction.isResizingPaneBoundaryState()
-  isHoveringPaneSeparator.value = interaction.isHoveringPaneBoundaryState()
-  isHoveringRightAxis.value = interaction.isHoveringRightAxisState()
-}
-
-function syncHoverState() {
-  const interaction = chartRef.value?.interaction
-  if (!interaction) {
-    hoveredIdx.value = null
-    crosshairIdx.value = null
-    hoveredMarker.value = null
-    hoveredCustomMarker.value = null
-    syncPaneInteractionState()
-    return
-  }
-
-  hoveredIdx.value = interaction.hoveredIndex ?? null
-  crosshairIdx.value = interaction.crosshairIndex ?? null
-  hoveredMarker.value = (interaction as any).hoveredMarkerData ?? null
-  hoveredCustomMarker.value = (interaction as any).hoveredCustomMarker ?? null
-
-  const placement = interaction.tooltipAnchorPlacement
-  if (placement) tooltipAnchorPlacement.value = placement
-
-  const pos = interaction.tooltipPos
-  if (pos) tooltipPosition.value = { x: pos.x, y: pos.y }
-
-  syncPaneInteractionState()
-}
-
-// 节流版本：用于 pointermove 高频调用
-function syncHoverStateThrottled() {
-  if (hoverRafId) return
-  hoverRafId = requestAnimationFrame(() => {
-    syncHoverState()
-    hoverRafId = null
-  })
-}
-
 function onPointerDown(e: PointerEvent) {
-  // 触屏：手指一接触屏幕就触发十字线（避免必须长按才触发）
   chartRef.value?.interaction.onPointerDown(e)
-  isDragging.value = chartRef.value?.interaction.isDraggingState() ?? false
-  syncHoverState()
 }
 
 function onPointerMove(e: PointerEvent) {
@@ -312,25 +273,18 @@ function onPointerMove(e: PointerEvent) {
     }
   }
   chartRef.value?.interaction.onPointerMove(e)
-  syncHoverStateThrottled() // 使用节流版本避免高频更新
 }
 
 function onPointerUp(e: PointerEvent) {
   chartRef.value?.interaction.onPointerUp(e)
-  isDragging.value = chartRef.value?.interaction.isDraggingState() ?? false
-  syncHoverState()
 }
 
 function onPointerLeave(e: PointerEvent) {
   chartRef.value?.interaction.onPointerLeave(e)
-  isDragging.value = chartRef.value?.interaction.isDraggingState() ?? false
-  hoveredIdx.value = null
-  syncPaneInteractionState()
 }
 
 function onScroll() {
   chartRef.value?.interaction.onScroll()
-  syncHoverState()
 }
 
 // 指标选择器状态（由 semanticConfig 初始化）
@@ -940,7 +894,6 @@ onMounted(() => {
   // 手动添加 wheel 事件监听器，设置 passive: false 以允许 preventDefault()
   const onWheelHandler = (e: WheelEvent) => {
     chartRef.value?.interaction.onWheel(e)
-    syncHoverState()
   }
   container.addEventListener('wheel', onWheelHandler, { passive: false })
 
@@ -1089,6 +1042,10 @@ onMounted(() => {
   })
   chartRef.value = chart
   chart.interaction.setTooltipAnchorPositioning(useAnchorPositioning.value)
+  chart.interaction.setOnInteractionChange((snapshot) => {
+    interactionState.value = snapshot
+  })
+  interactionState.value = chart.interaction.getInteractionSnapshot()
   viewportDpr.value = chart.getCurrentDpr()
   chart.resize()
 
@@ -1117,18 +1074,6 @@ onMounted(() => {
     if (result && !result.success) {
       console.error('Semantic config apply failed:', result.errors)
     }
-  })
-
-  // 注册 marker hover 回调
-  chart.interaction.setOnMarkerHover((marker: MarkerEntity | null) => {
-    hoveredMarker.value = marker
-    scheduleRender()
-  })
-
-  // 注册自定义标记 hover 回调
-  chart.interaction.setOnCustomMarkerHover((marker: CustomMarkerEntity | null) => {
-    hoveredCustomMarker.value = marker
-    scheduleRender()
   })
 
   // 保存 wheel handler，确保 onUnmounted 能正确移除

@@ -4,9 +4,21 @@ import type { Chart } from '../chart'
 import type { MarkerEntity, CustomMarkerEntity } from '@/core/marker/registry'
 
 /** 标记 hover 事件数据 */
-export interface MarkerHoverEvent {
-    type: 'volume-price' | 'custom'
-    marker: MarkerEntity | CustomMarkerEntity
+
+export interface InteractionSnapshot {
+    crosshairPos: { x: number; y: number } | null
+    crosshairIndex: number | null
+    crosshairPrice: number | null
+    hoveredIndex: number | null
+    activePaneId: string | null
+    tooltipPos: { x: number; y: number }
+    tooltipAnchorPlacement: 'right-bottom' | 'left-bottom'
+    hoveredMarkerData: MarkerEntity | null
+    hoveredCustomMarker: CustomMarkerEntity | null
+    isDragging: boolean
+    isResizingPaneBoundary: boolean
+    isHoveringPaneBoundary: boolean
+    isHoveringRightAxis: boolean
 }
 
 /**
@@ -51,6 +63,8 @@ export class InteractionController {
     tooltipAnchorPlacement: 'right-bottom' | 'left-bottom' = 'right-bottom'
     /** 是否使用 CSS 锚定位 */
     private useTooltipAnchorPositioning = false
+    /** 统一交互状态变更回调 */
+    private onInteractionChangeCallback?: (snapshot: InteractionSnapshot) => void
 
     /** 当前 hover 的 marker ID */
     hoveredMarkerId: string | null = null
@@ -76,11 +90,38 @@ export class InteractionController {
     private kLinePositions: number[] | null = null
     /** 当前帧的可见 K 线索引范围 */
     private visibleRange: { start: number; end: number } | null = null
+
     /** K 线宽度（物理像素），用于计算 K 线中心偏移 */
     private kWidthPx: number | null = null
 
     constructor(chart: Chart) {
         this.chart = chart
+    }
+
+    getInteractionSnapshot(): InteractionSnapshot {
+        return {
+            crosshairPos: this.crosshairPos ? { ...this.crosshairPos } : null,
+            crosshairIndex: this.crosshairIndex,
+            crosshairPrice: this.crosshairPrice,
+            hoveredIndex: this.hoveredIndex,
+            activePaneId: this.activePaneId,
+            tooltipPos: { ...this.tooltipPos },
+            tooltipAnchorPlacement: this.tooltipAnchorPlacement,
+            hoveredMarkerData: this.hoveredMarkerData,
+            hoveredCustomMarker: this.hoveredCustomMarker,
+            isDragging: this.isDragging,
+            isResizingPaneBoundary: this.dragMode === 'resize-separator',
+            isHoveringPaneBoundary: this.hoveredSeparatorUpperPaneId !== null,
+            isHoveringRightAxis: this.hoveredRightAxisPaneId !== null,
+        }
+    }
+
+    setOnInteractionChange(callback: (snapshot: InteractionSnapshot) => void) {
+        this.onInteractionChangeCallback = callback
+    }
+
+    private notifyInteractionChange() {
+        this.onInteractionChangeCallback?.(this.getInteractionSnapshot())
     }
 
     /**
@@ -95,6 +136,7 @@ export class InteractionController {
 
         this.clearHover()
         this.chart.zoomAt(mouseX, scrollLeft, e.deltaY)
+        this.notifyInteractionChange()
     }
 
     /**
@@ -197,6 +239,7 @@ export class InteractionController {
         this.dragMode = 'none'
         this.activePaneIdOnDrag = null
         this.activeSeparatorUpperPaneId = null
+        this.notifyInteractionChange()
     }
 
     /**
@@ -212,6 +255,7 @@ export class InteractionController {
         this.isTouchSession = false
         this.clearHover()
         this.chart.scheduleDraw()
+        this.notifyInteractionChange()
     }
 
     /**
@@ -340,6 +384,7 @@ export class InteractionController {
 
         this.updateHoverFromPoint(e.clientX, e.clientY)
         this.chart.scheduleDraw()
+        this.notifyInteractionChange()
     }
 
     /** 处理鼠标抬起事件 */
@@ -349,6 +394,7 @@ export class InteractionController {
         this.dragMode = 'none'
         this.activePaneIdOnDrag = null
         this.activeSeparatorUpperPaneId = null
+        this.notifyInteractionChange()
     }
 
     /** 处理鼠标离开事件 */
@@ -360,6 +406,7 @@ export class InteractionController {
         this.clearSeparatorState()
         this.clearHover()
         this.chart.scheduleDraw()
+        this.notifyInteractionChange()
     }
 
     /** 处理滚动事件 */
@@ -369,6 +416,7 @@ export class InteractionController {
         this.visibleRange = null
         this.clearHover()
         this.chart.scheduleDraw()
+        this.notifyInteractionChange()
     }
 
     /**
@@ -428,6 +476,7 @@ export class InteractionController {
 
         this.updateHoverFromPoint(e.clientX, e.clientY)
         this.chart.scheduleDraw()
+        this.notifyInteractionChange()
     }
 
     /**
@@ -517,9 +566,14 @@ export class InteractionController {
         // 清除 marker hover 状态
         if (this.hoveredMarkerId !== null) {
             this.hoveredMarkerId = null
+            this.hoveredMarkerData = null
+            const markerManager = this.chart.getMarkerManager()
+            markerManager.setHover(null)
             if (this.onMarkerHoverCallback) {
                 this.onMarkerHoverCallback(null)
             }
+        } else {
+            this.hoveredMarkerData = null
         }
 
         // 清除自定义标记 hover 状态
@@ -530,6 +584,7 @@ export class InteractionController {
             }
         }
     }
+
 
     private clearSeparatorState() {
         this.activeSeparatorUpperPaneId = null
@@ -603,9 +658,16 @@ export class InteractionController {
                     this.onMarkerHoverCallback(hitMarker)
                 }
             }
-            // marker hover 时不显示十字线和 tooltip
+            if (this.hoveredCustomMarker !== null) {
+                this.hoveredCustomMarker = null
+                if (this.onCustomMarkerHoverCallback) {
+                    this.onCustomMarkerHoverCallback(null)
+                }
+            }
+            // marker hover 时不显示十字线和 K 线 tooltip
             this.crosshairPos = null
             this.crosshairIndex = null
+            this.crosshairPrice = null
             this.hoveredIndex = null
             return
         } else {
@@ -630,9 +692,18 @@ export class InteractionController {
                     this.onCustomMarkerHoverCallback(hitCustomMarker)
                 }
             }
-            // marker hover 时不显示十字线和 tooltip
+            if (this.hoveredMarkerId !== null) {
+                this.hoveredMarkerId = null
+                this.hoveredMarkerData = null
+                markerManager.setHover(null)
+                if (this.onMarkerHoverCallback) {
+                    this.onMarkerHoverCallback(null)
+                }
+            }
+            // marker hover 时不显示十字线和 K 线 tooltip
             this.crosshairPos = null
             this.crosshairIndex = null
+            this.crosshairPrice = null
             this.hoveredIndex = null
             return
         } else {
@@ -808,6 +879,7 @@ export class InteractionController {
         this.clickedMarkerId = null
         this.hoveredMarkerData = null
         this.clickedMarkerData = null
+        this.hoveredCustomMarker = null
         this.kLinePositions = null
         this.visibleRange = null
         this.kWidthPx = null

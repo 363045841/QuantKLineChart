@@ -210,14 +210,14 @@ uv run python -m aktools  # 启动服务
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | semanticConfig | SemanticChartConfig | - | **必需**。语义化配置（唯一控制源） |
-| kWidth | number | 10 | K 线实体宽度 |
-| kGap | number | 2 | K 线间距 |
 | yPaddingPx | number | 0 | Y 轴上下留白像素 |
 | minKWidth | number | 2 | K 线最小宽度 |
 | maxKWidth | number | 50 | K 线最大宽度 |
 | rightAxisWidth | number | 0 | 右侧价格轴宽度 |
 | bottomAxisHeight | number | 24 | 底部时间轴高度 |
 | priceLabelWidth | number | 60 | 价格标签额外宽度（用于显示涨跌幅） |
+| zoomLevels | number | 20 | 缩放级别数量 |
+| initialZoomLevel | number | 3 | 初始缩放级别（1 ~ zoomLevels） |
 
 ## 环境要求
 

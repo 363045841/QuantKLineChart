@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { InteractionController } from '@/core/controller/interaction'
 import type { KLineData } from '@/types/price'
 
@@ -12,6 +12,11 @@ function createChartStub(args: {
     height: number
     candleHitTest: boolean
   }>
+  markerManager?: {
+    hitTest: (worldX: number, y: number, radius: number) => any
+    setHover: (id: string | null) => void
+    hitTestCustomMarker: (x: number, y: number) => any
+  }
 }) {
   const container = document.createElement('div') as HTMLDivElement
   Object.defineProperty(container, 'scrollLeft', { configurable: true, writable: true, value: 0 })
@@ -24,7 +29,7 @@ function createChartStub(args: {
 
   const data: KLineData[] = [
     {
-      timestamp: '2026-01-01',
+      timestamp: 20260101,
       open: 10,
       high: 12,
       low: 8,
@@ -32,7 +37,7 @@ function createChartStub(args: {
       volume: 1000,
     },
     {
-      timestamp: '2026-01-02',
+      timestamp: 20260102,
       open: 11,
       high: 13,
       low: 9,
@@ -63,11 +68,13 @@ function createChartStub(args: {
     }),
   }))
 
-  const markerManager = {
-    hitTest: () => null,
-    setHover: () => undefined,
-    hitTestCustomMarker: () => null,
-  }
+  const markerManager =
+    args.markerManager ??
+    ({
+      hitTest: () => null,
+      setHover: () => undefined,
+      hitTestCustomMarker: () => null,
+    } as const)
 
   const chart = {
     getDom: () => ({ container }),
@@ -85,6 +92,7 @@ function createChartStub(args: {
     getData: () => data,
     translatePrice: () => undefined,
     scheduleDraw: () => undefined,
+    zoomAt: () => undefined,
   }
 
   return chart
@@ -181,5 +189,65 @@ describe('InteractionController pane capability gating', () => {
     interaction.onMouseMove({ clientX: 5, clientY: 140 } as MouseEvent)
     expect(interaction.activePaneId).toBe('sub_MACD')
     expect(interaction.hoveredIndex).toBeNull()
+  })
+})
+
+describe('InteractionController hover snapshot', () => {
+  it('clears marker hover payloads on wheel', () => {
+    const setHover = vi.fn()
+    const marker = { id: 'm1' }
+    const chart = createChartStub({
+      dpr: 1,
+      plotWidth: 300,
+      plotHeight: 200,
+      markerManager: {
+        hitTest: () => marker,
+        setHover,
+        hitTestCustomMarker: () => null,
+      },
+    })
+    const interaction = new InteractionController(chart as never)
+
+    interaction.onMouseMove({ clientX: 20, clientY: 20 } as MouseEvent)
+    expect(interaction.getInteractionSnapshot().hoveredMarkerData).toBe(marker)
+
+    interaction.onWheel({ clientX: 20, clientY: 20, deltaY: -100 } as WheelEvent)
+
+    const snapshot = interaction.getInteractionSnapshot()
+    expect(snapshot.hoveredMarkerData).toBeNull()
+    expect(snapshot.hoveredCustomMarker).toBeNull()
+    expect(snapshot.crosshairPos).toBeNull()
+    expect(snapshot.hoveredIndex).toBeNull()
+    expect(setHover).toHaveBeenCalledWith(null)
+  })
+
+  it('emits cleared snapshot when moving away from custom marker', () => {
+    const customMarker = { id: 'c1' }
+    let hoveringCustom = true
+    const chart = createChartStub({
+      dpr: 1,
+      plotWidth: 300,
+      plotHeight: 200,
+      markerManager: {
+        hitTest: () => null,
+        setHover: () => undefined,
+        hitTestCustomMarker: () => (hoveringCustom ? customMarker : null),
+      },
+    })
+    const interaction = new InteractionController(chart as never)
+    const changes: ReturnType<typeof interaction.getInteractionSnapshot>[] = []
+    interaction.setOnInteractionChange((snapshot) => {
+      changes.push(snapshot)
+    })
+
+    interaction.onMouseMove({ clientX: 20, clientY: 20 } as MouseEvent)
+    expect(interaction.getInteractionSnapshot().hoveredCustomMarker).toBe(customMarker)
+
+    hoveringCustom = false
+    interaction.setKLinePositions([0, 10], { start: 0, end: 2 }, 10)
+    interaction.onMouseMove({ clientX: 20, clientY: 20 } as MouseEvent)
+
+    expect(interaction.getInteractionSnapshot().hoveredCustomMarker).toBeNull()
+    expect(changes[changes.length - 1]?.hoveredCustomMarker).toBeNull()
   })
 })
