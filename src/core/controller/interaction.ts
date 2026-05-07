@@ -27,6 +27,9 @@ export class InteractionController {
     private activeSeparatorUpperPaneId: string | null = null
     private hoveredSeparatorUpperPaneId: string | null = null
 
+    /** 右轴悬浮相关 */
+    private hoveredRightAxisPaneId: string | null = null
+
     /** [触屏]:触摸会话标记，避免触摸触发的模拟 mouse 事件干扰 */
     private isTouchSession = false
 
@@ -460,6 +463,11 @@ export class InteractionController {
         return this.hoveredSeparatorUpperPaneId !== null
     }
 
+    /** 是否悬停在右轴区域 */
+    isHoveringRightAxisState(): boolean {
+        return this.hoveredRightAxisPaneId !== null
+    }
+
     /** 设置 marker hover 回调 */
     setOnMarkerHover(callback: (marker: MarkerEntity | null) => void) {
         this.onMarkerHoverCallback = callback
@@ -526,6 +534,7 @@ export class InteractionController {
     private clearSeparatorState() {
         this.activeSeparatorUpperPaneId = null
         this.hoveredSeparatorUpperPaneId = null
+        this.hoveredRightAxisPaneId = null
     }
 
     /**
@@ -543,9 +552,30 @@ export class InteractionController {
         const viewHeight = viewport?.viewHeight ?? Math.max(1, Math.round(container.clientHeight))
         const plotWidth = viewport?.plotWidth ?? viewWidth
         const plotHeight = viewport?.plotHeight ?? viewHeight
-        if (mouseX < 0 || mouseY < 0 || mouseX > plotWidth || mouseY > plotHeight) {
+        if (mouseX < 0 || mouseY < 0 || mouseY > plotHeight) {
             this.clearHover()
+            this.hoveredRightAxisPaneId = null
             return
+        }
+
+        // 检测是否悬浮在右轴区域
+        const isOnRightAxis = mouseX >= plotWidth
+        if (isOnRightAxis) {
+            // 确定鼠标落在哪个 pane
+            const paneRenderers = this.chart.getPaneRenderers()
+            const renderer = paneRenderers.find((r) => {
+                const pane = r.getPane()
+                return mouseY >= pane.top && mouseY <= pane.top + pane.height
+            })
+            const pane = renderer?.getPane() || null
+            this.hoveredRightAxisPaneId = pane?.id || null
+            // 右轴悬浮时不显示十字线
+            this.crosshairPos = null
+            this.crosshairIndex = null
+            this.hoveredIndex = null
+            return
+        } else {
+            this.hoveredRightAxisPaneId = null
         }
 
         const scrollLeft = container.scrollLeft

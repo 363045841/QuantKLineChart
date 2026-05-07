@@ -6,6 +6,7 @@
         'is-dragging': isDragging,
         'is-resizing-pane': isResizingPane,
         'is-hovering-pane-separator': isHoveringPaneSeparator,
+        'is-hovering-right-axis': isHoveringRightAxis,
       }"
       ref="containerRef"
       @scroll.passive="onScroll"
@@ -201,6 +202,7 @@ const useAnchorPositioning = ref(false)
 const isDragging = ref(false)
 const isResizingPane = ref(false)
 const isHoveringPaneSeparator = ref(false)
+const isHoveringRightAxis = ref(false)
 
 const paneRatios = ref<Record<string, number>>({ main: 3 })
 
@@ -257,10 +259,12 @@ function syncPaneInteractionState() {
   if (!interaction) {
     isResizingPane.value = false
     isHoveringPaneSeparator.value = false
+    isHoveringRightAxis.value = false
     return
   }
   isResizingPane.value = interaction.isResizingPaneBoundaryState()
   isHoveringPaneSeparator.value = interaction.isHoveringPaneBoundaryState()
+  isHoveringRightAxis.value = interaction.isHoveringRightAxisState()
 }
 
 function syncHoverState() {
@@ -1215,12 +1219,20 @@ watch(
 }
 
 .chart-container:hover {
-  cursor: grab;
+  cursor: crosshair;
 }
 
 .chart-container.is-resizing-pane,
 .chart-container.is-hovering-pane-separator {
   cursor: row-resize;
+}
+
+.chart-container:hover.is-hovering-right-axis {
+  cursor: ns-resize;
+}
+
+.chart-container.is-dragging {
+  cursor: grabbing;
 }
 
 .scroll-content {
