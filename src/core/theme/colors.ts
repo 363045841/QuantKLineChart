@@ -156,6 +156,18 @@ export const MACD_COLORS = {
 } as const
 
 /**
+ * 成交量颜色（与 MACD 柱子配色一致）
+ */
+export const VOLUME_COLORS = {
+    /** 上涨柱子（与 MACD BAR_UP 一致） */
+    UP: '#ff5252',
+    /** 下跌柱子（与 MACD BAR_DOWN 一致） */
+    DOWN: '#22ab94',
+    /** 中性/平盘柱子 */
+    NEUTRAL: 'rgba(0, 0, 0, 0.78)',
+} as const
+
+/**
  * RSI 颜色
  */
 export const RSI_COLORS = {

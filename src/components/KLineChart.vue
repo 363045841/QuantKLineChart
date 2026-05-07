@@ -102,6 +102,7 @@ import {
 import { createExtremaMarkersRendererPlugin } from '@/core/renderers/extremaMarkers'
 import { createYAxisRendererPlugin } from '@/core/renderers/yAxis'
 import { createMacdScaleRendererPlugin } from '@/core/renderers/Indicator/scale/macd_scale'
+import { createVolumeScaleRendererPlugin } from '@/core/renderers/Indicator/scale/volume_scale'
 import { createRsiScaleRendererPlugin } from '@/core/renderers/Indicator/scale/rsi_scale'
 import { createCciScaleRendererPlugin } from '@/core/renderers/Indicator/scale/cci_scale'
 import { createStochScaleRendererPlugin } from '@/core/renderers/Indicator/scale/stoch_scale'
@@ -350,21 +351,94 @@ interface SubPaneSlot {
 // 副图槽位数组（支持多副图）
 const subPanes = ref<SubPaneSlot[]>([])
 
-// 最大副图数量
-const maxSubPanes = 4
+// 副图指标元数据
+interface SubPaneIndicatorConfig {
+  defaultParams: Record<string, number>
+  getTitleInfo: (data: any[], index: number | null, params: Record<string, number>) => TitleInfo | null
+}
+
+const SUB_PANE_INDICATOR_CONFIGS: Record<SubIndicatorType, SubPaneIndicatorConfig> = {
+  VOLUME: {
+    defaultParams: {},
+    getTitleInfo: () => ({ name: 'VOL', params: [], values: [] }),
+  },
+  MACD: {
+    defaultParams: { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 },
+    getTitleInfo: (data, index, params) => {
+      if (index === null) return null
+      return getMACDTitleInfo(
+        data,
+        index,
+        params.fastPeriod ?? 12,
+        params.slowPeriod ?? 26,
+        params.signalPeriod ?? 9,
+      )
+    },
+  },
+  RSI: {
+    defaultParams: { period1: 6, period2: 12, period3: 24 },
+    getTitleInfo: (data, index, params) => {
+      if (index === null) return null
+      return getRSITitleInfo(data, index, params.period1 ?? 6, params.period2 ?? 12, params.period3 ?? 24)
+    },
+  },
+  CCI: {
+    defaultParams: { period: 14 },
+    getTitleInfo: (data, index, params) => {
+      if (index === null) return null
+      return getCCITitleInfo(data, index, params.period ?? 14)
+    },
+  },
+  STOCH: {
+    defaultParams: { n: 9, m: 3 },
+    getTitleInfo: (data, index, params) => {
+      if (index === null) return null
+      return getSTOCHTitleInfo(data, index, params.n ?? 9, params.m ?? 3)
+    },
+  },
+  MOM: {
+    defaultParams: { period: 10 },
+    getTitleInfo: (data, index, params) => {
+      if (index === null) return null
+      return getMOMTitleInfo(data, index, params.period ?? 10)
+    },
+  },
+  WMSR: {
+    defaultParams: { period: 14 },
+    getTitleInfo: (data, index, params) => {
+      if (index === null) return null
+      return getWMSRTitleInfo(data, index, params.period ?? 14)
+    },
+  },
+  KST: {
+    defaultParams: { roc1: 10, roc2: 15, roc3: 20, roc4: 30, signalPeriod: 9 },
+    getTitleInfo: (data, index, params) => {
+      if (index === null) return null
+      return getKSTTitleInfo(
+        data,
+        index,
+        params.roc1 ?? 10,
+        params.roc2 ?? 15,
+        params.roc3 ?? 20,
+        params.roc4 ?? 30,
+        params.signalPeriod ?? 9,
+      )
+    },
+  },
+  FASTK: {
+    defaultParams: { period: 9 },
+    getTitleInfo: (data, index, params) => {
+      if (index === null) return null
+      return getFASTKTitleInfo(data, index, params.period ?? 9)
+    },
+  },
+}
 
 // 副图指标列表
-const SUB_PANE_INDICATORS: SubIndicatorType[] = [
-  'VOLUME',
-  'MACD',
-  'RSI',
-  'CCI',
-  'STOCH',
-  'MOM',
-  'WMSR',
-  'KST',
-  'FASTK',
-]
+const SUB_PANE_INDICATORS = Object.keys(SUB_PANE_INDICATOR_CONFIGS) as SubIndicatorType[]
+
+// 最大副图数量
+const maxSubPanes = 4
 
 function buildPaneLayoutIntent(): PaneSpec[] {
   const mainRatio = paneRatios.value['main'] ?? 3
@@ -383,26 +457,7 @@ function buildPaneLayoutIntent(): PaneSpec[] {
 
 // 获取指标默认参数
 function getDefaultParams(indicatorId: SubIndicatorType): Record<string, number> {
-  switch (indicatorId) {
-    case 'MACD':
-      return { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 }
-    case 'RSI':
-      return { period1: 6, period2: 12, period3: 24 }
-    case 'CCI':
-      return { period: 14 }
-    case 'STOCH':
-      return { n: 9, m: 3 }
-    case 'MOM':
-      return { period: 10 }
-    case 'WMSR':
-      return { period: 14 }
-    case 'KST':
-      return { roc1: 10, roc2: 15, roc3: 20, roc4: 30, signalPeriod: 9 }
-    case 'FASTK':
-      return { period: 9 }
-    default:
-      return {}
-  }
+  return { ...SUB_PANE_INDICATOR_CONFIGS[indicatorId].defaultParams }
 }
 
 // 添加副图（使用 Chart API）
@@ -653,51 +708,9 @@ function getSubPaneTitleInfo(paneId: string): TitleInfo | null {
   const data = chartRef.value?.getData()
   if (!data || data.length === 0) return null
 
-  const p = pane.params as Record<string, number>
-
-  // VOLUME 不依赖十字线，始终显示
-  if (pane.indicatorId === 'VOLUME') {
-    return { name: 'VOL', params: [], values: [] }
-  }
-
-  // 其他指标需要十字线位置
-  const index = crosshairIdx.value
-  if (index === null) return null
-
-  switch (pane.indicatorId) {
-    case 'MACD':
-      return getMACDTitleInfo(
-        data,
-        index,
-        p.fastPeriod ?? 12,
-        p.slowPeriod ?? 26,
-        p.signalPeriod ?? 9,
-      )
-    case 'RSI':
-      return getRSITitleInfo(data, index, p.period1 ?? 6, p.period2 ?? 12, p.period3 ?? 24)
-    case 'CCI':
-      return getCCITitleInfo(data, index, p.period ?? 14)
-    case 'STOCH':
-      return getSTOCHTitleInfo(data, index, p.n ?? 9, p.m ?? 3)
-    case 'MOM':
-      return getMOMTitleInfo(data, index, p.period ?? 10)
-    case 'WMSR':
-      return getWMSRTitleInfo(data, index, p.period ?? 14)
-    case 'KST':
-      return getKSTTitleInfo(
-        data,
-        index,
-        p.roc1 ?? 10,
-        p.roc2 ?? 15,
-        p.roc3 ?? 20,
-        p.roc4 ?? 30,
-        p.signalPeriod ?? 9,
-      )
-    case 'FASTK':
-      return getFASTKTitleInfo(data, index, p.period ?? 9)
-    default:
-      return null
-  }
+  const config = SUB_PANE_INDICATOR_CONFIGS[pane.indicatorId]
+  const params = pane.params as Record<string, number>
+  return config.getTitleInfo(data, crosshairIdx.value, params)
 }
 
 // 指标切换处理（只更新状态，渲染器由 watch 控制）
@@ -1018,6 +1031,7 @@ onMounted(() => {
   )
 
   const subScaleRenderers = [
+    { create: createVolumeScaleRendererPlugin, paneId: 'sub_VOLUME' },
     { create: createMacdScaleRendererPlugin, paneId: 'sub_MACD' },
     { create: createRsiScaleRendererPlugin, paneId: 'sub_RSI' },
     { create: createCciScaleRendererPlugin, paneId: 'sub_CCI' },

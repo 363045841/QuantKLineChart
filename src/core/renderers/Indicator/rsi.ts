@@ -175,13 +175,18 @@ export function createRSIRendererPlugin(options: RSIRendererOptions = {}): Rende
             }
             pluginHost?.setSharedState<RSIRenderState>(STATE_KEY, stateData, `rsi_${paneId}`)
 
+            const displayRange = pane.yAxis.getDisplayRange({ minPrice: valueMin, maxPrice: valueMax })
+            const displayMin = displayRange.minPrice
+            const displayMax = displayRange.maxPrice
+            const displayValueRange = displayMax - displayMin || 1
+
             ctx.save()
             ctx.translate(-scrollLeft, 0)
 
             // 绘制超买超卖线
-            const y80 = pane.height - (80 - valueMin) / valueRange * pane.height
-            const y50 = pane.height - (50 - valueMin) / valueRange * pane.height
-            const y20 = pane.height - (20 - valueMin) / valueRange * pane.height
+            const y80 = pane.height - (80 - displayMin) / displayValueRange * pane.height
+            const y50 = pane.height - (50 - displayMin) / displayValueRange * pane.height
+            const y20 = pane.height - (20 - displayMin) / displayValueRange * pane.height
 
             const lineStartX = scrollLeft
             const lineEndX = scrollLeft + context.paneWidth
@@ -218,7 +223,7 @@ export function createRSIRendererPlugin(options: RSIRendererOptions = {}): Rende
                     if (x === undefined) continue
 
                     const logicX = x + kWidth / 2
-                    const logicY = pane.height - (value - valueMin) / valueRange * pane.height
+                    const logicY = pane.height - (value - displayMin) / displayValueRange * pane.height
 
                     const px = alignToPhysicalPixelCenter(logicX, dpr)
                     const py = alignToPhysicalPixelCenter(logicY, dpr)

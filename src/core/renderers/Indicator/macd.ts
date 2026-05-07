@@ -230,8 +230,13 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
             }
             pluginHost?.setSharedState<MACDRenderState>(STATE_KEY, stateData, `macd_${paneId}`)
 
+            const displayRange = pane.yAxis.getDisplayRange({ minPrice: valueMin, maxPrice: valueMax })
+            const displayMin = displayRange.minPrice
+            const displayMax = displayRange.maxPrice
+            const displayValueRange = displayMax - displayMin || 1
+
             // 零轴位置
-            const zeroY = pane.height - (0 - valueMin) / valueRange * pane.height
+            const zeroY = pane.height - (0 - displayMin) / displayValueRange * pane.height
 
             ctx.save()
             ctx.translate(-scrollLeft, 0)
@@ -265,7 +270,7 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
                     const alignedBarXPx = Math.round((x + (kWidth - alignedBarWidth) / 2) * dpr)
                     const alignedBarX = alignedBarXPx / dpr
 
-                    const barY = pane.height - (point.macd - valueMin) / valueRange * pane.height
+                    const barY = pane.height - (point.macd - displayMin) / displayValueRange * pane.height
                     const isPositive = point.macd >= 0
 
                     // TradingView风格：比较当前柱与前一根柱的高度
@@ -326,7 +331,7 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
                     if (x === undefined) continue
 
                     const logicX = x + kWidth / 2
-                    const logicY = pane.height - (point.dif - valueMin) / valueRange * pane.height
+                    const logicY = pane.height - (point.dif - displayMin) / displayValueRange * pane.height
 
                     const px = alignToPhysicalPixelCenter(logicX, dpr)
                     const py = alignToPhysicalPixelCenter(logicY, dpr)
@@ -358,7 +363,7 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
                     if (x === undefined) continue
 
                     const logicX = x + kWidth / 2
-                    const logicY = pane.height - (point.dea - valueMin) / valueRange * pane.height
+                    const logicY = pane.height - (point.dea - displayMin) / displayValueRange * pane.height
 
                     const px = alignToPhysicalPixelCenter(logicX, dpr)
                     const py = alignToPhysicalPixelCenter(logicY, dpr)

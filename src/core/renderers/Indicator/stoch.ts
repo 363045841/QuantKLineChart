@@ -163,12 +163,17 @@ export function createSTOCHRendererPlugin(options: STOCHRendererOptions = {}): R
             }
             pluginHost?.setSharedState<STOCHRenderState>(STATE_KEY, stateData, `stoch_${paneId}`)
 
+            const displayRange = pane.yAxis.getDisplayRange({ minPrice: valueMin, maxPrice: valueMax })
+            const displayMin = displayRange.minPrice
+            const displayMax = displayRange.maxPrice
+            const displayValueRange = displayMax - displayMin || 1
+
             ctx.save()
             ctx.translate(-scrollLeft, 0)
 
             // 绘制超买超卖线
-            const y80 = pane.height - (80 - valueMin) / valueRange * pane.height
-            const y20 = pane.height - (20 - valueMin) / valueRange * pane.height
+            const y80 = pane.height - (80 - displayMin) / displayValueRange * pane.height
+            const y20 = pane.height - (20 - displayMin) / displayValueRange * pane.height
 
             const lineStartX = scrollLeft
             const lineEndX = scrollLeft + context.paneWidth
@@ -204,7 +209,7 @@ export function createSTOCHRendererPlugin(options: STOCHRendererOptions = {}): R
                     if (x === undefined) continue
 
                     const logicX = x + kWidth / 2
-                    const logicY = pane.height - (point.k - valueMin) / valueRange * pane.height
+                    const logicY = pane.height - (point.k - displayMin) / displayValueRange * pane.height
 
                     const px = alignToPhysicalPixelCenter(logicX, dpr)
                     const py = alignToPhysicalPixelCenter(logicY, dpr)
@@ -236,7 +241,7 @@ export function createSTOCHRendererPlugin(options: STOCHRendererOptions = {}): R
                     if (x === undefined) continue
 
                     const logicX = x + kWidth / 2
-                    const logicY = pane.height - (point.d - valueMin) / valueRange * pane.height
+                    const logicY = pane.height - (point.d - displayMin) / displayValueRange * pane.height
 
                     const px = alignToPhysicalPixelCenter(logicX, dpr)
                     const py = alignToPhysicalPixelCenter(logicY, dpr)

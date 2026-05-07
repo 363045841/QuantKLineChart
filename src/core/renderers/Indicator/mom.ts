@@ -123,8 +123,13 @@ export function createMOMRendererPlugin(options: MOMRendererOptions = {}): Rende
             }
             pluginHost?.setSharedState<MOMRenderState>(STATE_KEY, stateData, `mom_${paneId}`)
 
+            const displayRange = pane.yAxis.getDisplayRange({ minPrice: minVal, maxPrice: maxVal })
+            const displayMin = displayRange.minPrice
+            const displayMax = displayRange.maxPrice
+            const displayValueRange = displayMax - displayMin || 1
+
             // 零轴位置
-            const zeroY = pane.height - (0 - minVal) / valueRange * pane.height
+            const zeroY = pane.height - (0 - displayMin) / displayValueRange * pane.height
 
             ctx.save()
             ctx.translate(-scrollLeft, 0)
@@ -160,7 +165,7 @@ export function createMOMRendererPlugin(options: MOMRendererOptions = {}): Rende
                     if (x === undefined) continue
 
                     const logicX = x + kWidth / 2
-                    const logicY = pane.height - (value - minVal) / valueRange * pane.height
+                    const logicY = pane.height - (value - displayMin) / displayValueRange * pane.height
 
                     const px = alignToPhysicalPixelCenter(logicX, dpr)
                     const py = alignToPhysicalPixelCenter(logicY, dpr)

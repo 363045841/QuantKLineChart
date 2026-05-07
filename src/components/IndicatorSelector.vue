@@ -105,7 +105,7 @@
                 @click="addIndicator(indicator.id)"
               >
                 {{ indicator.label }}
-                <span v-if="indicator.params" class="param-hint"> ({{ indicator.name }}) </span>
+                <span class="param-hint"> ({{ indicator.name }}) </span>
                 <span v-if="isActive(indicator.id)" class="active-tag">
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
@@ -126,7 +126,7 @@
                 @click="addIndicator(indicator.id)"
               >
                 {{ indicator.label }}
-                <span v-if="indicator.params" class="param-hint"> ({{ indicator.name }}) </span>
+                <span class="param-hint"> ({{ indicator.name }}) </span>
                 <span v-if="isActive(indicator.id)" class="active-tag">
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
@@ -172,6 +172,13 @@ export interface Indicator {
 // ─────────────────────────────────────────────────────────────────
 const allIndicators: Indicator[] = [
   { id: 'MA', label: 'MA', name: '均线', pane: 'main' },
+  {
+    id: 'VOLUME',
+    label: 'VOL',
+    name: '成交量',
+    pane: 'sub',
+    description: '成交量反映市场活跃度，柱状图显示每根K线的交易量。上涨时柱子为红色，下跌时为绿色。',
+  },
   {
     id: 'BOLL',
     label: 'BOLL',

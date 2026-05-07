@@ -19,6 +19,8 @@ export interface IndicatorScaleRendererOptions {
     decimals?: number
     yPaddingPx?: number
     getCrosshair?: () => { y: number; price: number; activePaneId: string | null } | null
+    formatTickLabel?: (value: number) => string
+    formatCrosshairLabel?: (value: number) => string
 }
 
 export interface DrawScaleTicksOptions {
@@ -33,6 +35,7 @@ export interface DrawScaleTicksOptions {
     isMain: boolean
     decimals?: number
     hideEdgeTicks?: boolean
+    formatLabel?: (value: number) => string
 }
 
 export function drawScaleTicks(options: DrawScaleTicksOptions): void {
@@ -48,6 +51,7 @@ export function drawScaleTicks(options: DrawScaleTicksOptions): void {
         isMain,
         decimals = 2,
         hideEdgeTicks = true,
+        formatLabel,
     } = options
 
     const valueRange = valueMax - valueMin || 1
@@ -70,13 +74,13 @@ export function drawScaleTicks(options: DrawScaleTicksOptions): void {
     for (let i = 0; i < ticks; i++) {
         if (hideEdgeTicks && (i === 0 || i === ticks - 1)) continue
 
-        const value = valueMax - step * i  // 从上到下，价格递减
+        const value = valueMax - step * i
         const t = ticks <= 1 ? 0 : i / (ticks - 1)
-        const y = yStart + t * viewH  // 与网格线相同的 Y 坐标计算
+        const y = yStart + t * viewH
 
         ctx.fillStyle = TEXT_COLORS.SECONDARY
         ctx.fillText(
-            value.toFixed(decimals),
+            formatLabel ? formatLabel(value) : value.toFixed(decimals),
             roundToPhysicalPixel(centerX, dpr),
             roundToPhysicalPixel(y, dpr)
         )
@@ -86,7 +90,17 @@ export function drawScaleTicks(options: DrawScaleTicksOptions): void {
 }
 
 export function createIndicatorScaleRendererPlugin(options: IndicatorScaleRendererOptions): RendererPluginWithHost {
-    const { axisWidth, paneId, indicatorKey, label, decimals = 2, yPaddingPx = 0, getCrosshair } = options
+    const {
+        axisWidth,
+        paneId,
+        indicatorKey,
+        label,
+        decimals = 2,
+        yPaddingPx = 0,
+        getCrosshair,
+        formatTickLabel,
+        formatCrosshairLabel,
+    } = options
     const stateKey = createIndicatorStateKey(indicatorKey, paneId)
     let pluginHost: PluginHost | null = null
 
@@ -126,6 +140,7 @@ export function createIndicatorScaleRendererPlugin(options: IndicatorScaleRender
                 isMain: false,
                 decimals,
                 hideEdgeTicks: false,
+                formatLabel: formatTickLabel,
             })
 
             const crosshair = getCrosshair?.()
@@ -153,6 +168,7 @@ export function createIndicatorScaleRendererPlugin(options: IndicatorScaleRender
                 fontSize: 12,
                 priceOffset: 0,
                 price: displayPrice,
+                formatPrice: formatCrosshairLabel,
             })
         },
     }

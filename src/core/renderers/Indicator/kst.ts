@@ -236,7 +236,11 @@ export function createKSTRendererPlugin(options: KSTRendererOptions = {}): Rende
                 timestamp: Date.now(),
             }
             pluginHost?.setSharedState<KSTRenderState>(STATE_KEY, stateData, `kst_${paneId}`)
-            const zeroY = pane.height - (0 - minVal) / valueRange * pane.height
+            const displayRange = pane.yAxis.getDisplayRange({ minPrice: minVal, maxPrice: maxVal })
+            const displayMin = displayRange.minPrice
+            const displayMax = displayRange.maxPrice
+            const displayValueRange = displayMax - displayMin || 1
+            const zeroY = pane.height - (0 - displayMin) / displayValueRange * pane.height
 
             ctx.save()
             ctx.translate(-scrollLeft, 0)
@@ -272,7 +276,7 @@ export function createKSTRendererPlugin(options: KSTRendererOptions = {}): Rende
                     if (x === undefined) continue
 
                     const logicX = x + kWidth / 2
-                    const logicY = pane.height - (point.kst - minVal) / valueRange * pane.height
+                    const logicY = pane.height - (point.kst - displayMin) / displayValueRange * pane.height
 
                     const px = alignToPhysicalPixelCenter(logicX, dpr)
                     const py = alignToPhysicalPixelCenter(logicY, dpr)
@@ -304,7 +308,7 @@ export function createKSTRendererPlugin(options: KSTRendererOptions = {}): Rende
                     if (x === undefined) continue
 
                     const logicX = x + kWidth / 2
-                    const logicY = pane.height - (point.signal - minVal) / valueRange * pane.height
+                    const logicY = pane.height - (point.signal - displayMin) / displayValueRange * pane.height
 
                     const px = alignToPhysicalPixelCenter(logicX, dpr)
                     const py = alignToPhysicalPixelCenter(logicY, dpr)
