@@ -10,7 +10,7 @@ RUN npm install -g pnpm
 COPY package.json pnpm-lock.yaml ./
 
 # 安装依赖
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --config.ignore-scripts=false
 
 # 复制源代码
 COPY . .
