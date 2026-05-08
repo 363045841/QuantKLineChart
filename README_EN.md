@@ -21,6 +21,7 @@ A financial charting library based on Vue 3 and Canvas, focusing on high-perform
 ![pasted-image-1777718129484.webp](https://files.seeusercontent.com/2026/05/02/Lm0w/pasted-image-1777718129484.webp)
 ![(ZOS$O}EP(_NKI273RXBV17.png](https://files.seeusercontent.com/2026/04/29/olU0/ZOSOEP_NKI273RXBV17.png)
 ![YU8@~$21%{NBJLGIZ}KTKED.png](https://files.seeusercontent.com/2026/04/29/akQ8/YU821NBJLGIZKTKED.png)
+![pasted-image-1778256491407.webp](https://files.seeusercontent.com/2026/05/08/1Nkp/pasted-image-1778256491407.webp)
 
 ### Agent Semantic Control
 

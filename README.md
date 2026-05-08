@@ -21,6 +21,7 @@
 ![pasted-image-1778063749574.webp](https://files.seeusercontent.com/2026/05/06/2Udv/pasted-image-1778063749574.webp)
 ![pasted-image-1778063691961.webp](https://files.seeusercontent.com/2026/05/06/q1Cq/pasted-image-1778063691961.webp)
 ![pasted-image-1778063638151.webp](https://files.seeusercontent.com/2026/05/06/uv3R/pasted-image-1778063638151.webp)
+![pasted-image-1778256491407.webp](https://files.seeusercontent.com/2026/05/08/1Nkp/pasted-image-1778256491407.webp)
 
 ### Agent 语义化控制
 
