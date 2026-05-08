@@ -17,6 +17,8 @@ import {
     type PaneCapabilities,
 } from '@/plugin'
 import { createSubIndicatorRenderer, type SubIndicatorType } from '@/core/renderers/Indicator'
+import { DrawingStore } from '@/core/drawing'
+import { createDrawingRendererPlugin } from '@/core/drawing/plugin'
 
 // 重新导出以保持向后兼容
 export { getPhysicalKLineConfig, calcKWidthPx }
@@ -115,6 +117,7 @@ export class Chart {
 
     private paneRenderers: PaneRenderer[] = []
     private markerManager: MarkerManager
+    private drawingStore = new DrawingStore()
     readonly interaction: InteractionController
 
     /** 插件宿主 */
@@ -184,6 +187,7 @@ export class Chart {
         this.opt.kGap = initialKGap
 
         this.initPanes()
+        this.useRenderer(createDrawingRendererPlugin({ store: this.drawingStore }))
         this.initResizeObserver()
     }
 
@@ -367,6 +371,11 @@ export class Chart {
                 yAxisCtx: yAxisCtx ?? undefined,
                 zoomLevel: this.currentZoomLevel,
                 zoomLevelCount: this.zoomLevelCount,
+                viewport: {
+                    scrollLeft: vp.scrollLeft,
+                    plotWidth: vp.plotWidth,
+                    plotHeight: vp.plotHeight,
+                },
             }
 
             // 插件渲染器绘制
@@ -415,6 +424,11 @@ export class Chart {
                 paneWidth: vp.plotWidth,
                 kLinePositions,
                 xAxisCtx,
+                viewport: {
+                    scrollLeft: vp.scrollLeft,
+                    plotWidth: vp.plotWidth,
+                    plotHeight: vp.plotHeight,
+                },
             }
             const errors = this.rendererPluginManager.renderPlugin('timeAxis', timeAxisContext)
             if (errors.length > 0) {
@@ -732,6 +746,12 @@ export class Chart {
         this.useRenderer(renderer, params)
     }
 
+    /** 更新绘图对象 */
+    setDrawings(drawings: import('@/plugin').DrawingObject[]): void {
+        this.drawingStore.setAll(drawings)
+        this.scheduleDraw()
+    }
+
     /** 获取当前 pane 布局快照（含 ratio） */
     getPaneLayoutSpecs(): PaneSpec[] {
         const visible = this.opt.panes.filter(p => p.visible !== false)
@@ -1044,6 +1064,19 @@ export class Chart {
     getData(): KLineData[] {
         return this.data
     }
+
+    /** 根据视口内 X 坐标反查数据索引（用于绘图落点） */
+    getDataIndexAtX(mouseX: number): number | null {
+        const vp = this.viewport
+        if (!vp || this.data.length === 0) return null
+        const dpr = this.getEffectiveDpr()
+        const { startXPx, unitPx } = getPhysicalKLineConfig(this.opt.kWidth, this.opt.kGap, dpr)
+        const worldX = Math.round((vp.scrollLeft + mouseX) * dpr)
+        const index = Math.floor((worldX - startXPx) / unitPx)
+        if (index < 0 || index >= this.data.length) return null
+        return index
+    }
+
 
     /** 获取内容总宽度（用于外部 scroll-content 撑开 scrollWidth） */
     getContentWidth(): number {

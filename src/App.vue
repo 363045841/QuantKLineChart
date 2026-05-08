@@ -90,8 +90,6 @@ import debugConfig from '@/semantic/debug-config.json'
 import packageJson from '../package.json'
 import IconTablerLayout from '~icons/tabler/layout'
 import IconTablerResize from '~icons/tabler/resize'
-import IconTablerMaximize from '~icons/tabler/maximize'
-import IconTablerMinimize from '~icons/tabler/minimize'
 
 const defaultConfig = debugConfig as SemanticChartConfig
 

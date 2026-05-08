@@ -15,6 +15,7 @@ declare module 'vue' {
     IndicatorSelector: typeof import('./src/components/IndicatorSelector.vue')['default']
     KLineChart: typeof import('./src/components/KLineChart.vue')['default']
     KLineTooltip: typeof import('./src/components/KLineTooltip.vue')['default']
+    LeftToolbar: typeof import('./src/components/LeftToolbar.vue')['default']
     MarkerTooltip: typeof import('./src/components/MarkerTooltip.vue')['default']
   }
 }
