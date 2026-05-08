@@ -16,6 +16,7 @@ A financial charting library based on Vue 3 and Canvas, focusing on high-perform
 - **Framework-agnostic**: Core logic is completely independent, not tied to any specific framework
 - **Plugin Architecture**: Renderer plugins support dynamic registration, configuration and lifecycle management
 - **Volume-Price Annotation**: Automatically identifies and annotates four patterns: volume-price rise, divergence, etc.
+- **Drawing Tools** (v0.5 Preview): Supports basic line drawing including trend lines (segment, ray, extended), horizontal/vertical/cross lines, info lines, parallel channels and regression channels. v0.5 will complete drawing interaction and editing capabilities
 
 ![pasted-image-1777718129484.webp](https://files.seeusercontent.com/2026/05/02/Lm0w/pasted-image-1777718129484.webp)
 ![(ZOS$O}EP(_NKI273RXBV17.png](https://files.seeusercontent.com/2026/04/29/olU0/ZOSOEP_NKI273RXBV17.png)
@@ -46,9 +47,13 @@ src/
 ├── components/              # Vue components
 │   ├── KLineChart.vue       # K-line chart main component
 │   ├── IndicatorSelector.vue # Indicator selector
-│   └── IndicatorParams.vue  # Indicator parameter editor
+│   ├── IndicatorParams.vue  # Indicator parameter editor
+│   └── LeftToolbar.vue      # Left drawing toolbar
 ├── core/                    # Core rendering engine
 │   ├── chart.ts             # Chart controller
+│   ├── drawing/             # Drawing system
+│   │   ├── index.ts         # DrawingStore, definition registry, primitive renderers
+│   │   └── plugin.ts        # Drawing renderer plugin
 │   ├── renderers/           # Renderer plugins
 │   │   ├── candle.ts        # K-line renderer
 │   │   ├── ma.ts            # MA renderer

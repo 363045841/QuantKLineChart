@@ -16,6 +16,7 @@
 - **框架无关**：核心逻辑完全独立，不依赖特定框架
 - **插件化架构**：渲染器插件支持动态注册、配置和生命周期管理
 - **量价关系标注**：自动识别并标注量价齐升、量价背离、量增价跌、量缩价跌四种形态
+- **绘图工具**（v0.5 预览）：支持基础线条绘制，包括趋势线（线段、射线、延长线）、水平线/垂直线/十字线、信息线、平行通道和线性回归通道。v0.5 版本将完善绘图交互与编辑能力
 
 ![pasted-image-1778063749574.webp](https://files.seeusercontent.com/2026/05/06/2Udv/pasted-image-1778063749574.webp)
 ![pasted-image-1778063691961.webp](https://files.seeusercontent.com/2026/05/06/q1Cq/pasted-image-1778063691961.webp)
@@ -46,9 +47,13 @@ src/
 ├── components/              # Vue 组件
 │   ├── KLineChart.vue       # K 线图主组件
 │   ├── IndicatorSelector.vue # 指标选择器
-│   └── IndicatorParams.vue  # 指标参数编辑
+│   ├── IndicatorParams.vue  # 指标参数编辑
+│   └── LeftToolbar.vue      # 左侧绘图工具栏
 ├── core/                    # 核心渲染引擎
 │   ├── chart.ts             # 图表控制器
+│   ├── drawing/             # 绘图系统
+│   │   ├── index.ts         # DrawingStore、定义注册、图元渲染器
+│   │   └── plugin.ts        # 绘图渲染器插件
 │   ├── renderers/           # 渲染器插件
 │   │   ├── candle.ts        # K 线渲染器
 │   │   ├── ma.ts            # MA 均线渲染器
