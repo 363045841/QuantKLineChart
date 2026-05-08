@@ -231,13 +231,12 @@ export const RENDERER_PRIORITY = {
    * 所有指标渲染器必须使用此优先级或 ≤30 的值
    */
   INDICATOR: 30,
-  /**
-   * 指标刻度渲染器（依赖于前方 INDICATOR 的状态）
-   * 所有刻度渲染器必须使用此优先级或 ≥35 的值，
-   * 确保每次绘制时指标更新先于刻度。
-   */
-  INDICATOR_SCALE: 35,
   MAIN: 50, // 主图（K线）
+  /**
+   * 指标刻度渲染器（依赖于前方指标写入的共享状态）
+   * 必须晚于 INDICATOR 和 MAIN，确保每次绘制时先更新指标状态再绘制刻度。
+   */
+  INDICATOR_SCALE: 55,
   OVERLAY: 80, // 叠加层（标记点）
   FOREGROUND: 100, // 前景层（价格线）
   SYSTEM_BORDER: 120, // 边框（系统级）

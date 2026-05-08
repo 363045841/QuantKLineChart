@@ -1,6 +1,6 @@
 {
   "name": "@363045841yyt/klinechart",
-  "version": "0.4.7",
+  "version": "0.5.0",
   "type": "module",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
@@ -41,6 +41,7 @@
     "axios": "^1.16.0"
   },
   "devDependencies": {
+    "@iconify-json/tabler": "^1.2.34",
     "@tsconfig/node24": "^24.0.4",
     "@types/jsdom": "^28.0.1",
     "@types/node": "^25.6.0",
@@ -53,6 +54,8 @@
     "prettier": "3.8.3",
     "typedoc": "^0.28.19",
     "typescript": "~6.0.3",
+    "unplugin-icons": "^23.0.1",
+    "unplugin-vue-components": "^32.0.0",
     "vite": "^8.0.10",
     "vite-plugin-dts": "^4.5.4",
     "vite-plugin-vue-devtools": "^8.1.1",

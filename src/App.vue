@@ -3,33 +3,10 @@
     <div class="debug-controls">
       <div class="debug-left">
         <button @click="showModal = true" title="打开 Modal">
-          <svg
-            viewBox="0 0 24 24"
-            width="20"
-            height="20"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <path d="M9 3v18M3 9h6" />
-          </svg>
+          <IconTablerLayout class="debug-icon" aria-hidden="true" />
         </button>
         <button @click="toggleEmbedSize" title="切换嵌入容器尺寸">
-          <svg
-            viewBox="0 0 24 24"
-            width="20"
-            height="20"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-          </svg>
+          <IconTablerResize class="debug-icon" aria-hidden="true" />
         </button>
       </div>
       <div class="debug-center">
@@ -70,8 +47,20 @@
     </div>
 
     <!-- 嵌入场景：模拟组件库在父容器中的使用 -->
-    <div class="embed-container" :style="{ width: embedWidth, height: embedHeight }">
-      <KLineChart :semanticConfig="currentConfig" :kWidth="7" :kGap="3" :yPaddingPx="24" />
+    <div
+      ref="embedContainerRef"
+      class="embed-container"
+      :class="{ 'is-fullscreen': isFullscreen }"
+      :style="{ width: embedWidth, height: embedHeight }"
+    >
+      <KLineChart
+        :semanticConfig="currentConfig"
+        :kWidth="7"
+        :kGap="3"
+        :yPaddingPx="24"
+        :is-fullscreen="isFullscreen"
+        @toggle-fullscreen="toggleFullscreen"
+      />
     </div>
 
     <!-- Modal 场景 -->
@@ -99,6 +88,10 @@ import KLineChart from '@/components/KLineChart.vue'
 import type { SemanticChartConfig } from '@/semantic'
 import debugConfig from '@/semantic/debug-config.json'
 import packageJson from '../package.json'
+import IconTablerLayout from '~icons/tabler/layout'
+import IconTablerResize from '~icons/tabler/resize'
+import IconTablerMaximize from '~icons/tabler/maximize'
+import IconTablerMinimize from '~icons/tabler/minimize'
 
 const defaultConfig = debugConfig as SemanticChartConfig
 
@@ -122,6 +115,36 @@ const embedHeight = computed(() => sizes[sizeIndex.value]?.h ?? '100%')
 
 function toggleEmbedSize() {
   sizeIndex.value = (sizeIndex.value + 1) % sizes.length
+}
+
+// 全屏控制
+const isFullscreen = ref(false)
+const embedContainerRef = ref<HTMLElement | null>(null)
+
+async function toggleFullscreen() {
+  if (!embedContainerRef.value) return
+
+  try {
+    if (!document.fullscreenElement) {
+      await embedContainerRef.value.requestFullscreen()
+      isFullscreen.value = true
+    } else {
+      await document.exitFullscreen()
+      isFullscreen.value = false
+    }
+  } catch (err) {
+    console.error('Fullscreen error:', err)
+  }
+}
+
+// 监听全屏变化事件
+function handleFullscreenChange() {
+  isFullscreen.value = !!document.fullscreenElement
+}
+
+// 添加/移除全屏事件监听
+if (typeof document !== 'undefined') {
+  document.addEventListener('fullscreenchange', handleFullscreenChange)
 }
 </script>
 
@@ -205,6 +228,11 @@ function toggleEmbedSize() {
   color: #1890ff;
 }
 
+.debug-icon {
+  width: 20px;
+  height: 20px;
+}
+
 /* 移动端适配 */
 @media (max-width: 640px) {
   .debug-controls {
@@ -247,6 +275,17 @@ function toggleEmbedSize() {
   margin: 16px;
   border-radius: 8px;
   overflow: hidden;
+}
+
+/* 全屏状态下的嵌入容器 - 隐藏虚线边框 */
+.embed-container:fullscreen,
+.embed-container.is-fullscreen {
+  border: none;
+  margin: 0;
+  border-radius: 0;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: #fff;
 }
 
 /* Modal 样式 */

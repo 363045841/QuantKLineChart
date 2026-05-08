@@ -3,6 +3,7 @@ import type { KLineDataSourceConfig, IKLineDataSource, DataSourceType } from './
 import { getKlineDataBaoStock } from './baostock'
 import { getKlineDataDongCai } from './kLine'
 import { toKLineData } from '@/types/price'
+import { cache } from '@/utils/cache'
 
 /**
  * BaoStock 数据源统一实现
@@ -107,10 +108,27 @@ class DataSourceFactory {
   }
 }
 
+// 缓存配置：K线数据缓存1小时
+const KLINE_CACHE_MAX_AGE = 60 * 60 * 1000
+
 /**
- * 获取 K 线数据（统一入口）
+ * 生成缓存键
+ */
+function generateKLineCacheKey(type: DataSourceType, config: KLineDataSourceConfig): string {
+  return cache.generateKey(`kline:${type}`, {
+    symbol: config.symbol,
+    startDate: config.startDate,
+    endDate: config.endDate,
+    period: config.period,
+    adjust: config.adjust,
+  })
+}
+
+/**
+ * 获取 K 线数据（统一入口，带缓存）
  * @param type 数据源类型
  * @param config 统一配置
+ * @param useCache 是否使用缓存，默认 true
  * @returns Promise<KLineData[]>
  *
  * 使用示例：
@@ -126,14 +144,39 @@ class DataSourceFactory {
  *
  * // 切换东财只需改第一个参数
  * const data = await fetchKLineData('dongcai', { ... })
+ *
+ * // 跳过缓存强制刷新
+ * const data = await fetchKLineData('baostock', config, false)
  * ```
  */
 export async function fetchKLineData(
   type: DataSourceType,
   config: KLineDataSourceConfig,
+  useCache: boolean = true,
 ): Promise<KLineData[]> {
+  // 生成缓存键
+  const cacheKey = generateKLineCacheKey(type, config)
+
+  // 优先从缓存读取
+  if (useCache) {
+    const cached = cache.get<KLineData[]>(cacheKey, KLINE_CACHE_MAX_AGE)
+    if (cached) {
+      console.log(`[KLineCache] 命中缓存: ${cacheKey}`)
+      return cached
+    }
+  }
+
+  // 获取数据
   const dataSource = DataSourceFactory.create(type)
-  return dataSource.fetchKLineData(config)
+  const data = await dataSource.fetchKLineData(config)
+
+  // 写入缓存
+  if (useCache && data.length > 0) {
+    cache.set(cacheKey, data)
+    console.log(`[KLineCache] 写入缓存: ${cacheKey}, ${data.length} 条数据`)
+  }
+
+  return data
 }
 
 export { DataSourceFactory }

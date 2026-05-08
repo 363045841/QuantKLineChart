@@ -1,62 +1,117 @@
 <template>
   <div class="chart-wrapper">
-    <div
-      class="chart-container"
-      :class="{
-        'is-dragging': isDragging,
-        'is-resizing-pane': isResizingPane,
-        'is-hovering-pane-separator': isHoveringPaneSeparator,
-        'is-hovering-right-axis': isHoveringRightAxis,
-        'is-hovering-kline': hoveredIdx !== null,
-      }"
-      ref="containerRef"
-      @scroll.passive="onScroll"
-      @pointerdown="onPointerDown"
-      @pointermove="onPointerMove"
-      @pointerup="onPointerUp"
-      @pointerleave="onPointerLeave"
-    >
-      <!-- scroll-content 负责撑开横向滚动宽度，并承载 sticky 的画布层 -->
-      <div class="scroll-content" :style="{ width: totalWidth + 'px' }">
-        <!-- 画布层：sticky 固定在可视区域左上角，滚动只影响绘制时的 scrollLeft -->
-        <div class="canvas-layer" ref="canvasLayerRef">
-          <!-- plotCanvas 和 yAxisCanvas 由 Chart 自动创建 -->
+    <div class="chart-stage">
+      <nav class="left-toolbar" aria-label="图表工具栏">
+        <div class="left-toolbar__group">
+          <button
+            v-for="id in primaryToolIds"
+            :key="id"
+            type="button"
+            class="left-toolbar__button"
+            :class="{ active: selectedTool === id }"
+            :title="toolbarTools[id].title"
+            :aria-label="toolbarTools[id].title"
+            @click="selectedTool = id"
+            @pointerdown.stop
+            @pointermove.stop
+            @pointerup.stop
+          >
+            <component :is="toolbarTools[id].component" class="tool-icon" aria-hidden="true" />
+          </button>
+        </div>
+        <span class="left-toolbar__divider"></span>
+        <div class="left-toolbar__group">
+          <button
+            v-for="id in secondaryToolIds"
+            :key="id"
+            type="button"
+            class="left-toolbar__button"
+            :class="{ active: selectedTool === id }"
+            :title="toolbarTools[id].title"
+            :aria-label="toolbarTools[id].title"
+            @click="selectedTool = id"
+            @pointerdown.stop
+            @pointermove.stop
+            @pointerup.stop
+          >
+            <component :is="toolbarTools[id].component" class="tool-icon" aria-hidden="true" />
+          </button>
+        </div>
+        <span class="left-toolbar__divider"></span>
+        <div class="left-toolbar__group">
+          <button
+            type="button"
+            class="left-toolbar__button"
+            :title="isFullscreen ? '退出全屏' : '全屏显示'"
+            :aria-label="isFullscreen ? '退出全屏' : '全屏显示'"
+            @click="$emit('toggleFullscreen')"
+            @pointerdown.stop
+            @pointermove.stop
+            @pointerup.stop
+          >
+            <IconTablerMinimize v-if="isFullscreen" class="tool-icon" aria-hidden="true" />
+            <IconTablerMaximize v-else class="tool-icon" aria-hidden="true" />
+          </button>
+        </div>
+      </nav>
+      <div
+        class="chart-container"
+        :class="{
+          'is-dragging': isDragging,
+          'is-resizing-pane': isResizingPane,
+          'is-hovering-pane-separator': isHoveringPaneSeparator,
+          'is-hovering-right-axis': isHoveringRightAxis,
+          'is-hovering-kline': hoveredIdx !== null,
+        }"
+        ref="containerRef"
+        @scroll.passive="onScroll"
+        @pointerdown="onPointerDown"
+        @pointermove="onPointerMove"
+        @pointerup="onPointerUp"
+        @pointerleave="onPointerLeave"
+      >
+        <!-- scroll-content 负责撑开横向滚动宽度，并承载 sticky 的画布层 -->
+        <div class="scroll-content" :style="{ width: totalWidth + 'px' }">
+          <!-- 画布层：sticky 固定在可视区域左上角，滚动只影响绘制时的 scrollLeft -->
+          <div class="canvas-layer" ref="canvasLayerRef">
+            <!-- plotCanvas 和 yAxisCanvas 由 Chart 自动创建 -->
 
-          <!-- 底部时间轴（随 X 滚动，但画布不移动） -->
-          <canvas class="x-axis-canvas" ref="xAxisCanvasRef"></canvas>
+            <!-- 底部时间轴（随 X 滚动，但画布不移动） -->
+            <canvas class="x-axis-canvas" ref="xAxisCanvasRef"></canvas>
 
-          <div
-            v-if="hovered"
-            class="tooltip-anchor kline-tooltip-anchor"
-            :class="{ 'use-anchor': useAnchorPositioning }"
-            :style="{ left: `${tooltipPos.x}px`, top: `${tooltipPos.y}px` }"
-          ></div>
-          <div
-            v-if="hoveredMarker || hoveredCustomMarker"
-            class="tooltip-anchor marker-tooltip-anchor"
-            :class="{ 'use-anchor': useAnchorPositioning }"
-            :style="{ left: `${mousePos.x}px`, top: `${mousePos.y}px` }"
-          ></div>
+            <div
+              v-if="hovered"
+              class="tooltip-anchor kline-tooltip-anchor"
+              :class="{ 'use-anchor': useAnchorPositioning }"
+              :style="{ left: `${tooltipPos.x}px`, top: `${tooltipPos.y}px` }"
+            ></div>
+            <div
+              v-if="hoveredMarker || hoveredCustomMarker"
+              class="tooltip-anchor marker-tooltip-anchor"
+              :class="{ 'use-anchor': useAnchorPositioning }"
+              :style="{ left: `${mousePos.x}px`, top: `${mousePos.y}px` }"
+            ></div>
 
-          <!-- 悬浮浮窗：放在 sticky 的 canvas-layer 内，避免随 scroll-content 横向滚动而偏移 -->
-          <KLineTooltip
-            v-if="hovered"
-            :k="hovered"
-            :index="hoveredIndex"
-            :data="chartData"
-            :pos="tooltipPos"
-            :set-el="setTooltipEl"
-            :use-anchor="useAnchorPositioning"
-            :anchor-placement="tooltipAnchorPlacement"
-          />
-          <MarkerTooltip
-            v-if="hoveredMarker || hoveredCustomMarker"
-            :marker="hoveredMarker || hoveredCustomMarker"
-            :pos="mousePos"
-            :use-anchor="useAnchorPositioning"
-            :anchor-placement="markerTooltipAnchorPlacement"
-            :set-el="setMarkerTooltipEl"
-          />
+            <!-- 悬浮浮窗：放在 sticky 的 canvas-layer 内，避免随 scroll-content 横向滚动而偏移 -->
+            <KLineTooltip
+              v-if="hovered"
+              :k="hovered"
+              :index="hoveredIndex"
+              :data="chartData"
+              :pos="tooltipPos"
+              :set-el="setTooltipEl"
+              :use-anchor="useAnchorPositioning"
+              :anchor-placement="tooltipAnchorPlacement"
+            />
+            <MarkerTooltip
+              v-if="hoveredMarker || hoveredCustomMarker"
+              :marker="hoveredMarker || hoveredCustomMarker"
+              :pos="mousePos"
+              :use-anchor="useAnchorPositioning"
+              :anchor-placement="markerTooltipAnchorPlacement"
+              :set-el="setMarkerTooltipEl"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -113,6 +168,13 @@ import { createTimeAxisRendererPlugin } from '@/core/renderers/timeAxis'
 import { createCrosshairRendererPlugin } from '@/core/renderers/crosshair'
 import { createPaneTitleRendererPlugin, type TitleInfo } from '@/core/renderers/paneTitle'
 import type { InteractionSnapshot } from '@/core/controller/interaction'
+import IconTablerPointer from '~icons/tabler/pointer'
+import IconTablerChartLine from '~icons/tabler/chart-line'
+import IconTablerArrowUpRight from '~icons/tabler/arrow-up-right'
+import IconTablerPencil from '~icons/tabler/pencil'
+import IconTablerRulerMeasure from '~icons/tabler/ruler-measure'
+import IconTablerMaximize from '~icons/tabler/maximize'
+import IconTablerMinimize from '~icons/tabler/minimize'
 
 const props = withDefaults(
   defineProps<{
@@ -133,6 +195,8 @@ const props = withDefaults(
     zoomLevels?: number
     /** 初始缩放级别（1 ~ zoomLevels，默认居中） */
     initialZoomLevel?: number
+    /** 是否全屏 */
+    isFullscreen?: boolean
   }>(),
   {
     yPaddingPx: 0,
@@ -143,16 +207,33 @@ const props = withDefaults(
     priceLabelWidth: 60,
     zoomLevels: 20,
     initialZoomLevel: 3,
+    isFullscreen: false,
   },
 )
+
+type ToolbarToolId = 'cursor' | 'trendline' | 'ray' | 'brush' | 'measure'
+
+const toolbarTools: Record<ToolbarToolId, { title: string; component: unknown }> = {
+  cursor: { title: '光标', component: IconTablerPointer },
+  trendline: { title: '趋势线', component: IconTablerChartLine },
+  ray: { title: '射线', component: IconTablerArrowUpRight },
+  brush: { title: '画笔', component: IconTablerPencil },
+  measure: { title: '测量', component: IconTablerRulerMeasure },
+}
+
+const primaryToolIds: ToolbarToolId[] = ['cursor', 'trendline', 'ray']
+const secondaryToolIds: ToolbarToolId[] = ['brush', 'measure']
+
+const selectedTool = ref<ToolbarToolId>('cursor')
+
+const emit = defineEmits<{
+  (e: 'zoomLevelChange', level: number, kWidth: number): void
+  (e: 'toggleFullscreen'): void
+}>()
 
 const xAxisCanvasRef = ref<HTMLCanvasElement | null>(null)
 const canvasLayerRef = ref<HTMLDivElement | null>(null)
 const containerRef = ref<HTMLDivElement | null>(null)
-
-const emit = defineEmits<{
-  (e: 'zoomLevelChange', level: number, kWidth: number): void
-}>()
 
 /* ========== 十字线（鼠标悬停位置） ========== */
 const chartRef = shallowRef<Chart | null>(null)
@@ -461,6 +542,8 @@ function addSubPane(
     activeIndicators.value.push(indicatorId)
   }
 
+  scheduleRender()
+
   return true
 }
 
@@ -608,6 +691,8 @@ function syncSubPanesFromChart(): void {
       activeIndicators.value.push(indicatorId)
     }
   }
+
+  scheduleRender()
 }
 
 // 切换副图指标（使用 Chart API）
@@ -1136,17 +1221,94 @@ watch(
   flex-direction: column;
 }
 
+.chart-stage {
+  width: 95%;
+  height: 85%;
+  min-height: 255px;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.left-toolbar {
+  flex: 0 0 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 5px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fafbfc;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  box-sizing: border-box;
+}
+
+.left-toolbar__group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.left-toolbar__divider {
+  width: 18px;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.left-toolbar__button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.left-toolbar__button:hover {
+  border-color: #d1d5db;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.left-toolbar__button.active {
+  border-color: #9ca3af;
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+.left-toolbar__button:focus-visible {
+  outline: none;
+  border-color: #6b7280;
+}
+
+.tool-icon {
+  width: 16px;
+  height: 16px;
+}
+
 .chart-container {
   position: relative;
+  flex: 1 1 auto;
   overflow-x: auto;
   overflow-y: hidden;
-  height: 85%;
-  width: 95%;
-  min-height: 255px; /* 85% of 300px */
+  height: 100%;
+  min-height: inherit;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
   box-sizing: border-box;
+  background: #ffffff;
 
   /* ===== 移动端：屏蔽长按弹出菜单/选择等默认行为，避免影响交互 ===== */
   -webkit-touch-callout: none;
@@ -1209,6 +1371,33 @@ watch(
 
 .tooltip-anchor.marker-tooltip-anchor.use-anchor {
   anchor-name: --marker-tooltip-anchor;
+}
+
+@media (max-width: 768px), (max-height: 640px) {
+  .chart-stage {
+    gap: 6px;
+  }
+
+  .left-toolbar {
+    flex-basis: 36px;
+    padding: 6px 4px;
+    gap: 5px;
+    border-radius: 5px;
+  }
+
+  .left-toolbar__group {
+    gap: 3px;
+  }
+
+  .left-toolbar__button {
+    width: 26px;
+    height: 26px;
+    border-radius: 3px;
+  }
+
+  .left-toolbar__divider {
+    width: 16px;
+  }
 }
 </style>
 
