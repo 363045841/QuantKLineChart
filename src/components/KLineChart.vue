@@ -1,59 +1,11 @@
 <template>
   <div class="chart-wrapper">
     <div class="chart-stage">
-      <nav class="left-toolbar" aria-label="图表工具栏">
-        <div class="left-toolbar__group">
-          <button
-            v-for="id in primaryToolIds"
-            :key="id"
-            type="button"
-            class="left-toolbar__button"
-            :class="{ active: selectedTool === id }"
-            :title="toolbarTools[id].title"
-            :aria-label="toolbarTools[id].title"
-            @click="selectedTool = id"
-            @pointerdown.stop
-            @pointermove.stop
-            @pointerup.stop
-          >
-            <component :is="toolbarTools[id].component" class="tool-icon" aria-hidden="true" />
-          </button>
-        </div>
-        <span class="left-toolbar__divider"></span>
-        <div class="left-toolbar__group">
-          <button
-            v-for="id in secondaryToolIds"
-            :key="id"
-            type="button"
-            class="left-toolbar__button"
-            :class="{ active: selectedTool === id }"
-            :title="toolbarTools[id].title"
-            :aria-label="toolbarTools[id].title"
-            @click="selectedTool = id"
-            @pointerdown.stop
-            @pointermove.stop
-            @pointerup.stop
-          >
-            <component :is="toolbarTools[id].component" class="tool-icon" aria-hidden="true" />
-          </button>
-        </div>
-        <span class="left-toolbar__divider"></span>
-        <div class="left-toolbar__group">
-          <button
-            type="button"
-            class="left-toolbar__button"
-            :title="isFullscreen ? '退出全屏' : '全屏显示'"
-            :aria-label="isFullscreen ? '退出全屏' : '全屏显示'"
-            @click="$emit('toggleFullscreen')"
-            @pointerdown.stop
-            @pointermove.stop
-            @pointerup.stop
-          >
-            <IconTablerMinimize v-if="isFullscreen" class="tool-icon" aria-hidden="true" />
-            <IconTablerMaximize v-else class="tool-icon" aria-hidden="true" />
-          </button>
-        </div>
-      </nav>
+      <LeftToolbar
+        :is-fullscreen="isFullscreen"
+        @select-tool="handleSelectTool"
+        @toggle-fullscreen="$emit('toggleFullscreen')"
+      />
       <div
         class="chart-container"
         :class="{
@@ -168,13 +120,9 @@ import { createTimeAxisRendererPlugin } from '@/core/renderers/timeAxis'
 import { createCrosshairRendererPlugin } from '@/core/renderers/crosshair'
 import { createPaneTitleRendererPlugin, type TitleInfo } from '@/core/renderers/paneTitle'
 import type { InteractionSnapshot } from '@/core/controller/interaction'
-import IconTablerPointer from '~icons/tabler/pointer'
-import IconTablerChartLine from '~icons/tabler/chart-line'
-import IconTablerArrowUpRight from '~icons/tabler/arrow-up-right'
-import IconTablerPencil from '~icons/tabler/pencil'
-import IconTablerRulerMeasure from '~icons/tabler/ruler-measure'
-import IconTablerMaximize from '~icons/tabler/maximize'
-import IconTablerMinimize from '~icons/tabler/minimize'
+import type { DrawingObject } from '@/plugin'
+import LeftToolbar from './LeftToolbar.vue'
+import { DrawingInteractionController, type DrawingToolId } from '@/core/drawing'
 
 const props = withDefaults(
   defineProps<{
@@ -210,21 +158,6 @@ const props = withDefaults(
     isFullscreen: false,
   },
 )
-
-type ToolbarToolId = 'cursor' | 'trendline' | 'ray' | 'brush' | 'measure'
-
-const toolbarTools: Record<ToolbarToolId, { title: string; component: unknown }> = {
-  cursor: { title: '光标', component: IconTablerPointer },
-  trendline: { title: '趋势线', component: IconTablerChartLine },
-  ray: { title: '射线', component: IconTablerArrowUpRight },
-  brush: { title: '画笔', component: IconTablerPencil },
-  measure: { title: '测量', component: IconTablerRulerMeasure },
-}
-
-const primaryToolIds: ToolbarToolId[] = ['cursor', 'trendline', 'ray']
-const secondaryToolIds: ToolbarToolId[] = ['brush', 'measure']
-
-const selectedTool = ref<ToolbarToolId>('cursor')
 
 const emit = defineEmits<{
   (e: 'zoomLevelChange', level: number, kWidth: number): void
@@ -288,8 +221,9 @@ const interactionState = shallowRef<InteractionSnapshot>({
   isHoveringRightAxis: false,
 })
 
+const drawings = ref<DrawingObject[]>([])
+const drawingController = shallowRef<DrawingInteractionController | null>(null)
 const paneRatios = ref<Record<string, number>>({ main: 3 })
-
 const markerTooltipSize = ref({ width: 220, height: 120 })
 
 // 数据版本号，用于强制 chartData computed 重新求值
@@ -340,7 +274,21 @@ function notifyDataChange() {
   dataVersion.value++
 }
 
+function handleSelectTool(toolId: string) {
+  drawingController.value?.setTool(toolId as DrawingToolId)
+}
+
+
 function onPointerDown(e: PointerEvent) {
+  const container = containerRef.value
+  if (!container) return
+
+  // 优先处理绘图交互
+  if (drawingController.value?.onPointerDown(e, container)) {
+    drawings.value = drawingController.value.getDrawings()
+    return
+  }
+
   chartRef.value?.interaction.onPointerDown(e)
 }
 
@@ -1126,6 +1074,18 @@ onMounted(() => {
     paneRatios.value = next
   })
   chartRef.value = chart
+
+  // 初始化绘图交互控制器
+  drawingController.value = new DrawingInteractionController(chart)
+  drawingController.value.setCallbacks({
+    onDrawingCreated: (drawing) => {
+      drawings.value.push(drawing)
+    },
+    onToolChange: (toolId) => {
+      // 可选：同步工具状态到外部
+    },
+  })
+
   chart.interaction.setTooltipAnchorPositioning(useAnchorPositioning.value)
   chart.interaction.setOnInteractionChange((snapshot) => {
     interactionState.value = snapshot
@@ -1176,6 +1136,7 @@ onUnmounted(() => {
     chart.destroy()
   }
   chartRef.value = null
+  drawingController.value = null
 })
 
 // kWidth/kGap 由 zoomLevel 派生，不再通过 props 直接修改
@@ -1228,72 +1189,6 @@ watch(
   display: flex;
   align-items: stretch;
   gap: 8px;
-}
-
-.left-toolbar {
-  flex: 0 0 40px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 5px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  background: #fafbfc;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  box-sizing: border-box;
-}
-
-.left-toolbar__group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.left-toolbar__divider {
-  width: 18px;
-  height: 1px;
-  background: #e5e7eb;
-}
-
-.left-toolbar__button {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: transparent;
-  color: #6b7280;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    color 0.15s ease;
-}
-
-.left-toolbar__button:hover {
-  border-color: #d1d5db;
-  background: #f3f4f6;
-  color: #374151;
-}
-
-.left-toolbar__button.active {
-  border-color: #9ca3af;
-  background: #e5e7eb;
-  color: #1f2937;
-}
-
-.left-toolbar__button:focus-visible {
-  outline: none;
-  border-color: #6b7280;
-}
-
-.tool-icon {
-  width: 16px;
-  height: 16px;
 }
 
 .chart-container {
@@ -1376,27 +1271,6 @@ watch(
 @media (max-width: 768px), (max-height: 640px) {
   .chart-stage {
     gap: 6px;
-  }
-
-  .left-toolbar {
-    flex-basis: 36px;
-    padding: 6px 4px;
-    gap: 5px;
-    border-radius: 5px;
-  }
-
-  .left-toolbar__group {
-    gap: 3px;
-  }
-
-  .left-toolbar__button {
-    width: 26px;
-    height: 26px;
-    border-radius: 3px;
-  }
-
-  .left-toolbar__divider {
-    width: 16px;
   }
 }
 </style>

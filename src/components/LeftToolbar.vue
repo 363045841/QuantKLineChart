@@ -1,0 +1,362 @@
+<template>
+  <nav class="left-toolbar" aria-label="图表工具栏">
+    <div class="left-toolbar__group">
+      <div
+        v-for="tool in primaryTools"
+        :key="tool.id"
+        class="tool-item"
+      >
+        <button
+          type="button"
+          class="left-toolbar__button"
+          :class="{ active: isActive(tool) }"
+          :title="tool.title"
+          :aria-label="tool.title"
+          @click="selectTool(tool)"
+          @pointerdown.stop
+          @pointermove.stop
+          @pointerup.stop
+        >
+          <component :is="tool.icon" class="tool-icon" aria-hidden="true" />
+          <span
+            v-if="tool.children && tool.children.length"
+            class="corner-indicator"
+            :class="{ open: openGroupId === tool.id }"
+            @click.stop="toggleExpand(tool.id)"
+            aria-label="展开子菜单"
+          ></span>
+        </button>
+
+        <Transition name="dropdown">
+          <div
+            v-if="openGroupId === tool.id && tool.children && tool.children.length"
+            class="tool-dropdown"
+            @pointerdown.stop
+            @pointermove.stop
+            @pointerup.stop
+          >
+            <button
+              v-for="child in tool.children"
+              :key="child.id"
+              type="button"
+              class="left-toolbar__button"
+              :class="{ active: selectedToolId === child.id }"
+              :title="child.title"
+              :aria-label="child.title"
+              @click="selectChild(child)"
+            >
+              <component :is="child.icon" class="tool-icon" aria-hidden="true" />
+            </button>
+          </div>
+        </Transition>
+      </div>
+    </div>
+
+    <span class="left-toolbar__divider"></span>
+
+    <div class="left-toolbar__group">
+      <button
+        type="button"
+        class="left-toolbar__button"
+        :title="isFullscreen ? '退出全屏' : '全屏显示'"
+        :aria-label="isFullscreen ? '退出全屏' : '全屏显示'"
+        @click="$emit('toggleFullscreen')"
+        @pointerdown.stop
+        @pointermove.stop
+        @pointerup.stop
+      >
+        <IconTablerMinimize v-if="isFullscreen" class="tool-icon" aria-hidden="true" />
+        <IconTablerMaximize v-else class="tool-icon" aria-hidden="true" />
+      </button>
+    </div>
+  </nav>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
+import IconTablerPointer from '~icons/tabler/pointer'
+import IconTablerChartLine from '~icons/tabler/chart-line'
+import IconTablerArrowUpRight from '~icons/tabler/arrow-up-right'
+import IconTablerArrowRight from '~icons/tabler/arrow-right'
+import IconTablerLineDashed from '~icons/tabler/line-dashed'
+import IconTablerMinus from '~icons/tabler/minus'
+import IconTablerSeparator from '~icons/tabler/separator'
+import IconTablerCrosshair from '~icons/tabler/crosshair'
+import IconTablerInfoCircle from '~icons/tabler/info-circle'
+import IconTablerPencil from '~icons/tabler/pencil'
+import IconTablerRulerMeasure from '~icons/tabler/ruler-measure'
+import IconTablerMaximize from '~icons/tabler/maximize'
+import IconTablerMinimize from '~icons/tabler/minimize'
+import IconTablerTypography from '~icons/tabler/typography'
+
+export interface ToolDef {
+  id: string
+  title: string
+  icon: unknown
+  children?: ToolDef[]
+}
+
+defineProps<{
+  isFullscreen?: boolean
+}>()
+
+const emit = defineEmits<{
+  (e: 'selectTool', toolId: string): void
+  (e: 'toggleFullscreen'): void
+}>()
+
+const primaryTools: ToolDef[] = [
+  { id: 'cursor', title: '光标', icon: IconTablerPointer },
+  {
+    id: 'lines',
+    title: '线条',
+    icon: IconTablerChartLine,
+    children: [
+      { id: 'trend-line', title: '线段', icon: IconTablerChartLine },
+      { id: 'ray', title: '射线', icon: IconTablerArrowUpRight },
+      { id: 'h-line', title: '水平线', icon: IconTablerMinus },
+      { id: 'h-ray', title: '水平射线', icon: IconTablerArrowRight },
+      { id: 'v-line', title: '垂直线', icon: IconTablerSeparator },
+      { id: 'crosshair-line', title: '十字线', icon: IconTablerCrosshair },
+      { id: 'info-line', title: '信息线', icon: IconTablerInfoCircle },
+    ],
+  },
+  {
+    id: 'brush',
+    title: '画笔',
+    icon: IconTablerPencil,
+    children: [
+      { id: 'text', title: '文字', icon: IconTablerTypography },
+    ],
+  },
+  { id: 'measure', title: '测量', icon: IconTablerRulerMeasure },
+]
+
+const selectedToolId = ref('cursor')
+const openGroupId = ref<string | null>(null)
+
+function isActive(tool: ToolDef): boolean {
+  if (selectedToolId.value === tool.id) return true
+  if (tool.children) {
+    return tool.children.some((c) => c.id === selectedToolId.value)
+  }
+  return false
+}
+
+function selectTool(tool: ToolDef) {
+  selectedToolId.value = tool.id
+  emit('selectTool', tool.id)
+  openGroupId.value = null
+}
+
+function selectChild(child: ToolDef) {
+  selectedToolId.value = child.id
+  emit('selectTool', child.id)
+  openGroupId.value = null
+}
+
+function toggleExpand(groupId: string) {
+  openGroupId.value = openGroupId.value === groupId ? null : groupId
+}
+
+function handleClickOutside(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.tool-item')) {
+    openGroupId.value = null
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside, true)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside, true)
+})
+</script>
+
+<style scoped>
+.left-toolbar {
+  flex: 0 0 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 5px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fafbfc;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.left-toolbar__group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.left-toolbar__divider {
+  width: 18px;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+/* --- 工具按钮 --- */
+.left-toolbar__button {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.left-toolbar__button:hover {
+  border-color: #d1d5db;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.left-toolbar__button.active {
+  border-color: #9ca3af;
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+.left-toolbar__button:focus-visible {
+  outline: none;
+  border-color: #6b7280;
+}
+
+.tool-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* --- 角标三角（TradingView 风格） --- */
+.corner-indicator {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 8px;
+  height: 8px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.corner-indicator::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-bottom: 5px solid currentColor;
+  opacity: 0.45;
+  transition: opacity 0.15s ease;
+}
+
+.left-toolbar__button:hover .corner-indicator::after {
+  opacity: 0.7;
+}
+
+.left-toolbar__button.active .corner-indicator::after {
+  opacity: 0.7;
+}
+
+.corner-indicator.open::after {
+  opacity: 0.8;
+}
+
+/* --- 下拉菜单（与工具栏同配色、同按钮样式，高度对齐工具栏宽度） --- */
+.tool-dropdown {
+  position: absolute;
+  left: calc(100% + 13px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 0 5px;
+  height: 40px;
+  background: rgba(250, 251, 252, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  box-sizing: border-box;
+  z-index: 100;
+}
+
+/* --- 工具项容器 --- */
+.tool-item {
+  position: relative;
+}
+
+/* --- 下拉动画 --- */
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-50%) translateX(-6px);
+}
+
+/* --- 响应式 --- */
+@media (max-width: 768px), (max-height: 640px) {
+  .left-toolbar {
+    flex-basis: 36px;
+    padding: 6px 4px;
+    gap: 5px;
+    border-radius: 5px;
+  }
+
+  .left-toolbar__group {
+    gap: 3px;
+  }
+
+  .left-toolbar__button {
+    width: 26px;
+    height: 26px;
+    border-radius: 3px;
+  }
+
+  .left-toolbar__divider {
+    width: 16px;
+  }
+
+  .corner-indicator {
+    width: 7px;
+    height: 7px;
+  }
+
+  .corner-indicator::after {
+    border-left-width: 4px;
+    border-bottom-width: 4px;
+  }
+
+  .tool-dropdown {
+    height: 36px;
+  }
+}
+</style>

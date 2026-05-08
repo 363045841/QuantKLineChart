@@ -2,6 +2,8 @@
  * 插件系统核心类型定义
  */
 
+import type { KLineData } from '@/types/price'
+
 /** 插件生命周期状态 */
 export enum PluginState {
   Registered = 'registered',
@@ -215,6 +217,119 @@ export interface RenderContext {
   zoomLevel?: number
   /** 总缩放级别数 */
   zoomLevelCount?: number
+  viewport?: {
+    scrollLeft: number
+    plotWidth: number
+    plotHeight: number
+  }
+}
+
+export type DrawingAnchor = {
+  id: string
+  time: number | string
+  price: number
+}
+
+export type DrawingKind =
+  | 'trend-line'
+  | 'ray'
+  | 'extended-line'
+  | 'horizontal-line'
+  | 'horizontal-ray'
+  | 'vertical-line'
+  | 'cross-line'
+  | 'info-line'
+  | 'parallel-channel'
+  | 'regression-channel'
+
+export type DrawingStyle = {
+  stroke?: string
+  strokeWidth?: number
+  strokeStyle?: 'solid' | 'dashed' | 'dotted'
+  fill?: string
+  fillOpacity?: number
+  pointRadius?: number
+  textColor?: string
+  fontSize?: number
+}
+
+export type DrawingObject<TParams = Record<string, unknown>> = {
+  id: string
+  kind: DrawingKind
+  paneId: string
+  visible: boolean
+  locked?: boolean
+  zIndex?: number
+  anchors: DrawingAnchor[]
+  params: TParams
+  style: DrawingStyle
+}
+
+export type ScreenPoint = { x: number; y: number }
+
+export type PointPrimitive = {
+  kind: 'point'
+  point: ScreenPoint
+  role?: 'anchor' | 'handle' | 'marker' | 'center'
+  style?: DrawingStyle
+}
+
+export type LinePrimitive = {
+  kind: 'line'
+  a: ScreenPoint
+  b: ScreenPoint
+  extend?: 'none' | 'left' | 'right' | 'both'
+  showEndpoints?: boolean
+  style?: DrawingStyle
+}
+
+export type AreaPrimitive = {
+  kind: 'area'
+  points: ScreenPoint[]
+  closed: boolean
+  style?: DrawingStyle
+}
+
+export type TextPrimitive = {
+  kind: 'text'
+  point: ScreenPoint
+  text: string
+  align?: 'left' | 'center' | 'right'
+  baseline?: 'top' | 'middle' | 'bottom'
+  style?: DrawingStyle
+}
+
+export type DrawingPrimitive = PointPrimitive | LinePrimitive | AreaPrimitive | TextPrimitive
+
+export type DrawingGeometry = {
+  primitives: DrawingPrimitive[]
+  bounds?: { left: number; top: number; right: number; bottom: number }
+  meta?: Record<string, unknown>
+}
+
+export type DrawingComputeContext = {
+  pane: PaneInfo
+  visibleData: KLineData[]
+  seriesData: KLineData[]
+  range: { start: number; end: number }
+  kLinePositions: number[]
+  kWidth: number
+  kGap: number
+  dpr: number
+  paneWidth: number
+  viewport: {
+    scrollLeft: number
+    plotWidth: number
+    plotHeight: number
+  }
+  toScreen(anchor: DrawingAnchor): ScreenPoint
+}
+
+export interface DrawingDefinition<TParams = Record<string, unknown>> {
+  kind: DrawingKind
+  minAnchors: number
+  maxAnchors: number
+  compute(drawing: DrawingObject<TParams>, context: DrawingComputeContext): DrawingGeometry
 }
 
 /** 全局 Pane ID（渲染到所有 pane） */
