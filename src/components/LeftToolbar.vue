@@ -78,16 +78,12 @@ import IconTablerPointer from '~icons/tabler/pointer'
 import IconTablerChartLine from '~icons/tabler/chart-line'
 import IconTablerArrowUpRight from '~icons/tabler/arrow-up-right'
 import IconTablerArrowRight from '~icons/tabler/arrow-right'
-import IconTablerLineDashed from '~icons/tabler/line-dashed'
 import IconTablerMinus from '~icons/tabler/minus'
 import IconTablerSeparator from '~icons/tabler/separator'
 import IconTablerCrosshair from '~icons/tabler/crosshair'
 import IconTablerInfoCircle from '~icons/tabler/info-circle'
-import IconTablerPencil from '~icons/tabler/pencil'
-import IconTablerRulerMeasure from '~icons/tabler/ruler-measure'
 import IconTablerMaximize from '~icons/tabler/maximize'
 import IconTablerMinimize from '~icons/tabler/minimize'
-import IconTablerTypography from '~icons/tabler/typography'
 
 export interface ToolDef {
   id: string
@@ -121,15 +117,6 @@ const primaryTools: ToolDef[] = [
       { id: 'info-line', title: '信息线', icon: IconTablerInfoCircle },
     ],
   },
-  {
-    id: 'brush',
-    title: '画笔',
-    icon: IconTablerPencil,
-    children: [
-      { id: 'text', title: '文字', icon: IconTablerTypography },
-    ],
-  },
-  { id: 'measure', title: '测量', icon: IconTablerRulerMeasure },
 ]
 
 const selectedToolId = ref('cursor')
@@ -144,6 +131,16 @@ function isActive(tool: ToolDef): boolean {
 }
 
 function selectTool(tool: ToolDef) {
+  if (tool.children?.length) {
+    const hasActiveChild = tool.children.some((c) => c.id === selectedToolId.value)
+    if (!hasActiveChild) {
+      const first = tool.children[0]!
+      selectedToolId.value = first.id
+      emit('selectTool', first.id)
+    }
+    toggleExpand(tool.id)
+    return
+  }
   selectedToolId.value = tool.id
   emit('selectTool', tool.id)
   openGroupId.value = null

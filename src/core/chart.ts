@@ -752,6 +752,11 @@ export class Chart {
         this.scheduleDraw()
     }
 
+    /** 更新选中的绘图 ID */
+    setSelectedDrawingId(id: string | null): void {
+        this.drawingStore.setSelectedId(id)
+    }
+
     /** 获取当前 pane 布局快照（含 ratio） */
     getPaneLayoutSpecs(): PaneSpec[] {
         const visible = this.opt.panes.filter(p => p.visible !== false)

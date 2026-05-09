@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    DrawingStyleToolbar: typeof import('./src/components/DrawingStyleToolbar.vue')['default']
     IndicatorParams: typeof import('./src/components/IndicatorParams.vue')['default']
     IndicatorSelector: typeof import('./src/components/IndicatorSelector.vue')['default']
     KLineChart: typeof import('./src/components/KLineChart.vue')['default']

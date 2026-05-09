@@ -27,6 +27,15 @@ export type {
 
 export class DrawingStore {
   private drawings: DrawingObject[] = []
+  private selectedId: string | null = null
+
+  getSelectedId(): string | null {
+    return this.selectedId
+  }
+
+  setSelectedId(id: string | null): void {
+    this.selectedId = id
+  }
 
   getAll(): DrawingObject[] {
     return this.drawings
@@ -40,6 +49,9 @@ export class DrawingStore {
 
   setAll(drawings: DrawingObject[]): void {
     this.drawings = [...drawings]
+    if (this.selectedId && !this.drawings.some((d) => d.id === this.selectedId)) {
+      this.selectedId = null
+    }
   }
 
   upsert(drawing: DrawingObject): void {
@@ -57,6 +69,7 @@ export class DrawingStore {
 
   clear(): void {
     this.drawings = []
+    this.selectedId = null
   }
 }
 
@@ -255,7 +268,7 @@ function computeLinearRegression(values: number[]): { slope: number; intercept: 
 export function createDefaultPrimitiveRendererSet(): PrimitiveRendererSet {
   return {
     point(ctx, primitive, dpr) {
-      const radius = primitive.style?.pointRadius ?? 3
+      const radius = primitive.style?.pointRadius ?? 4
       ctx.save()
       ctx.fillStyle = primitive.style?.fill ?? primitive.style?.stroke ?? '#2962ff'
       ctx.beginPath()

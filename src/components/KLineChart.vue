@@ -63,6 +63,12 @@
               :anchor-placement="markerTooltipAnchorPlacement"
               :set-el="setMarkerTooltipEl"
             />
+            <DrawingStyleToolbar
+              v-if="selectedDrawing"
+              :drawing="selectedDrawing"
+              @update-style="onUpdateDrawingStyle"
+              @delete="onDeleteDrawing"
+            />
           </div>
         </div>
       </div>
@@ -84,6 +90,7 @@ import { createCustomMarkersRenderer } from '@/core/renderers/customMarkers'
 import KLineTooltip from './KLineTooltip.vue'
 import MarkerTooltip from './MarkerTooltip.vue'
 import IndicatorSelector from './IndicatorSelector.vue'
+import DrawingStyleToolbar from './DrawingStyleToolbar.vue'
 import { Chart, type PaneSpec } from '@/core/chart'
 import { getPhysicalKLineConfig } from '@/core/utils/klineConfig'
 import { createCandleRenderer } from '@/core/renderers/candle'
@@ -120,7 +127,7 @@ import { createTimeAxisRendererPlugin } from '@/core/renderers/timeAxis'
 import { createCrosshairRendererPlugin } from '@/core/renderers/crosshair'
 import { createPaneTitleRendererPlugin, type TitleInfo } from '@/core/renderers/paneTitle'
 import type { InteractionSnapshot } from '@/core/controller/interaction'
-import type { DrawingObject } from '@/plugin'
+import type { DrawingObject, DrawingStyle } from '@/plugin'
 import LeftToolbar from './LeftToolbar.vue'
 import { DrawingInteractionController, type DrawingToolId } from '@/core/drawing'
 
@@ -223,6 +230,11 @@ const interactionState = shallowRef<InteractionSnapshot>({
 
 const drawings = ref<DrawingObject[]>([])
 const drawingController = shallowRef<DrawingInteractionController | null>(null)
+const drawingStateVersion = ref(0)
+const selectedDrawing = computed(() => {
+  void drawingStateVersion.value
+  return drawingController.value?.getSelectedDrawing() ?? null
+})
 const paneRatios = ref<Record<string, number>>({ main: 3 })
 const markerTooltipSize = ref({ width: 220, height: 120 })
 
@@ -278,6 +290,21 @@ function handleSelectTool(toolId: string) {
   drawingController.value?.setTool(toolId as DrawingToolId)
 }
 
+function onUpdateDrawingStyle(style: Partial<DrawingStyle>) {
+  const d = selectedDrawing.value
+  if (!d || !drawingController.value) return
+  drawingController.value.updateDrawingStyle(d.id, style)
+  drawingStateVersion.value++
+}
+
+function onDeleteDrawing() {
+  const d = selectedDrawing.value
+  if (!d || !drawingController.value) return
+  drawingController.value.removeDrawing(d.id)
+  drawingStateVersion.value++
+  drawings.value = drawingController.value.getDrawings()
+}
+
 
 function onPointerDown(e: PointerEvent) {
   const container = containerRef.value
@@ -286,6 +313,7 @@ function onPointerDown(e: PointerEvent) {
   // 优先处理绘图交互
   if (drawingController.value?.onPointerDown(e, container)) {
     drawings.value = drawingController.value.getDrawings()
+    drawingStateVersion.value++
     return
   }
 
@@ -300,11 +328,20 @@ function onPointerMove(e: PointerEvent) {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
     }
+    if (drawingController.value?.onPointerMove(e, container)) {
+      drawings.value = drawingController.value.getDrawings()
+      return
+    }
   }
   chartRef.value?.interaction.onPointerMove(e)
 }
 
 function onPointerUp(e: PointerEvent) {
+  const container = containerRef.value
+  if (container && drawingController.value?.onPointerUp(e, container)) {
+    drawings.value = drawingController.value.getDrawings()
+    return
+  }
   chartRef.value?.interaction.onPointerUp(e)
 }
 
@@ -1083,6 +1120,9 @@ onMounted(() => {
     },
     onToolChange: (toolId) => {
       // 可选：同步工具状态到外部
+    },
+    onDrawingSelected: () => {
+      drawingStateVersion.value++
     },
   })
 

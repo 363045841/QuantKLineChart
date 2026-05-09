@@ -1,4 +1,4 @@
-import type { RendererPlugin, RenderContext, DrawingAnchor } from '@/plugin'
+import type { RendererPlugin, RenderContext, DrawingAnchor, DrawingStyle, DrawingPrimitive } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
 import {
   DrawingStore,
@@ -82,7 +82,12 @@ export function createDrawingRendererPlugin(options: {
         })
         if (!geometry) continue
 
-        for (const primitive of geometry.primitives) {
+        const isSelected = store.getSelectedId() === drawing.id
+        const primitives = isSelected
+          ? geometry.primitives.map((p) => applySelectedStyle(p, drawing.style))
+          : geometry.primitives
+
+        for (const primitive of primitives) {
           if (primitive.kind === 'point') {
             renderers.point(ctx, primitive, dpr)
             continue
@@ -102,4 +107,22 @@ export function createDrawingRendererPlugin(options: {
       ctx.restore()
     },
   }
+}
+
+function applySelectedStyle(primitive: DrawingPrimitive, baseStyle: DrawingStyle): DrawingPrimitive {
+  const selectedStroke = baseStyle.stroke ?? '#2962ff'
+  const selectedWidth = (baseStyle.strokeWidth ?? 1) + 1
+  const selectedPointRadius = (baseStyle.pointRadius ?? 4) + 2
+
+  if (primitive.kind === 'point') {
+    return { ...primitive, style: { ...primitive.style, stroke: selectedStroke, pointRadius: selectedPointRadius } }
+  }
+  if (primitive.kind === 'line') {
+    return { ...primitive, style: { ...primitive.style, stroke: selectedStroke, strokeWidth: selectedWidth } }
+  }
+  if (primitive.kind === 'area') {
+    return { ...primitive, style: { ...primitive.style, stroke: selectedStroke } }
+  }
+  // text
+  return { ...primitive, style: { ...primitive.style, textColor: selectedStroke, fontSize: (primitive.style?.fontSize ?? 12) + 1 } }
 }
