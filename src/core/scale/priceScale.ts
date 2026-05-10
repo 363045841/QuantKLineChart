@@ -46,7 +46,7 @@ export class PriceScale {
      * @param offset 价格偏移（正数向上平移，负数向下平移）
      */
     setPriceOffset(offset: number): void {
-        this.priceOffset = offset
+        this.priceOffset = this.clampOffset(offset)
     }
 
     /**
@@ -64,6 +64,17 @@ export class PriceScale {
     }
 
     /**
+     * 根据当前 range 和 verticalScale 对 priceOffset 进行 clamp，
+     * 防止视口完全离开数据范围。
+     */
+    private clampOffset(offset: number): number {
+        const rangeSize = this.range.maxPrice - this.range.minPrice
+        if (rangeSize <= 0) return 0
+        const maxOffset = rangeSize * (1 + 1 / this.verticalScale) / 2
+        return Math.max(-maxOffset, Math.min(maxOffset, offset))
+    }
+
+    /**
      * 按拖拽位移缩放 Y 轴（deltaY < 0 放大，deltaY > 0 缩小）
      */
     scaleByDelta(deltaY: number): void {
@@ -71,6 +82,7 @@ export class PriceScale {
         const factor = Math.exp(-deltaY * 0.01)
         const nextScale = this.verticalScale * factor
         this.verticalScale = Math.min(8, Math.max(0.2, nextScale))
+        this.priceOffset = this.clampOffset(this.priceOffset)
     }
 
     getVerticalScale(): number {
