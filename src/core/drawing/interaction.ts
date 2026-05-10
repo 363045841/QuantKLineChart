@@ -574,6 +574,8 @@ export class DrawingInteractionController {
 
   private getDrawingKind(toolId: DrawingToolId): DrawingKind {
     switch (toolId) {
+      case 'cursor':
+        throw new Error('cursor is not a drawing kind')
       case 'h-line':
         return 'horizontal-line'
       case 'h-ray':

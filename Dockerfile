@@ -3,8 +3,10 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# 安装 pnpm
-RUN npm install -g pnpm@9
+# 安装 pnpm（使用阿里云镜像）
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm install -g pnpm@9 && \
+    pnpm config set registry https://registry.npmmirror.com
 
 # 复制依赖文件
 COPY package.json pnpm-lock.yaml ./
