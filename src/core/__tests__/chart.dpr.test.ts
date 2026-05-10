@@ -61,6 +61,7 @@ function createCanvasContextStub() {
 function createDom(width: number, height: number): ChartDom {
   const container = document.createElement('div')
   const canvasLayer = document.createElement('div')
+  const rightAxisLayer = document.createElement('div')
   const xAxisCanvas = document.createElement('canvas')
 
   Object.defineProperty(container, 'clientWidth', { configurable: true, value: width })
@@ -68,11 +69,13 @@ function createDom(width: number, height: number): ChartDom {
   Object.defineProperty(container, 'scrollLeft', { configurable: true, writable: true, value: 0 })
 
   container.appendChild(canvasLayer)
+  container.appendChild(rightAxisLayer)
   canvasLayer.appendChild(xAxisCanvas)
 
   return {
     container: container as HTMLDivElement,
     canvasLayer: canvasLayer as HTMLDivElement,
+    rightAxisLayer: rightAxisLayer as HTMLDivElement,
     xAxisCanvas,
   }
 }

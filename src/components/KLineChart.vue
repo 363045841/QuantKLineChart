@@ -1,76 +1,98 @@
 <template>
   <div class="chart-wrapper">
-    <div class="chart-stage">
+    <div
+      class="chart-stage"
+      :class="{
+        'is-dragging': isDragging,
+        'is-resizing-pane': isResizingPane,
+        'is-hovering-pane-separator': isHoveringPaneSeparator,
+        'is-hovering-right-axis': isHoveringRightAxis,
+        'is-hovering-kline': hoveredIdx !== null,
+      }"
+    >
       <LeftToolbar
         :is-fullscreen="isFullscreen"
         @select-tool="handleSelectTool"
         @toggle-fullscreen="$emit('toggleFullscreen')"
       />
-      <div
-        class="chart-container"
-        :class="{
-          'is-dragging': isDragging,
-          'is-resizing-pane': isResizingPane,
-          'is-hovering-pane-separator': isHoveringPaneSeparator,
-          'is-hovering-right-axis': isHoveringRightAxis,
-          'is-hovering-kline': hoveredIdx !== null,
-        }"
-        ref="containerRef"
-        @scroll.passive="onScroll"
-        @pointerdown="onPointerDown"
-        @pointermove="onPointerMove"
-        @pointerup="onPointerUp"
-        @pointerleave="onPointerLeave"
-      >
-        <!-- scroll-content 负责撑开横向滚动宽度，并承载 sticky 的画布层 -->
-        <div class="scroll-content" :style="{ width: totalWidth + 'px' }">
-          <!-- 画布层：sticky 固定在可视区域左上角，滚动只影响绘制时的 scrollLeft -->
-          <div class="canvas-layer" ref="canvasLayerRef">
-            <!-- plotCanvas 和 yAxisCanvas 由 Chart 自动创建 -->
+      <div class="chart-main">
+        <div class="pane-separator-layer" aria-hidden="true">
+          <div
+            v-for="line in paneSeparatorLines"
+            :key="line.id"
+            class="pane-separator-line"
+            :class="{ 'is-active': hoveredPaneBoundaryId === line.id }"
+            :style="{ top: `${line.top}px` }"
+          ></div>
+        </div>
+        <div
+          class="chart-container"
+          ref="containerRef"
+          @scroll.passive="onScroll"
+          @pointerdown="onPointerDown"
+          @pointermove="onPointerMove"
+          @pointerup="onPointerUp"
+          @pointerleave="onPointerLeave"
+        >
+          <!-- scroll-content 负责撑开横向滚动宽度，并承载 sticky 的画布层 -->
+          <div class="scroll-content" :style="{ width: totalWidth + 'px' }">
+            <!-- 画布层：sticky 固定在可视区域左上角，滚动只影响绘制时的 scrollLeft -->
+            <div class="canvas-layer" ref="canvasLayerRef">
+              <!-- plotCanvas 由 Chart 自动创建 -->
 
-            <!-- 底部时间轴（随 X 滚动，但画布不移动） -->
-            <canvas class="x-axis-canvas" ref="xAxisCanvasRef"></canvas>
+              <!-- 底部时间轴（随 X 滚动，但画布不移动） -->
+              <canvas class="x-axis-canvas" ref="xAxisCanvasRef"></canvas>
 
-            <div
-              v-if="hovered"
-              class="tooltip-anchor kline-tooltip-anchor"
-              :class="{ 'use-anchor': useAnchorPositioning }"
-              :style="{ left: `${tooltipPos.x}px`, top: `${tooltipPos.y}px` }"
-            ></div>
-            <div
-              v-if="hoveredMarker || hoveredCustomMarker"
-              class="tooltip-anchor marker-tooltip-anchor"
-              :class="{ 'use-anchor': useAnchorPositioning }"
-              :style="{ left: `${mousePos.x}px`, top: `${mousePos.y}px` }"
-            ></div>
+              <div
+                v-if="hovered"
+                class="tooltip-anchor kline-tooltip-anchor"
+                :class="{ 'use-anchor': useAnchorPositioning }"
+                :style="{ left: `${tooltipPos.x}px`, top: `${tooltipPos.y}px` }"
+              ></div>
+              <div
+                v-if="hoveredMarker || hoveredCustomMarker"
+                class="tooltip-anchor marker-tooltip-anchor"
+                :class="{ 'use-anchor': useAnchorPositioning }"
+                :style="{ left: `${mousePos.x}px`, top: `${mousePos.y}px` }"
+              ></div>
 
-            <!-- 悬浮浮窗：放在 sticky 的 canvas-layer 内，避免随 scroll-content 横向滚动而偏移 -->
-            <KLineTooltip
-              v-if="hovered"
-              :k="hovered"
-              :index="hoveredIndex"
-              :data="chartData"
-              :pos="tooltipPos"
-              :set-el="setTooltipEl"
-              :use-anchor="useAnchorPositioning"
-              :anchor-placement="tooltipAnchorPlacement"
-            />
-            <MarkerTooltip
-              v-if="hoveredMarker || hoveredCustomMarker"
-              :marker="hoveredMarker || hoveredCustomMarker"
-              :pos="mousePos"
-              :use-anchor="useAnchorPositioning"
-              :anchor-placement="markerTooltipAnchorPlacement"
-              :set-el="setMarkerTooltipEl"
-            />
-            <DrawingStyleToolbar
-              v-if="selectedDrawing"
-              :drawing="selectedDrawing"
-              @update-style="onUpdateDrawingStyle"
-              @delete="onDeleteDrawing"
-            />
+              <!-- 悬浮浮窗：放在 sticky 的 canvas-layer 内，避免随 scroll-content 横向滚动而偏移 -->
+              <KLineTooltip
+                v-if="hovered"
+                :k="hovered"
+                :index="hoveredIndex"
+                :data="chartData"
+                :pos="tooltipPos"
+                :set-el="setTooltipEl"
+                :use-anchor="useAnchorPositioning"
+                :anchor-placement="tooltipAnchorPlacement"
+              />
+              <MarkerTooltip
+                v-if="hoveredMarker || hoveredCustomMarker"
+                :marker="hoveredMarker || hoveredCustomMarker"
+                :pos="mousePos"
+                :use-anchor="useAnchorPositioning"
+                :anchor-placement="markerTooltipAnchorPlacement"
+                :set-el="setMarkerTooltipEl"
+              />
+              <DrawingStyleToolbar
+                v-if="selectedDrawing"
+                :drawing="selectedDrawing"
+                @update-style="onUpdateDrawingStyle"
+                @delete="onDeleteDrawing"
+              />
+            </div>
           </div>
         </div>
+        <div
+          class="right-axis-host"
+          ref="rightAxisLayerRef"
+          :style="{ width: axisHostWidth + 'px' }"
+          @pointerdown="onRightAxisPointerDown"
+          @pointermove="onRightAxisPointerMove"
+          @pointerup="onRightAxisPointerUp"
+          @pointerleave="onRightAxisPointerLeave"
+        ></div>
       </div>
     </div>
     <IndicatorSelector
@@ -174,6 +196,7 @@ const emit = defineEmits<{
 
 const xAxisCanvasRef = ref<HTMLCanvasElement | null>(null)
 const canvasLayerRef = ref<HTMLDivElement | null>(null)
+const rightAxisLayerRef = ref<HTMLDivElement | null>(null)
 const containerRef = ref<HTMLDivElement | null>(null)
 
 /* ========== 十字线（鼠标悬停位置） ========== */
@@ -188,10 +211,14 @@ const viewportDpr = ref(1)
 
 /* ========== 缩放状态（Vue SSOT） ========== */
 const zoomLevel = ref(props.initialZoomLevel ?? 1)
-const kWidth = ref(zoomLevelToKWidth(zoomLevel.value, {
-  minKWidth: props.minKWidth, maxKWidth: props.maxKWidth,
-  zoomLevelCount: props.zoomLevels, dpr: viewportDpr.value,
-}))
+const kWidth = ref(
+  zoomLevelToKWidth(zoomLevel.value, {
+    minKWidth: props.minKWidth,
+    maxKWidth: props.maxKWidth,
+    zoomLevelCount: props.zoomLevels,
+    dpr: viewportDpr.value,
+  }),
+)
 const kGap = ref(kGapFromDpr(viewportDpr.value))
 
 function scheduleRender() {
@@ -234,6 +261,7 @@ const interactionState = shallowRef<InteractionSnapshot>({
   isDragging: false,
   isResizingPaneBoundary: false,
   isHoveringPaneBoundary: false,
+  hoveredPaneBoundaryId: null,
   isHoveringRightAxis: false,
 })
 
@@ -245,6 +273,7 @@ const selectedDrawing = computed(() => {
   return drawingController.value?.getSelectedDrawing() ?? null
 })
 const paneRatios = ref<Record<string, number>>({ main: 3 })
+const paneSeparatorLines = ref<Array<{ id: string; top: number }>>([])
 const markerTooltipSize = ref({ width: 220, height: 120 })
 
 // 数据版本号，用于强制 chartData computed 重新求值
@@ -255,6 +284,7 @@ const hoveredCustomMarker = computed(() => interactionState.value.hoveredCustomM
 const isDragging = computed(() => interactionState.value.isDragging)
 const isResizingPane = computed(() => interactionState.value.isResizingPaneBoundary)
 const isHoveringPaneSeparator = computed(() => interactionState.value.isHoveringPaneBoundary)
+const hoveredPaneBoundaryId = computed(() => interactionState.value.hoveredPaneBoundaryId)
 const isHoveringRightAxis = computed(() => interactionState.value.isHoveringRightAxis)
 const hoveredIdx = computed(() => interactionState.value.hoveredIndex)
 const crosshairIdx = computed(() => interactionState.value.crosshairIndex)
@@ -314,7 +344,6 @@ function onDeleteDrawing() {
   drawings.value = drawingController.value.getDrawings()
 }
 
-
 function onPointerDown(e: PointerEvent) {
   const container = containerRef.value
   if (!container) return
@@ -358,6 +387,22 @@ function onPointerLeave(e: PointerEvent) {
   chartRef.value?.interaction.onPointerLeave(e)
 }
 
+function onRightAxisPointerDown(e: PointerEvent) {
+  chartRef.value?.interaction.onRightAxisPointerDown(e)
+}
+
+function onRightAxisPointerMove(e: PointerEvent) {
+  chartRef.value?.interaction.onRightAxisPointerMove(e)
+}
+
+function onRightAxisPointerUp(e: PointerEvent) {
+  chartRef.value?.interaction.onRightAxisPointerUp(e)
+}
+
+function onRightAxisPointerLeave(e: PointerEvent) {
+  chartRef.value?.interaction.onRightAxisPointerLeave(e)
+}
+
 function onScroll() {
   chartRef.value?.interaction.onScroll()
 }
@@ -383,7 +428,11 @@ const subPanes = ref<SubPaneSlot[]>([])
 // 副图指标元数据
 interface SubPaneIndicatorConfig {
   defaultParams: Record<string, number>
-  getTitleInfo: (data: any[], index: number | null, params: Record<string, number>) => TitleInfo | null
+  getTitleInfo: (
+    data: any[],
+    index: number | null,
+    params: Record<string, number>,
+  ) => TitleInfo | null
 }
 
 const SUB_PANE_INDICATOR_CONFIGS: Record<SubIndicatorType, SubPaneIndicatorConfig> = {
@@ -408,7 +457,13 @@ const SUB_PANE_INDICATOR_CONFIGS: Record<SubIndicatorType, SubPaneIndicatorConfi
     defaultParams: { period1: 6, period2: 12, period3: 24 },
     getTitleInfo: (data, index, params) => {
       if (index === null) return null
-      return getRSITitleInfo(data, index, params.period1 ?? 6, params.period2 ?? 12, params.period3 ?? 24)
+      return getRSITitleInfo(
+        data,
+        index,
+        params.period1 ?? 6,
+        params.period2 ?? 12,
+        params.period3 ?? 24,
+      )
     },
   },
   CCI: {
@@ -915,6 +970,8 @@ function handleReorderSubIndicators(orderedIndicatorIds: string[]) {
 }
 
 /* 计算总宽度：从 Vue 响应式状态读取，zoom 变化时自动重算 */
+const axisHostWidth = computed(() => props.rightAxisWidth + props.priceLabelWidth)
+
 const totalWidth = computed(() => {
   const n = dataLength.value
   if (n === 0) return 0
@@ -922,8 +979,7 @@ const totalWidth = computed(() => {
   const dpr = viewportDpr.value
   const { startXPx, unitPx } = getPhysicalKLineConfig(kWidth.value, kGap.value, dpr)
   const plotWidth = (startXPx + n * unitPx) / dpr
-  const yAxisTotalWidth = props.rightAxisWidth + props.priceLabelWidth
-  return plotWidth + yAxisTotalWidth
+  return plotWidth
 })
 
 // 缩放由 Chart 回调驱动 scrollLeft 与渲染时序。
@@ -943,10 +999,18 @@ function applyZoomToLevel(targetLevel: number, anchorX?: number) {
   const dpr = chart.getCurrentDpr()
   const centerX = anchorX ?? (chart.getViewport()?.plotWidth ?? container.clientWidth) / 2
   const result = computeZoomToLevel(
-    targetLevel, centerX, container.scrollLeft,
-    zoomLevel.value, kWidth.value, kGap.value,
-    { minKWidth: props.minKWidth, maxKWidth: props.maxKWidth,
-      zoomLevelCount: props.zoomLevels, dpr },
+    targetLevel,
+    centerX,
+    container.scrollLeft,
+    zoomLevel.value,
+    kWidth.value,
+    kGap.value,
+    {
+      minKWidth: props.minKWidth,
+      maxKWidth: props.maxKWidth,
+      zoomLevelCount: props.zoomLevels,
+      dpr,
+    },
   )
   if (!result) return
   zoomLevel.value = result.targetLevel
@@ -990,8 +1054,9 @@ onMounted(() => {
 
   const container = containerRef.value
   const canvasLayer = canvasLayerRef.value
+  const rightAxisLayer = rightAxisLayerRef.value
   const xAxisCanvas = xAxisCanvasRef.value
-  if (!container || !canvasLayer || !xAxisCanvas) return
+  if (!container || !canvasLayer || !rightAxisLayer || !xAxisCanvas) return
 
   // 手动添加 wheel 事件监听器，设置 passive: false 以允许 preventDefault()
   const onWheelHandler = (e: WheelEvent) => {
@@ -1006,11 +1071,16 @@ onMounted(() => {
 
     const result = computeZoom(
       e.deltaY > 0 ? -1 : 1,
-      mouseX, scrollLeft,
-      zoomLevel.value, kWidth.value, kGap.value,
+      mouseX,
+      scrollLeft,
+      zoomLevel.value,
+      kWidth.value,
+      kGap.value,
       {
-        minKWidth: props.minKWidth, maxKWidth: props.maxKWidth,
-        zoomLevelCount: props.zoomLevels, dpr,
+        minKWidth: props.minKWidth,
+        maxKWidth: props.maxKWidth,
+        zoomLevelCount: props.zoomLevels,
+        dpr,
       },
     )
     if (!result) return
@@ -1034,11 +1104,11 @@ onMounted(() => {
   }
   container.addEventListener('wheel', onWheelHandler, { passive: false })
 
-// 主图初始创建，副图由 addSubPane 动态添加
+  // 主图初始创建，副图由 addSubPane 动态添加
   const chart = new Chart(
-    { container, canvasLayer, xAxisCanvas },
+    { container, canvasLayer, rightAxisLayer, xAxisCanvas },
     {
-  // kWidth/kGap 由 zoomLevel 派生，不从 props 注入
+      // kWidth/kGap 由 zoomLevel 派生，不从 props 注入
       yPaddingPx: props.yPaddingPx,
       rightAxisWidth: props.rightAxisWidth,
       bottomAxisHeight: props.bottomAxisHeight,
@@ -1155,6 +1225,15 @@ onMounted(() => {
       next[pane.id] = pane.ratio
     }
     paneRatios.value = next
+
+    const renderers = chart.getPaneRenderers()
+    paneSeparatorLines.value = renderers.slice(0, -1).map((renderer) => {
+      const pane = renderer.getPane()
+      return {
+        id: pane.id,
+        top: pane.top + pane.height,
+      }
+    })
   })
   chartRef.value = chart
 
@@ -1277,6 +1356,62 @@ watch(
   gap: 8px;
 }
 
+.chart-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  position: relative;
+}
+
+.pane-separator-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.pane-separator-line {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  height: 1px;
+  background: #e5e7eb;
+  transform: translateY(-0.5px);
+  opacity: 1;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease;
+}
+
+.pane-separator-line.is-active {
+  background: #3b82f6;
+  box-shadow:
+    0 0 0 0.5px rgba(59, 130, 246, 0.9),
+    0 0 6px rgba(59, 130, 246, 0.45),
+    0 0 12px rgba(59, 130, 246, 0.25);
+}
+
+.chart-stage.is-resizing-pane,
+.chart-stage.is-hovering-pane-separator {
+  cursor: ns-resize;
+}
+
+.chart-stage.is-hovering-kline {
+  cursor: pointer;
+}
+
+.chart-stage.is-hovering-right-axis {
+  cursor: ns-resize;
+}
+
+.chart-stage.is-dragging {
+  cursor: grabbing;
+}
+
 .chart-container {
   position: relative;
   flex: 1 1 auto;
@@ -1287,7 +1422,8 @@ watch(
   scrollbar-width: none;
   -ms-overflow-style: none;
   border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  border-right: 0;
+  border-radius: 6px 0 0 6px;
   box-sizing: border-box;
   background: #ffffff;
 
@@ -1307,21 +1443,48 @@ watch(
   cursor: crosshair;
 }
 
-.chart-container.is-resizing-pane,
-.chart-container.is-hovering-pane-separator {
-  cursor: row-resize;
-}
-
-.chart-container.is-hovering-kline {
-  cursor: pointer;
-}
-
-.chart-container:hover.is-hovering-right-axis {
+.chart-stage.is-resizing-pane .chart-container,
+.chart-stage.is-hovering-pane-separator .chart-container {
   cursor: ns-resize;
 }
 
-.chart-container.is-dragging {
+.chart-stage.is-hovering-kline .chart-container {
+  cursor: pointer;
+}
+
+.chart-stage.is-dragging .chart-container {
   cursor: grabbing;
+}
+
+.right-axis-host {
+  position: relative;
+  flex: 0 0 auto;
+  height: 100%;
+  min-height: inherit;
+  box-sizing: border-box;
+  background: #ffffff;
+  overflow: visible;
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
+.right-axis-host::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-top: 1px solid #e5e7eb;
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  border-left: 1px solid #e5e7eb;
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+  pointer-events: none;
+  box-sizing: border-box;
 }
 
 .scroll-content {
@@ -1375,6 +1538,7 @@ watch(
 .right-axis {
   position: absolute;
   display: block;
+  left: 0;
 }
 
 /* 底部时间轴 */
@@ -1386,19 +1550,11 @@ watch(
   z-index: 10;
 }
 
-/* 框线系统 */
-.main,
-.sub {
-  border-right: 1px solid #e0e0e0;
-  border-bottom: 1px solid #e0e0e0;
-}
-
 .x-axis-canvas {
   border-right: 1px solid #e0e0e0;
 }
 
 .right-axis {
-  border-bottom: 1px solid #e0e0e0;
-  border-right: 1px solid #e0e0e0;
+  z-index: 999;
 }
 </style>

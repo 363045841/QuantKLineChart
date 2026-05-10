@@ -33,6 +33,7 @@ export { getPhysicalKLineConfig, calcKWidthPx }
 export type ChartDom = {
     container: HTMLDivElement
     canvasLayer: HTMLDivElement
+    rightAxisLayer: HTMLDivElement
     xAxisCanvas: HTMLCanvasElement
 }
 
@@ -1025,16 +1026,21 @@ export class Chart {
         })
 
         const canvasLayer = this.dom.canvasLayer
+        const rightAxisLayer = this.dom.rightAxisLayer
         if (canvasLayer) {
             const existingCanvases = canvasLayer.querySelectorAll('canvas:not(.x-axis-canvas)')
             existingCanvases.forEach((canvas) => canvas.remove())
-
-            this.paneRenderers.forEach((renderer) => {
-                const dom = renderer.getDom()
-                canvasLayer.appendChild(dom.plotCanvas)
-                canvasLayer.appendChild(dom.yAxisCanvas)
-            })
         }
+        if (rightAxisLayer) {
+            const existingAxisCanvases = rightAxisLayer.querySelectorAll('canvas.right-axis')
+            existingAxisCanvases.forEach((canvas) => canvas.remove())
+        }
+
+        this.paneRenderers.forEach((renderer) => {
+            const dom = renderer.getDom()
+            canvasLayer.appendChild(dom.plotCanvas)
+            rightAxisLayer.appendChild(dom.yAxisCanvas)
+        })
 
         this.rendererPluginManager.setKnownPaneIds(this.paneRenderers.map((renderer) => renderer.getPane().id))
     }
@@ -1179,7 +1185,7 @@ export class Chart {
             const dom = renderer.getDom()
             dom.plotCanvas.style.top = `${y}px`
             dom.yAxisCanvas.style.top = `${y}px`
-            dom.yAxisCanvas.style.left = `${vp.plotWidth}px`
+            dom.yAxisCanvas.style.left = '0px'
 
             y += h + gap
         }
@@ -1208,8 +1214,7 @@ export class Chart {
             ? observedHeight
             : Math.max(1, Math.round(container.clientHeight))
 
-        const yAxisTotalWidth = this.opt.rightAxisWidth + (this.opt.priceLabelWidth || 60)
-        const plotWidth = Math.round(viewWidth - yAxisTotalWidth)
+        const plotWidth = Math.round(viewWidth)
         const plotHeight = Math.round(viewHeight - this.opt.bottomAxisHeight)
 
         let dpr = this.getEffectiveDpr()

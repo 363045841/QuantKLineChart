@@ -76,8 +76,10 @@ function createChartStub(args: {
       hitTestCustomMarker: () => null,
     } as const)
 
+  const rightAxisLayer = document.createElement('div') as HTMLDivElement
+
   const chart = {
-    getDom: () => ({ container }),
+    getDom: () => ({ container, rightAxisLayer }),
     getViewport: () => ({
       viewWidth: 320,
       viewHeight: 200,
@@ -105,10 +107,10 @@ describe('InteractionController DPR consumption', () => {
 
     interaction.setKLinePositions([0, 10], { start: 0, end: 2 }, 10)
 
-    interaction.onMouseMove({ clientX: 50, clientY: 40 } as MouseEvent)
+    interaction.onPointerMove({ clientX: 50, clientY: 40, isPrimary: true } as PointerEvent)
     expect(interaction.crosshairPos).not.toBeNull()
 
-    interaction.onMouseMove({ clientX: 120, clientY: 40 } as MouseEvent)
+    interaction.onPointerMove({ clientX: 120, clientY: 40, isPrimary: true } as PointerEvent)
     expect(interaction.crosshairPos).toBeNull()
     expect(interaction.crosshairIndex).toBeNull()
   })
@@ -118,14 +120,14 @@ describe('InteractionController DPR consumption', () => {
     const interactionDpr1 = new InteractionController(chartDpr1 as never)
     interactionDpr1.setKLinePositions([0, 10], { start: 0, end: 2 }, 10)
 
-    interactionDpr1.onMouseMove({ clientX: 8, clientY: 40 } as MouseEvent)
+    interactionDpr1.onPointerMove({ clientX: 8, clientY: 40, isPrimary: true } as PointerEvent)
     expect(interactionDpr1.crosshairIndex).toBe(0)
 
     const chartDpr2 = createChartStub({ dpr: 2, plotWidth: 300, plotHeight: 160 })
     const interactionDpr2 = new InteractionController(chartDpr2 as never)
     interactionDpr2.setKLinePositions([0, 10], { start: 0, end: 2 }, 10)
 
-    interactionDpr2.onMouseMove({ clientX: 8, clientY: 40 } as MouseEvent)
+    interactionDpr2.onPointerMove({ clientX: 8, clientY: 40, isPrimary: true } as PointerEvent)
     expect(interactionDpr2.crosshairIndex).toBe(1)
   })
 })
@@ -144,7 +146,7 @@ describe('InteractionController pane capability gating', () => {
     const interaction = new InteractionController(chart as never)
 
     interaction.setKLinePositions([0, 10], { start: 0, end: 2 }, 10)
-    interaction.onMouseMove({ clientX: 5, clientY: 140 } as MouseEvent)
+    interaction.onPointerMove({ clientX: 5, clientY: 140, isPrimary: true } as PointerEvent)
 
     expect(interaction.activePaneId).toBe('sub_MACD')
     expect(interaction.hoveredIndex).toBeNull()
@@ -163,7 +165,7 @@ describe('InteractionController pane capability gating', () => {
     const interaction = new InteractionController(chart as never)
 
     interaction.setKLinePositions([0, 10], { start: 0, end: 2 }, 10)
-    interaction.onMouseMove({ clientX: 5, clientY: 10 } as MouseEvent)
+    interaction.onPointerMove({ clientX: 5, clientY: 10, isPrimary: true } as PointerEvent)
 
     expect(interaction.activePaneId).toBe('main')
     expect(interaction.crosshairIndex).not.toBeNull()
@@ -183,17 +185,17 @@ describe('InteractionController pane capability gating', () => {
     const interaction = new InteractionController(chart as never)
 
     interaction.setKLinePositions([0, 10], { start: 0, end: 2 }, 10)
-    interaction.onMouseMove({ clientX: 5, clientY: 10 } as MouseEvent)
+    interaction.onPointerMove({ clientX: 5, clientY: 10, isPrimary: true } as PointerEvent)
     expect(interaction.hoveredIndex).toBe(interaction.crosshairIndex)
 
-    interaction.onMouseMove({ clientX: 5, clientY: 140 } as MouseEvent)
+    interaction.onPointerMove({ clientX: 5, clientY: 140, isPrimary: true } as PointerEvent)
     expect(interaction.activePaneId).toBe('sub_MACD')
     expect(interaction.hoveredIndex).toBeNull()
   })
 })
 
 describe('InteractionController hover snapshot', () => {
-  it('clears marker hover payloads on wheel', () => {
+  it('clears marker hover payloads on scroll', () => {
     const setHover = vi.fn()
     const marker = { id: 'm1' }
     const chart = createChartStub({
@@ -208,10 +210,10 @@ describe('InteractionController hover snapshot', () => {
     })
     const interaction = new InteractionController(chart as never)
 
-    interaction.onMouseMove({ clientX: 20, clientY: 20 } as MouseEvent)
+    interaction.onPointerMove({ clientX: 20, clientY: 20, isPrimary: true } as PointerEvent)
     expect(interaction.getInteractionSnapshot().hoveredMarkerData).toBe(marker)
 
-    interaction.onWheel({ clientX: 20, clientY: 20, deltaY: -100 } as WheelEvent)
+    interaction.onScroll()
 
     const snapshot = interaction.getInteractionSnapshot()
     expect(snapshot.hoveredMarkerData).toBeNull()
@@ -240,12 +242,12 @@ describe('InteractionController hover snapshot', () => {
       changes.push(snapshot)
     })
 
-    interaction.onMouseMove({ clientX: 20, clientY: 20 } as MouseEvent)
+    interaction.onPointerMove({ clientX: 20, clientY: 20, isPrimary: true } as PointerEvent)
     expect(interaction.getInteractionSnapshot().hoveredCustomMarker).toBe(customMarker)
 
     hoveringCustom = false
     interaction.setKLinePositions([0, 10], { start: 0, end: 2 }, 10)
-    interaction.onMouseMove({ clientX: 20, clientY: 20 } as MouseEvent)
+    interaction.onPointerMove({ clientX: 20, clientY: 20, isPrimary: true } as PointerEvent)
 
     expect(interaction.getInteractionSnapshot().hoveredCustomMarker).toBeNull()
     expect(changes[changes.length - 1]?.hoveredCustomMarker).toBeNull()

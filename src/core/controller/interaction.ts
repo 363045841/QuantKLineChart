@@ -3,7 +3,10 @@
 import type { Chart } from '../chart'
 import type { MarkerEntity, CustomMarkerEntity } from '@/core/marker/registry'
 
-/** 标记 hover 事件数据 */
+interface PointerLocation {
+    mouseX: number
+    mouseY: number
+}
 
 export interface InteractionSnapshot {
     crosshairPos: { x: number; y: number } | null
@@ -18,6 +21,7 @@ export interface InteractionSnapshot {
     isDragging: boolean
     isResizingPaneBoundary: boolean
     isHoveringPaneBoundary: boolean
+    hoveredPaneBoundaryId: string | null
     isHoveringRightAxis: boolean
 }
 
@@ -119,6 +123,7 @@ export class InteractionController {
             isDragging: this.isDragging,
             isResizingPaneBoundary: this.dragMode === 'resize-separator',
             isHoveringPaneBoundary: this.hoveredSeparatorUpperPaneId !== null,
+            hoveredPaneBoundaryId: this.hoveredSeparatorUpperPaneId,
             isHoveringRightAxis: this.hoveredRightAxisPaneId !== null,
         }
     }
@@ -132,37 +137,25 @@ export class InteractionController {
     }
 
     /**
-     * 处理滚轮缩放事件（缩放逻辑由 Vue 层驱动，此处仅清除交互状态）
-     */
-    onWheel(_e: WheelEvent) {
-        this.clearHover()
-        this.notifyInteractionChange()
-    }
-
-    /**
      * [触屏]:处理 Pointer 按下事件
      * @param e PointerEvent
      */
     onPointerDown(e: PointerEvent) {
-        //1. 只处理主指针，避免多指触控状态混乱
         if (e.isPrimary === false) return
-
-        //2. 标记触摸会话
         this.isTouchSession = e.pointerType === 'touch'
 
+        const location = this.getPlotPointerLocation(e.clientX, e.clientY)
+        if (!location) return
+
         const container = this.chart.getDom().container
-        const rect = container.getBoundingClientRect()
-        const mouseX = e.clientX - rect.left
-        const mouseY = e.clientY - rect.top
+        const { mouseX, mouseY } = location
         const scrollLeft = container.scrollLeft
 
-        //3. 优先检查 marker 点击
         const markerManager = this.chart.getMarkerManager()
         const worldX = scrollLeft + mouseX
         const hitMarker = markerManager.hitTest(worldX, mouseY, 3)
 
         if (hitMarker) {
-            // 点击了 marker，记录并触发回调
             this.clickedMarkerId = hitMarker.id
             this.clickedMarkerData = hitMarker
             if (this.onMarkerClickCallback) {
@@ -183,31 +176,10 @@ export class InteractionController {
             return
         }
 
-        //3.5 确定鼠标落在哪个 pane
-        const paneRenderers = this.chart.getPaneRenderers()
-        const renderer = paneRenderers.find((r) => {
-            const pane = r.getPane()
-            return mouseY >= pane.top && mouseY <= pane.top + pane.height
-        })
-        const pane = renderer?.getPane() || null
-
-        const viewport = this.chart.getViewport()
-        const plotWidth = viewport?.plotWidth ?? Math.max(1, Math.round(container.clientWidth))
-        const isOnRightAxis = mouseX >= plotWidth
-        if (isOnRightAxis && pane) {
-            this.isDragging = true
-            this.dragMode = 'scale-price'
-            this.dragStartY = e.clientY
-            this.activePaneIdOnDrag = pane.id
-            this.updateHoverFromPoint(e.clientX, e.clientY)
-            this.chart.scheduleDraw()
-            return
-        }
-
-        //4. 没有点击 marker，开始拖拽
+        const pane = this.getPaneByY(mouseY)
         this.isDragging = true
         this.dragMode = 'pan'
-        this.updateHoverFromPoint(e.clientX, e.clientY)
+        this.updatePlotHoverFromPoint(e.clientX, e.clientY)
         this.dragStartX = e.clientX
         this.dragStartY = e.clientY
         this.scrollStartX = container.scrollLeft
@@ -215,6 +187,7 @@ export class InteractionController {
 
         this.chart.scheduleDraw()
     }
+
 
 
     /**
@@ -258,160 +231,8 @@ export class InteractionController {
         this.notifyInteractionChange()
     }
 
-    /**
-     * 处理鼠标按下事件
-     * @param e MouseEvent
-     */
-    onMouseDown(e: MouseEvent) {
-        // 1. 触摸会话中忽略模拟的 mouse 事件
-        if (this.isTouchSession) return
-        if (e.button !== 0) return
-
-        const container = this.chart.getDom().container
-        const rect = container.getBoundingClientRect()
-        const mouseX = e.clientX - rect.left
-        const mouseY = e.clientY - rect.top
-        const scrollLeft = container.scrollLeft
-
-        // 2. 优先检查 marker 点击
-        const markerManager = this.chart.getMarkerManager()
-        const worldX = scrollLeft + mouseX
-        const hitMarker = markerManager.hitTest(worldX, mouseY, 3)
-
-        if (hitMarker) {
-            // 点击了 marker，记录并触发回调
-            this.clickedMarkerId = hitMarker.id
-            if (this.onMarkerClickCallback) {
-                this.onMarkerClickCallback(hitMarker)
-            }
-            return
-        }
-
-        const separatorUpperPaneId = this.hitTestPaneSeparator(mouseY)
-        if (separatorUpperPaneId) {
-            this.isDragging = true
-            this.dragMode = 'resize-separator'
-            this.dragStartY = e.clientY
-            this.activeSeparatorUpperPaneId = separatorUpperPaneId
-            this.hoveredSeparatorUpperPaneId = separatorUpperPaneId
-            this.clearHover()
-            this.chart.scheduleDraw()
-            e.preventDefault()
-            return
-        }
-
-        // 3. 确定鼠标落在哪个 pane
-        const paneRenderers = this.chart.getPaneRenderers()
-        const renderer = paneRenderers.find((r) => {
-            const pane = r.getPane()
-            return mouseY >= pane.top && mouseY <= pane.top + pane.height
-        })
-        const pane = renderer?.getPane() || null
-
-        const viewport = this.chart.getViewport()
-        const plotWidth = viewport?.plotWidth ?? Math.max(1, Math.round(container.clientWidth))
-        const isOnRightAxis = mouseX >= plotWidth
-        if (isOnRightAxis && pane) {
-            this.isDragging = true
-            this.dragMode = 'scale-price'
-            this.dragStartY = e.clientY
-            this.activePaneIdOnDrag = pane.id
-            this.updateHoverFromPoint(e.clientX, e.clientY)
-            this.chart.scheduleDraw()
-            e.preventDefault()
-            return
-        }
-
-        // 4. 没有点击 marker，开始拖拽
-        this.isDragging = true
-        this.dragMode = 'pan'
-        this.dragStartX = e.clientX
-        this.dragStartY = e.clientY
-        this.scrollStartX = container.scrollLeft
-        this.activePaneIdOnDrag = pane?.id || null
-        this.updateHoverFromPoint(e.clientX, e.clientY)
-        this.chart.scheduleDraw()
-        e.preventDefault()
-    }
-
-    /**
-     * 处理鼠标移动事件
-     * @param e MouseEvent
-     */
-    onMouseMove(e: MouseEvent) {
-        if (this.isTouchSession) return
-        const container = this.chart.getDom().container
-
-        if (this.isDragging) {
-            if (this.dragMode === 'resize-separator') {
-                const deltaY = e.clientY - this.dragStartY
-                if (deltaY !== 0 && this.activeSeparatorUpperPaneId) {
-                    const resized = this.chart.resizePaneBoundary(this.activeSeparatorUpperPaneId, deltaY)
-                    if (resized) {
-                        this.dragStartY = e.clientY
-                    }
-                }
-                return
-            }
-
-            if (this.dragMode === 'scale-price') {
-                const deltaY = e.clientY - this.dragStartY
-                if (deltaY !== 0 && this.activePaneIdOnDrag) {
-                    this.chart.scalePrice(this.activePaneIdOnDrag, deltaY)
-                    this.dragStartY = e.clientY
-                }
-                return
-            }
-
-            if (this.dragMode === 'pan') {
-                // 1. 水平拖拽：更新滚动位置
-                const deltaX = this.dragStartX - e.clientX
-                this.applyPanScroll(container, this.scrollStartX + deltaX)
-
-                // 2. 仅主图支持上下拖动平移价格轴
-                const deltaY = e.clientY - this.dragStartY
-                if (deltaY !== 0 && this.activePaneIdOnDrag === 'main') {
-                    this.chart.translatePrice(this.activePaneIdOnDrag, deltaY)
-                    this.dragStartY = e.clientY
-                }
-            }
-            return
-        }
-
-        const rect = container.getBoundingClientRect()
-        const mouseY = e.clientY - rect.top
-        this.hoveredSeparatorUpperPaneId = this.hitTestPaneSeparator(mouseY)
-
-        this.updateHoverFromPoint(e.clientX, e.clientY)
-        this.chart.scheduleDraw()
-        this.notifyInteractionChange()
-    }
-
-    /** 处理鼠标抬起事件 */
-    onMouseUp() {
-        if (this.isTouchSession) return
-        this.isDragging = false
-        this.dragMode = 'none'
-        this.activePaneIdOnDrag = null
-        this.activeSeparatorUpperPaneId = null
-        this.notifyInteractionChange()
-    }
-
-    /** 处理鼠标离开事件 */
-    onMouseLeave() {
-        if (this.isTouchSession) return
-        this.isDragging = false
-        this.dragMode = 'none'
-        this.activePaneIdOnDrag = null
-        this.clearSeparatorState()
-        this.clearHover()
-        this.chart.scheduleDraw()
-        this.notifyInteractionChange()
-    }
-
     /** 处理滚动事件 */
     onScroll() {
-        // 1. 清空 kLinePositions 和 visibleRange，避免使用过期数据
         this.kLinePositions = null
         this.visibleRange = null
         this.clearHover()
@@ -424,10 +245,8 @@ export class InteractionController {
      * @param e PointerEvent
      */
     onPointerMove(e: PointerEvent) {
-        // 只处理主指针
         if (!e.isPrimary) return
 
-        // 触屏会话标记
         if (e.pointerType === 'touch') {
             this.isTouchSession = true
         }
@@ -456,11 +275,9 @@ export class InteractionController {
             }
 
             if (this.dragMode === 'pan') {
-                // 1. 水平拖拽：更新滚动位置
                 const deltaX = this.dragStartX - e.clientX
                 this.applyPanScroll(container, this.scrollStartX + deltaX)
 
-                // 2. 仅主图支持上下拖动平移价格轴
                 const deltaY = e.clientY - this.dragStartY
                 if (deltaY !== 0 && this.activePaneIdOnDrag === 'main') {
                     this.chart.translatePrice(this.activePaneIdOnDrag, deltaY)
@@ -470,14 +287,15 @@ export class InteractionController {
             return
         }
 
-        const rect = container.getBoundingClientRect()
-        const mouseY = e.clientY - rect.top
-        this.hoveredSeparatorUpperPaneId = this.hitTestPaneSeparator(mouseY)
+        const location = this.getPlotPointerLocation(e.clientX, e.clientY)
+        if (!location) return
+        this.hoveredSeparatorUpperPaneId = this.hitTestPaneSeparator(location.mouseY)
 
-        this.updateHoverFromPoint(e.clientX, e.clientY)
+        this.updatePlotHoverFromPoint(e.clientX, e.clientY)
         this.chart.scheduleDraw()
         this.notifyInteractionChange()
     }
+
 
     /**
      * 设置当前帧的 K 线起始 x 坐标数组和可见范围
@@ -497,24 +315,51 @@ export class InteractionController {
         }
     }
 
+    onRightAxisPointerDown(e: PointerEvent) {
+        if (e.isPrimary === false) return
+        this.isTouchSession = e.pointerType === 'touch'
+        const location = this.getRightAxisPointerLocation(e.clientX, e.clientY)
+        if (!location) return
+        if (this.beginScalePriceDrag(e.clientY, location.mouseY)) {
+            this.chart.scheduleDraw()
+            this.notifyInteractionChange()
+        }
+    }
+
+    onRightAxisPointerMove(e: PointerEvent) {
+        if (!e.isPrimary) return
+        if (e.pointerType === 'touch') {
+            this.isTouchSession = true
+        }
+
+        if (this.isDragging && this.dragMode === 'scale-price') {
+            const deltaY = e.clientY - this.dragStartY
+            if (deltaY !== 0 && this.activePaneIdOnDrag) {
+                this.chart.scalePrice(this.activePaneIdOnDrag, deltaY)
+                this.dragStartY = e.clientY
+            }
+            return
+        }
+
+        this.updateRightAxisHoverFromPoint(e.clientX, e.clientY)
+        this.chart.scheduleDraw()
+        this.notifyInteractionChange()
+    }
+
+    onRightAxisPointerUp(e: PointerEvent) {
+        this.onPointerUp(e)
+    }
+
+    onRightAxisPointerLeave(e: PointerEvent) {
+        if (e.isPrimary === false) return
+        if (this.isDragging && this.dragMode === 'scale-price') return
+        this.hoveredRightAxisPaneId = null
+        this.notifyInteractionChange()
+    }
+
     /** 检查是否正在拖拽 */
     isDraggingState(): boolean {
         return this.isDragging
-    }
-
-    /** 是否处于分隔线拖拽状态 */
-    isResizingPaneBoundaryState(): boolean {
-        return this.dragMode === 'resize-separator'
-    }
-
-    /** 是否悬停在可拖拽分隔线上 */
-    isHoveringPaneBoundaryState(): boolean {
-        return this.hoveredSeparatorUpperPaneId !== null
-    }
-
-    /** 是否悬停在右轴区域 */
-    isHoveringRightAxisState(): boolean {
-        return this.hoveredRightAxisPaneId !== null
     }
 
     /** 设置 marker hover 回调 */
@@ -555,8 +400,50 @@ export class InteractionController {
         return null
     }
 
-    /** 清除 hover 状态 */
-    private clearHover() {
+    private getPaneByY(mouseY: number) {
+        const paneRenderers = this.chart.getPaneRenderers()
+        const renderer = paneRenderers.find((r) => {
+            const pane = r.getPane()
+            return mouseY >= pane.top && mouseY <= pane.top + pane.height
+        })
+        return renderer?.getPane() || null
+    }
+
+    private getPlotPointerLocation(clientX: number, clientY: number): PointerLocation | null {
+        const container = this.chart.getDom().container
+        const rect = container.getBoundingClientRect()
+        const mouseX = clientX - rect.left
+        const mouseY = clientY - rect.top
+        return { mouseX, mouseY }
+    }
+
+    private getRightAxisPointerLocation(clientX: number, clientY: number): PointerLocation {
+        const rightAxisLayer = this.chart.getDom().rightAxisLayer
+        const rect = rightAxisLayer.getBoundingClientRect()
+        const mouseX = clientX - rect.left
+        const mouseY = clientY - rect.top
+        return { mouseX, mouseY }
+    }
+
+    private beginScalePriceDrag(clientY: number, mouseY: number) {
+        const pane = this.getPaneByY(mouseY)
+        if (!pane) return false
+        this.isDragging = true
+        this.dragMode = 'scale-price'
+        this.dragStartY = clientY
+        this.activePaneIdOnDrag = pane.id
+        this.hoveredRightAxisPaneId = pane.id
+        this.hoveredSeparatorUpperPaneId = null
+        this.crosshairPos = null
+        this.crosshairIndex = null
+        this.crosshairPrice = null
+        this.hoveredIndex = null
+        this.activePaneId = pane.id
+        return true
+    }
+
+    clearHover() {
+        this.hoveredRightAxisPaneId = null
         this.crosshairPos = null
         this.crosshairIndex = null
         this.crosshairPrice = null
@@ -597,41 +484,46 @@ export class InteractionController {
      * @param clientX 屏幕 x 坐标
      * @param clientY 屏幕 y 坐标
      */
-    private updateHoverFromPoint(clientX: number, clientY: number) {
+
+    private updateRightAxisHoverFromPoint(clientX: number, clientY: number) {
+        const location = this.getRightAxisPointerLocation(clientX, clientY)
+        if (!location) return
+
+        const { mouseY } = location
+        const viewport = this.chart.getViewport()
+        const plotHeight = viewport?.plotHeight ?? Math.max(1, Math.round(this.chart.getDom().container.clientHeight))
+        if (mouseY < 0 || mouseY > plotHeight) {
+            this.hoveredRightAxisPaneId = null
+            return
+        }
+
+        const pane = this.getPaneByY(mouseY)
+        this.hoveredRightAxisPaneId = pane?.id || null
+        this.hoveredSeparatorUpperPaneId = null
+        this.crosshairPos = null
+        this.crosshairIndex = null
+        this.crosshairPrice = null
+        this.hoveredIndex = null
+        this.activePaneId = pane?.id || null
+    }
+
+    private updatePlotHoverFromPoint(clientX: number, clientY: number) {
+        const location = this.getPlotPointerLocation(clientX, clientY)
+        if (!location) return
+
+        const { mouseX, mouseY } = location
         const container = this.chart.getDom().container
-        const rect = container.getBoundingClientRect()
-        const mouseX = clientX - rect.left
-        const mouseY = clientY - rect.top
         const viewport = this.chart.getViewport()
         const viewWidth = viewport?.viewWidth ?? Math.max(1, Math.round(container.clientWidth))
         const viewHeight = viewport?.viewHeight ?? Math.max(1, Math.round(container.clientHeight))
         const plotWidth = viewport?.plotWidth ?? viewWidth
         const plotHeight = viewport?.plotHeight ?? viewHeight
-        if (mouseX < 0 || mouseY < 0 || mouseY > plotHeight) {
+        if (mouseX < 0 || mouseY < 0 || mouseX > plotWidth || mouseY > plotHeight) {
             this.clearHover()
-            this.hoveredRightAxisPaneId = null
             return
         }
 
-        // 检测是否悬浮在右轴区域
-        const isOnRightAxis = mouseX >= plotWidth
-        if (isOnRightAxis) {
-            // 确定鼠标落在哪个 pane
-            const paneRenderers = this.chart.getPaneRenderers()
-            const renderer = paneRenderers.find((r) => {
-                const pane = r.getPane()
-                return mouseY >= pane.top && mouseY <= pane.top + pane.height
-            })
-            const pane = renderer?.getPane() || null
-            this.hoveredRightAxisPaneId = pane?.id || null
-            // 右轴悬浮时不显示十字线
-            this.crosshairPos = null
-            this.crosshairIndex = null
-            this.hoveredIndex = null
-            return
-        } else {
-            this.hoveredRightAxisPaneId = null
-        }
+        this.hoveredRightAxisPaneId = null
 
         const scrollLeft = container.scrollLeft
         const dpr = this.chart.getCurrentDpr()
@@ -643,13 +535,11 @@ export class InteractionController {
             return
         }
 
-        // 2. 优先检查量价关系 marker 命中（marker 在 world 坐标系）
         const markerManager = this.chart.getMarkerManager()
         const worldX = scrollLeft + mouseX
         const hitMarker = markerManager.hitTest(worldX, mouseY, 3)
 
         if (hitMarker) {
-            // 命中 marker，更新 hover 状态
             if (this.hoveredMarkerId !== hitMarker.id) {
                 this.hoveredMarkerId = hitMarker.id
                 this.hoveredMarkerData = hitMarker
@@ -664,14 +554,12 @@ export class InteractionController {
                     this.onCustomMarkerHoverCallback(null)
                 }
             }
-            // marker hover 时不显示十字线和 K 线 tooltip
             this.crosshairPos = null
             this.crosshairIndex = null
             this.crosshairPrice = null
             this.hoveredIndex = null
             return
         } else {
-            // 没有命中 marker，清除 marker hover 状态
             if (this.hoveredMarkerId !== null) {
                 this.hoveredMarkerId = null
                 this.hoveredMarkerData = null
@@ -682,10 +570,8 @@ export class InteractionController {
             }
         }
 
-        // 3. 检查自定义标记命中（屏幕坐标）
         const hitCustomMarker = markerManager.hitTestCustomMarker(mouseX, mouseY)
         if (hitCustomMarker) {
-            // 命中自定义标记，更新 hover 状态
             if (this.hoveredCustomMarker?.id !== hitCustomMarker.id) {
                 this.hoveredCustomMarker = hitCustomMarker
                 if (this.onCustomMarkerHoverCallback) {
@@ -700,14 +586,12 @@ export class InteractionController {
                     this.onMarkerHoverCallback(null)
                 }
             }
-            // marker hover 时不显示十字线和 K 线 tooltip
             this.crosshairPos = null
             this.crosshairIndex = null
             this.crosshairPrice = null
             this.hoveredIndex = null
             return
         } else {
-            // 没有命中自定义标记，清除 hover 状态
             if (this.hoveredCustomMarker !== null) {
                 this.hoveredCustomMarker = null
                 if (this.onCustomMarkerHoverCallback) {
@@ -716,16 +600,13 @@ export class InteractionController {
             }
         }
 
-        // 4. kLinePositions 未就绪时不显示十字线
         if (!this.kLinePositions || !this.visibleRange || !this.kWidthPx) {
             this.clearHover()
             return
         }
 
-        // 4. 通过二分查找从 kLinePositions 反查 idx
         const kWidthLogical = this.kWidthPx / dpr
 
-        // 二分查找：找到 worldX 对应的 K 线索引
         let lo = 0, hi = this.kLinePositions.length
         while (lo < hi) {
             const mid = (lo + hi) >> 1
@@ -736,7 +617,6 @@ export class InteractionController {
             }
         }
 
-        // 确定最终 localIdx：比较左右两个位置的 K 线中心，选更近的
         let localIdx = lo
         if (lo > 0 && lo < this.kLinePositions.length) {
             const prevCenter = this.kLinePositions[lo - 1]! + kWidthLogical / 2
@@ -751,16 +631,9 @@ export class InteractionController {
         const idx = localIdx + this.visibleRange.start
         const data = this.chart.getData()
 
-        // 5. 确定鼠标落在哪个 pane
-        const paneRenderers = this.chart.getPaneRenderers()
-        const renderer = paneRenderers.find((r) => {
-            const pane = r.getPane()
-            return mouseY >= pane.top && mouseY <= pane.top + pane.height
-        })
-        const pane = renderer?.getPane() || null
+        const pane = this.getPaneByY(mouseY)
         this.activePaneId = pane?.id || null
 
-        // 6. 计算十字线位置（统一使用 kLinePositions）
         if (idx >= 0 && idx < (data?.length ?? 0)) {
             this.crosshairIndex = idx
 
@@ -772,7 +645,6 @@ export class InteractionController {
                 y: Math.min(Math.max(mouseY, 0), plotHeight),
             }
 
-            // 计算十字线指向的价格（用于价格轴平移时跟随）
             if (pane) {
                 const localY = mouseY - pane.top
                 this.crosshairPrice = pane.yAxis.yToPrice(localY)
@@ -785,7 +657,6 @@ export class InteractionController {
             this.crosshairPrice = null
         }
 
-        // 7. Tooltip 命中判定
         const k = typeof this.crosshairIndex === 'number' ? data[this.crosshairIndex] : undefined
         if (!k || !pane || !pane.capabilities.candleHitTest) {
             this.hoveredIndex = null
@@ -800,24 +671,21 @@ export class InteractionController {
         const bodyTop = Math.min(openY, closeY)
         const bodyBottom = Math.max(openY, closeY)
 
-        // 7.1 使用 kLinePositions 计算在当前 K 线单元内的相对 X 位置
         const kLineStartX = this.kLinePositions[localIdx]!
         const inUnitX = worldX - kLineStartX
         const cxLogical = kWidthLogical / 2
 
-        // 7.2 扩大 hitBody 的 Y 方向判定范围
         const MIN_BODY_HIT_HEIGHT = 8
         const bodyHeight = Math.abs(bodyBottom - bodyTop)
         const effectiveBodyTop = bodyHeight < MIN_BODY_HIT_HEIGHT ? (bodyTop + bodyBottom) / 2 - MIN_BODY_HIT_HEIGHT / 2 : bodyTop
         const effectiveBodyBottom = bodyHeight < MIN_BODY_HIT_HEIGHT ? (bodyTop + bodyBottom) / 2 + MIN_BODY_HIT_HEIGHT / 2 : bodyBottom
 
-        // 7.3 扩大 hitWick 的 X 方向判定范围
         const HIT_WICK_HALF_EXTENDED = 3
 
         const hitBody = localY >= effectiveBodyTop && localY <= effectiveBodyBottom &&
             inUnitX >= 0 && inUnitX <= kWidthLogical
         const hitWick = Math.abs(inUnitX - cxLogical) <= HIT_WICK_HALF_EXTENDED &&
-            localY >= highY && localY <= lowY
+            localY >= Math.min(highY, lowY) && localY <= Math.max(highY, lowY)
 
         if (!hitBody && !hitWick) {
             this.hoveredIndex = null
@@ -840,7 +708,6 @@ export class InteractionController {
             return
         }
 
-        // 7.4 tooltip 防溢出定位
         const padding = 12
         const preferGap = 14
         const tooltipW = this.tooltipSize.width
@@ -857,6 +724,7 @@ export class InteractionController {
             y: Math.min(Math.max(desiredY, padding), maxY),
         }
     }
+
 
     /**
      * 重置所有交互状态（数据更新时调用）
