@@ -5,6 +5,7 @@ import { InteractionController } from '@/core/controller/interaction'
 import { PaneRenderer } from '@/core/paneRenderer'
 import { MarkerManager, type CustomMarkerEntity } from './marker/registry'
 import { getPhysicalKLineConfig, calcKWidthPx } from '@/core/utils/klineConfig'
+import { zoomLevelToKWidth as _zoomLevelToKWidth, kGapFromDpr } from '@/core/utils/zoom'
 import {
     createPluginHost,
     type PluginHostImpl,
@@ -144,9 +145,6 @@ export class Chart {
     /** pane 布局回流回调（Chart -> UI 单向） */
     private onPaneLayoutChange?: (panes: PaneSpec[]) => void
 
-    /** 缩放级别变化回调 */
-    private onZoomLevelChange?: (level: number, kWidth: number) => void
-
     /** 当前缩放级别（1 ~ zoomLevelCount） */
     private currentZoomLevel: number = 1
 
@@ -179,10 +177,12 @@ export class Chart {
         this.currentZoomLevel = Math.max(1, Math.min(this.zoomLevelCount, this.currentZoomLevel))
 
         // 根据初始缩放级别初始化 kWidth 和 kGap
-        const initialKWidth = this.zoomLevelToKWidth(this.currentZoomLevel)
         const dpr = this.getEffectiveDpr()
-        const PHYS_K_GAP = 3
-        const initialKGap = PHYS_K_GAP / dpr
+        const initialKWidth = _zoomLevelToKWidth(this.currentZoomLevel, {
+            minKWidth: this.opt.minKWidth, maxKWidth: this.opt.maxKWidth,
+            zoomLevelCount: this.zoomLevelCount, dpr,
+        })
+        const initialKGap = kGapFromDpr(dpr)
         this.opt.kWidth = initialKWidth
         this.opt.kGap = initialKGap
 
@@ -437,170 +437,21 @@ export class Chart {
         }
     }
 
-    /**
-     * 以鼠标位置为中心缩放 K 线，保持鼠标指向的 K 线位置不变
-     * @param mouseX 鼠标相对 container 左侧的 x 坐标
-     * @param scrollLeft 当前 container 的 scrollLeft
-     * @param deltaY 滚动方向（大于 0 缩小，小于 0 放大）
-     */
-    zoomAt(mouseX: number, scrollLeft: number, deltaY: number) {
-        // 计算目标缩放级别
-        const delta = deltaY > 0 ? -1 : 1
-        const targetLevel = Math.max(1, Math.min(this.zoomLevelCount, this.currentZoomLevel + delta))
-        if (targetLevel === this.currentZoomLevel) return
-
-        // 由缩放级别派生 kWidth
-        const newKWidth = this.zoomLevelToKWidth(targetLevel)
-        const dpr = this.getEffectiveDpr()
-        const PHYS_K_GAP = 3
-        const newKGap = PHYS_K_GAP / dpr
-
-        // 计算鼠标锚点对应的索引
-        const oldUnit = this.opt.kWidth + this.opt.kGap
-        const centerIndex = (scrollLeft + mouseX) / oldUnit
-
-        // 计算缩放后的滚动位置
-        const newUnit = newKWidth + newKGap
-        const newScrollLeft = centerIndex * newUnit - mouseX
-
-        // 更新当前缩放级别
-        this.currentZoomLevel = targetLevel
-
-        if (this.onZoomChange) {
-            // 把新参数传给外部，等 scrollLeft 落地后再回调 applyZoom
-            this.onZoomChange(targetLevel, newKWidth, newKGap, newScrollLeft)
-            return
-        }
-
-        // 外部接管 scrollLeft 时只传递缩放变更
-        this.opt = { ...this.opt, kWidth: newKWidth, kGap: newKGap }
-        const container = this.dom.container
-        const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth)
-        container.scrollLeft = Math.min(Math.max(0, newScrollLeft), maxScrollLeft)
-
-        this.onZoomLevelChange?.(this.currentZoomLevel, newKWidth)
-        this.scheduleDraw()
-    }
+    // ========== Render State API (Vue SSOT) ==========
 
     /**
-     * 应用缩放级别（在 scrollLeft 落地后调用）
-     * @param level 缩放级别
+     * 应用渲染状态（由 Vue 层在状态更新后调用）
+     * Chart 不拥有缩放状态，只负责接收参数并渲染
      */
-    applyZoom(level: number) {
-        const kWidth = this.zoomLevelToKWidth(level)
-        const dpr = this.getEffectiveDpr()
-        const PHYS_K_GAP = 3
-        const kGap = PHYS_K_GAP / dpr
-        this.currentZoomLevel = level
+    applyRenderState(kWidth: number, kGap: number, zoomLevel?: number): void {
         this.opt = { ...this.opt, kWidth, kGap }
-        this.onZoomLevelChange?.(this.currentZoomLevel, kWidth)
+        if (zoomLevel !== undefined) this.currentZoomLevel = zoomLevel
         this.scheduleDraw()
     }
 
-    /** 缩放回调 */
-    private onZoomChange?: (level: number, kWidth: number, kGap: number, targetScrollLeft: number) => void
-
-    setOnZoomChange(cb: (level: number, kWidth: number, kGap: number, targetScrollLeft: number) => void) {
-        this.onZoomChange = cb
-    }
-
-    // ========== Zoom Level API ==========
-
-    /**
-     * 将缩放级别转换为 K 线宽度
-     * @param level 缩放级别（1 ~ zoomLevels）
-     * @returns K 线宽度（逻辑像素）
-     */
-    private zoomLevelToKWidth(level: number): number {
-        const min = this.opt.minKWidth
-        const max = this.opt.maxKWidth
-        const t = (level - 1) / (this.zoomLevelCount - 1)
-        return min + t * (max - min)
-    }
-
-    /**
-     * 缩放到指定级别
-     * @param level 目标级别（1 ~ zoomLevels）
-     * @param anchorX 缩放中心点（相对 container 左侧的 x 坐标，默认为中心）
-     */
-    zoomToLevel(level: number, anchorX?: number) {
-        const targetLevel = Math.max(1, Math.min(this.zoomLevelCount, Math.round(level)))
-        if (targetLevel === this.currentZoomLevel) return
-
-        const container = this.dom.container
-        const newKWidth = this.zoomLevelToKWidth(targetLevel)
-        const dpr = this.getEffectiveDpr()
-
-        // 计算新的 kGap（物理固定 3px）
-        const PHYS_K_GAP = 3
-        const newKGap = PHYS_K_GAP / dpr
-
-        // 确定缩放中心
-        const plotWidth = this.viewport?.plotWidth ?? container.clientWidth
-        const centerX = anchorX ?? plotWidth / 2
-        const scrollLeft = container.scrollLeft
-
-        // 计算缩放中心点对应的 K 线索引
-        const oldUnit = this.opt.kWidth + this.opt.kGap
-        const centerIndex = (scrollLeft + centerX) / oldUnit
-
-        // 校正滚动位置，使缩放后中心点仍指向同一根 K 线
-        const newUnit = newKWidth + newKGap
-        const newScrollLeft = centerIndex * newUnit - centerX
-
-        // 更新状态
-        this.currentZoomLevel = targetLevel
-
-        if (this.onZoomChange) {
-            this.onZoomChange(targetLevel, newKWidth, newKGap, newScrollLeft)
-        } else {
-            this.opt = { ...this.opt, kWidth: newKWidth, kGap: newKGap }
-            const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth)
-            container.scrollLeft = Math.min(Math.max(0, newScrollLeft), maxScrollLeft)
-        }
-
-        this.onZoomLevelChange?.(this.currentZoomLevel, newKWidth)
-        this.scheduleDraw()
-    }
-
-    /**
-     * 获取当前缩放级别
-     * @returns 当前级别（1 ~ zoomLevels）
-     */
-    getZoomLevel(): number {
-        return this.currentZoomLevel
-    }
-
-    /**
-     * 获取总缩放级别数
-     * @returns 级别总数
-     */
+    /** 获取总缩放级别数 */
     getZoomLevelCount(): number {
         return this.zoomLevelCount
-    }
-
-    /**
-     * 放大一级
-     * @param anchorX 缩放中心点（默认为中心）
-     */
-    zoomIn(anchorX?: number) {
-        this.zoomToLevel(this.currentZoomLevel + 1, anchorX)
-    }
-
-    /**
-     * 缩小一级
-     * @param anchorX 缩放中心点（默认为中心）
-     */
-    zoomOut(anchorX?: number) {
-        this.zoomToLevel(this.currentZoomLevel - 1, anchorX)
-    }
-
-    /**
-     * 注册缩放级别变化回调
-     * @param cb 回调函数，参数为 (level, kWidth)
-     */
-    setOnZoomLevelChange(cb: (level: number, kWidth: number) => void) {
-        this.onZoomLevelChange = cb
     }
 
     /** 注册视口变化回调 */
@@ -682,7 +533,7 @@ export class Chart {
     updateOptions(partial: Partial<ChartOptions>) {
         // 缩放参数由 zoomLevel 派生，不允许直接修改
         if (partial.kWidth !== undefined) {
-            console.warn('[Chart] kWidth cannot be set directly. Use zoomToLevel() instead.')
+            console.warn('[Chart] kWidth cannot be set directly. Use applyRenderState() instead.')
             delete partial.kWidth
         }
         if (partial.kGap !== undefined) {
@@ -1132,7 +983,6 @@ export class Chart {
         // 清理渲染器插件管理器（会调用所有 onUninstall）
         this.rendererPluginManager.clear()
 
-        this.onZoomChange = undefined
         this.onViewportChange = undefined
         this.onPaneLayoutChange = undefined
         await this.pluginHost.destroy()

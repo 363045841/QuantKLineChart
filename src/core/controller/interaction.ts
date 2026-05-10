@@ -125,17 +125,10 @@ export class InteractionController {
     }
 
     /**
-     * 处理滚轮缩放事件
-     * @param e WheelEvent
+     * 处理滚轮缩放事件（缩放逻辑由 Vue 层驱动，此处仅清除交互状态）
      */
-    onWheel(e: WheelEvent) {
-        const container = this.chart.getDom().container
-        const rect = container.getBoundingClientRect()
-        const mouseX = e.clientX - rect.left
-        const scrollLeft = container.scrollLeft
-
+    onWheel(_e: WheelEvent) {
         this.clearHover()
-        this.chart.zoomAt(mouseX, scrollLeft, e.deltaY)
         this.notifyInteractionChange()
     }
 

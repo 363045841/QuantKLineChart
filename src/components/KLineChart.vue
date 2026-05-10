@@ -93,6 +93,7 @@ import IndicatorSelector from './IndicatorSelector.vue'
 import DrawingStyleToolbar from './DrawingStyleToolbar.vue'
 import { Chart, type PaneSpec } from '@/core/chart'
 import { getPhysicalKLineConfig } from '@/core/utils/klineConfig'
+import { zoomLevelToKWidth, kGapFromDpr, computeZoom, computeZoomToLevel } from '@/core/utils/zoom'
 import { createCandleRenderer } from '@/core/renderers/candle'
 import { createGridLinesRendererPlugin } from '@/core/renderers/gridLines'
 import { createLastPriceLineRendererPlugin } from '@/core/renderers/lastPrice'
@@ -184,6 +185,14 @@ const semanticController = shallowRef<SemanticChartController | null>(null)
 /* ========== 数据长度（响应式，用于计算 totalWidth） ========== */
 const dataLength = ref(0)
 const viewportDpr = ref(1)
+
+/* ========== 缩放状态（Vue SSOT） ========== */
+const zoomLevel = ref(props.initialZoomLevel ?? 1)
+const kWidth = ref(zoomLevelToKWidth(zoomLevel.value, {
+  minKWidth: props.minKWidth, maxKWidth: props.maxKWidth,
+  zoomLevelCount: props.zoomLevels, dpr: viewportDpr.value,
+}))
+const kGap = ref(kGapFromDpr(viewportDpr.value))
 
 function scheduleRender() {
   chartRef.value?.scheduleDraw()
@@ -905,18 +914,13 @@ function handleReorderSubIndicators(orderedIndicatorIds: string[]) {
   chart.updatePaneLayout(buildPaneLayoutIntent())
 }
 
-/* 计算总宽度：从 Chart 读取状态，保持与渲染一致 */
+/* 计算总宽度：从 Vue 响应式状态读取，zoom 变化时自动重算 */
 const totalWidth = computed(() => {
-  const chart = chartRef.value
   const n = dataLength.value
-  if (!chart || n === 0) return 0
+  if (n === 0) return 0
 
   const dpr = viewportDpr.value
-  const opt = chart.getOption()
-  const kWidth = opt.kWidth ?? props.minKWidth
-  const kGap = opt.kGap ?? 3 / dpr
-
-  const { startXPx, unitPx } = getPhysicalKLineConfig(kWidth, kGap, dpr)
+  const { startXPx, unitPx } = getPhysicalKLineConfig(kWidth.value, kGap.value, dpr)
   const plotWidth = (startXPx + n * unitPx) / dpr
   const yAxisTotalWidth = props.rightAxisWidth + props.priceLabelWidth
   return plotWidth + yAxisTotalWidth
@@ -931,6 +935,34 @@ function scrollToRight() {
   scheduleRender()
 }
 
+/* 缩放到指定级别（Vue 层驱动） */
+function applyZoomToLevel(targetLevel: number, anchorX?: number) {
+  const chart = chartRef.value
+  const container = containerRef.value
+  if (!chart || !container) return
+  const dpr = chart.getCurrentDpr()
+  const centerX = anchorX ?? (chart.getViewport()?.plotWidth ?? container.clientWidth) / 2
+  const result = computeZoomToLevel(
+    targetLevel, centerX, container.scrollLeft,
+    zoomLevel.value, kWidth.value, kGap.value,
+    { minKWidth: props.minKWidth, maxKWidth: props.maxKWidth,
+      zoomLevelCount: props.zoomLevels, dpr },
+  )
+  if (!result) return
+  zoomLevel.value = result.targetLevel
+  kWidth.value = result.newKWidth
+  kGap.value = result.newKGap
+  chart.interaction.clearHover()
+  nextTick(() => {
+    const c = containerRef.value
+    if (!c) return
+    const max = Math.max(0, c.scrollWidth - c.clientWidth)
+    c.scrollLeft = Math.min(Math.max(0, result.newScrollLeft), max)
+    chart.applyRenderState(result.newKWidth, result.newKGap, result.targetLevel)
+    emit('zoomLevelChange', result.targetLevel, result.newKWidth)
+  })
+}
+
 defineExpose({
   scheduleRender,
   scrollToRight,
@@ -942,11 +974,11 @@ defineExpose({
     return chartRef.value?.plugin
   },
 
-  // Zoom Level API
-  zoomToLevel: (level: number, anchorX?: number) => chartRef.value?.zoomToLevel(level, anchorX),
-  zoomIn: (anchorX?: number) => chartRef.value?.zoomIn(anchorX),
-  zoomOut: (anchorX?: number) => chartRef.value?.zoomOut(anchorX),
-  getZoomLevel: () => chartRef.value?.getZoomLevel() ?? 1,
+  // Zoom Level API（Vue SSOT）
+  zoomToLevel: applyZoomToLevel,
+  zoomIn: (anchorX?: number) => applyZoomToLevel(zoomLevel.value + 1, anchorX),
+  zoomOut: (anchorX?: number) => applyZoomToLevel(zoomLevel.value - 1, anchorX),
+  getZoomLevel: () => zoomLevel.value,
   getZoomLevelCount: () => chartRef.value?.getZoomLevelCount() ?? 10,
 })
 
@@ -963,7 +995,42 @@ onMounted(() => {
 
   // 手动添加 wheel 事件监听器，设置 passive: false 以允许 preventDefault()
   const onWheelHandler = (e: WheelEvent) => {
-    chartRef.value?.interaction.onWheel(e)
+    e.preventDefault()
+    const chart = chartRef.value
+    if (!chart) return
+
+    const rect = container.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left
+    const scrollLeft = container.scrollLeft
+    const dpr = chart.getCurrentDpr()
+
+    const result = computeZoom(
+      e.deltaY > 0 ? -1 : 1,
+      mouseX, scrollLeft,
+      zoomLevel.value, kWidth.value, kGap.value,
+      {
+        minKWidth: props.minKWidth, maxKWidth: props.maxKWidth,
+        zoomLevelCount: props.zoomLevels, dpr,
+      },
+    )
+    if (!result) return
+
+    // 更新 Vue 响应式状态 → totalWidth 重算
+    zoomLevel.value = result.targetLevel
+    kWidth.value = result.newKWidth
+    kGap.value = result.newKGap
+
+    // 清除 hover + crosshair
+    chart.interaction.clearHover()
+
+    nextTick(() => {
+      const c = containerRef.value
+      if (!c) return
+      const maxScrollLeft = Math.max(0, c.scrollWidth - c.clientWidth)
+      c.scrollLeft = Math.min(Math.max(0, result.newScrollLeft), maxScrollLeft)
+      chart.applyRenderState(result.newKWidth, result.newKGap, result.targetLevel)
+      emit('zoomLevelChange', result.targetLevel, result.newKWidth)
+    })
   }
   container.addEventListener('wheel', onWheelHandler, { passive: false })
 
@@ -988,28 +1055,6 @@ onMounted(() => {
       initialZoomLevel: props.initialZoomLevel,
     },
   )
-
-  // 缩放回调：处理 scrollLeft 同步
-  chart.setOnZoomChange(async (level, kWidth, kGap, targetScrollLeft) => {
-    // 等 Vue 更新 scroll-content 的 width（totalWidth 是 computed，会自动更新）
-    await nextTick()
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-
-    // scrollLeft 落地
-    const c = containerRef.value
-    if (!c) return
-    const maxScrollLeft = Math.max(0, c.scrollWidth - c.clientWidth)
-    c.scrollLeft = Math.min(Math.max(0, targetScrollLeft), maxScrollLeft)
-
-    // 5) scrollLeft 已落地，现在才让 Chart 更新 opt 并渲染
-    // 保证 draw() 读取到一致的缩放参数与滚动位置
-    chart.applyZoom(level)
-  })
-
-  // 监听缩放级别变化
-  chart.setOnZoomLevelChange((level, kWidth) => {
-    emit('zoomLevelChange', level, kWidth)
-  })
 
   // 注册主图渲染器插件
   chart.useRenderer(createGridLinesRendererPlugin()) // 网格线渲染到所有 pane
@@ -1102,6 +1147,7 @@ onMounted(() => {
 
   chart.setOnViewportChange((vp) => {
     viewportDpr.value = vp.dpr
+    kGap.value = kGapFromDpr(vp.dpr)
   })
   chart.setOnPaneLayoutChange((panes) => {
     const next: Record<string, number> = {}
