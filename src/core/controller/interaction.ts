@@ -31,6 +31,13 @@ export class InteractionController {
     private dragStartX = 0
     private scrollStartX = 0
 
+    private applyPanScroll(container: HTMLDivElement, nextScrollLeft: number) {
+        const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth)
+        const clampedScrollLeft = Math.min(Math.max(0, nextScrollLeft), maxScrollLeft)
+        const dpr = this.chart.getCurrentDpr()
+        container.scrollLeft = Math.round(clampedScrollLeft * dpr) / dpr
+    }
+
     /** 垂直拖动相关 */
     private dragStartY = 0
     private activePaneIdOnDrag: string | null = null
@@ -359,7 +366,7 @@ export class InteractionController {
             if (this.dragMode === 'pan') {
                 // 1. 水平拖拽：更新滚动位置
                 const deltaX = this.dragStartX - e.clientX
-                container.scrollLeft = this.scrollStartX + deltaX
+                this.applyPanScroll(container, this.scrollStartX + deltaX)
 
                 // 2. 仅主图支持上下拖动平移价格轴
                 const deltaY = e.clientY - this.dragStartY
@@ -451,7 +458,7 @@ export class InteractionController {
             if (this.dragMode === 'pan') {
                 // 1. 水平拖拽：更新滚动位置
                 const deltaX = this.dragStartX - e.clientX
-                container.scrollLeft = this.scrollStartX + deltaX
+                this.applyPanScroll(container, this.scrollStartX + deltaX)
 
                 // 2. 仅主图支持上下拖动平移价格轴
                 const deltaY = e.clientY - this.dragStartY
