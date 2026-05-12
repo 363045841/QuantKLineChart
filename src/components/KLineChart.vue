@@ -972,14 +972,17 @@ function handleReorderSubIndicators(orderedIndicatorIds: string[]) {
 /* 计算总宽度：从 Vue 响应式状态读取，zoom 变化时自动重算 */
 const axisHostWidth = computed(() => props.rightAxisWidth + props.priceLabelWidth)
 
+const TRAILING_DRAWING_SLOTS = 24
+
 const totalWidth = computed(() => {
   const n = dataLength.value
   if (n === 0) return 0
 
   const dpr = viewportDpr.value
   const { startXPx, unitPx } = getPhysicalKLineConfig(kWidth.value, kGap.value, dpr)
-  const plotWidth = (startXPx + n * unitPx) / dpr
-  return plotWidth
+  const dataPlotWidth = (startXPx + (n + TRAILING_DRAWING_SLOTS) * unitPx) / dpr
+  const viewWidth = containerRef.value?.clientWidth ?? 0
+  return Math.max(dataPlotWidth, viewWidth)
 })
 
 // 缩放由 Chart 回调驱动 scrollLeft 与渲染时序。
@@ -1548,10 +1551,6 @@ watch(
   bottom: 0;
   display: block;
   z-index: 10;
-}
-
-.x-axis-canvas {
-  border-right: 1px solid #e0e0e0;
 }
 
 .right-axis {

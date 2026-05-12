@@ -226,7 +226,8 @@ export interface RenderContext {
 
 export type DrawingAnchor = {
   id: string
-  time: number | string
+  index: number
+  time?: number | string
   price: number
 }
 

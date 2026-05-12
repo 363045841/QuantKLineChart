@@ -922,26 +922,47 @@ export class Chart {
         return this.data
     }
 
-    /** 根据视口内 X 坐标反查数据索引（用于绘图落点） */
-    getDataIndexAtX(mouseX: number): number | null {
+    private getTrailingSlotCount(): number {
+        return 24
+    }
+
+    getLogicalSlotCount(): number {
+        return this.data.length + this.getTrailingSlotCount()
+    }
+
+    getTimestampAtLogicalIndex(index: number): number | null {
+        if (!Number.isInteger(index) || index < 0 || index >= this.data.length) return null
+        return this.data[index]?.timestamp ?? null
+    }
+
+    /** 根据视口内 X 坐标反查逻辑索引（允许超出最后一根 K 线） */
+    getLogicalIndexAtX(mouseX: number): number | null {
         const vp = this.viewport
         if (!vp || this.data.length === 0) return null
         const dpr = this.getEffectiveDpr()
         const { startXPx, unitPx } = getPhysicalKLineConfig(this.opt.kWidth, this.opt.kGap, dpr)
         const worldX = Math.round((vp.scrollLeft + mouseX) * dpr)
         const index = Math.floor((worldX - startXPx) / unitPx)
-        if (index < 0 || index >= this.data.length) return null
+        if (index < 0) return null
+        return index
+    }
+
+    /** 根据视口内 X 坐标反查数据索引（用于绘图落点） */
+    getDataIndexAtX(mouseX: number): number | null {
+        const index = this.getLogicalIndexAtX(mouseX)
+        if (index === null || index >= this.data.length) return null
         return index
     }
 
 
     /** 获取内容总宽度（用于外部 scroll-content 撑开 scrollWidth） */
     getContentWidth(): number {
-        const n = this.data?.length ?? 0
+        const n = this.getLogicalSlotCount()
         const dpr = this.getEffectiveDpr()
         const { startXPx, unitPx } = getPhysicalKLineConfig(this.opt.kWidth, this.opt.kGap, dpr)
-        const plotWidth = (startXPx + n * unitPx) / dpr
-        return plotWidth
+        const dataPlotWidth = (startXPx + n * unitPx) / dpr
+        const viewportPlotWidth = this.viewport?.plotWidth ?? 0
+        return Math.max(dataPlotWidth, viewportPlotWidth)
     }
 
 

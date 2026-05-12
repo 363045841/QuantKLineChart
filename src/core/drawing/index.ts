@@ -217,9 +217,10 @@ function extendLineToViewport(
 }
 
 function getAnchorDataIndex(anchor: DrawingObject['anchors'][number], data: KLineData[]): number {
-  const time = typeof anchor.time === 'string' ? Number(anchor.time) : anchor.time
-  if (!Number.isFinite(time)) return -1
-  return data.findIndex((item) => item.timestamp === time)
+  if (!Number.isFinite(anchor.index)) return -1
+  const index = Math.round(anchor.index)
+  if (index < 0 || index >= data.length) return -1
+  return index
 }
 
 function formatSigned(value: number, digits = 2): string {
@@ -420,9 +421,9 @@ export function createInfoLineDefinition(): DrawingDefinition {
       if (!first || !second) return { primitives: [] }
       const a = context.toScreen(first)
       const b = context.toScreen(second)
-      const firstIndex = getAnchorDataIndex(first, context.seriesData)
-      const secondIndex = getAnchorDataIndex(second, context.seriesData)
-      const bars = firstIndex >= 0 && secondIndex >= 0 ? secondIndex - firstIndex : 0
+      const firstIndex = Math.round(first.index)
+      const secondIndex = Math.round(second.index)
+      const bars = secondIndex - firstIndex
       const delta = second.price - first.price
       const percent = first.price !== 0 ? (delta / first.price) * 100 : 0
       const angle = Math.atan2(b.y - a.y, b.x - a.x) * (180 / Math.PI)
@@ -490,10 +491,12 @@ export function createRegressionChannelDefinition(): DrawingDefinition {
       if (!first || !second) return { primitives: [] }
       const firstIndex = getAnchorDataIndex(first, context.seriesData)
       const secondIndex = getAnchorDataIndex(second, context.seriesData)
-      if (firstIndex < 0 || secondIndex < 0) return { primitives: [] }
+      if (firstIndex < 0 && secondIndex < 0) return { primitives: [] }
 
-      const startIndex = Math.min(firstIndex, secondIndex)
-      const endIndex = Math.max(firstIndex, secondIndex)
+      const clampedFirstIndex = Math.min(Math.max(Math.round(first.index), 0), context.seriesData.length - 1)
+      const clampedSecondIndex = Math.min(Math.max(Math.round(second.index), 0), context.seriesData.length - 1)
+      const startIndex = Math.min(clampedFirstIndex, clampedSecondIndex)
+      const endIndex = Math.max(clampedFirstIndex, clampedSecondIndex)
       const slice = context.seriesData.slice(startIndex, endIndex + 1)
       const regression = computeLinearRegression(slice.map((item) => item.close))
       if (!regression) return { primitives: [] }
@@ -503,8 +506,8 @@ export function createRegressionChannelDefinition(): DrawingDefinition {
       const firstValue = regression.intercept
       const lastValue = regression.intercept + regression.slope * (slice.length - 1)
 
-      const startAnchor = { id: `${drawing.id}-reg-start`, time: context.seriesData[startIndex]!.timestamp, price: firstValue }
-      const endAnchor = { id: `${drawing.id}-reg-end`, time: context.seriesData[endIndex]!.timestamp, price: lastValue }
+      const startAnchor = { id: `${drawing.id}-reg-start`, index: Math.round(first.index), time: context.seriesData[startIndex]!.timestamp, price: firstValue }
+      const endAnchor = { id: `${drawing.id}-reg-end`, index: Math.round(second.index), time: context.seriesData[endIndex]!.timestamp, price: lastValue }
       const upperStartAnchor = { ...startAnchor, id: `${drawing.id}-reg-upper-start`, price: firstValue + offset }
       const upperEndAnchor = { ...endAnchor, id: `${drawing.id}-reg-upper-end`, price: lastValue + offset }
       const lowerStartAnchor = { ...startAnchor, id: `${drawing.id}-reg-lower-start`, price: firstValue - offset }

@@ -13,7 +13,8 @@ export type DrawingToolId =
   | 'info-line'
 
 export interface DrawingAnchorInput {
-  time: number
+  index: number
+  time?: number
   price: number
 }
 
@@ -226,6 +227,7 @@ export class DrawingInteractionController {
         const idx = this.dragState.anchorIndex
         drawing.anchors[idx] = {
           ...drawing.anchors[idx]!,
+          index: newAnchor.index,
           time: newAnchor.time,
           price: newAnchor.price,
         }
@@ -249,6 +251,7 @@ export class DrawingInteractionController {
         if (newFromScreen) {
           drawing.anchors[i] = {
             ...drawing.anchors[i]!,
+            index: newFromScreen.index,
             time: newFromScreen.time,
             price: newFromScreen.price,
           }
@@ -264,7 +267,10 @@ export class DrawingInteractionController {
 
   private handlePreviewMove(e: PointerEvent, container: HTMLElement): boolean {
     const anchor = this.resolveAnchorFromPointer(e, container)
-    if (!anchor) return false
+    if (!anchor) {
+      this.removePreview()
+      return false
+    }
 
     const isSingle = DrawingInteractionController.SINGLE_ANCHOR_TOOLS.includes(this.activeTool)
     const isDouble = DrawingInteractionController.DOUBLE_ANCHOR_TOOLS.includes(this.activeTool)
@@ -277,7 +283,7 @@ export class DrawingInteractionController {
         kind: this.getDrawingKind(this.activeTool),
         paneId: 'main',
         visible: true,
-        anchors: [{ id: `${this.previewDrawingId}-a`, time: anchor.time, price: anchor.price }],
+        anchors: [{ id: `${this.previewDrawingId}-a`, index: anchor.index, time: anchor.time, price: anchor.price }],
         params: {},
         style: {
           stroke: '#2962ff',
@@ -292,8 +298,8 @@ export class DrawingInteractionController {
         paneId: 'main',
         visible: true,
         anchors: [
-          { id: `${this.previewDrawingId}-a`, time: this.pendingAnchor.time, price: this.pendingAnchor.price },
-          { id: `${this.previewDrawingId}-b`, time: anchor.time, price: anchor.price },
+          { id: `${this.previewDrawingId}-a`, index: this.pendingAnchor.index, time: this.pendingAnchor.time, price: this.pendingAnchor.price },
+          { id: `${this.previewDrawingId}-b`, index: anchor.index, time: anchor.time, price: anchor.price },
         ],
         params: {},
         style: {
@@ -426,19 +432,15 @@ export class DrawingInteractionController {
   // ============ 坐标转换 ============
 
   private anchorToScreen(anchor: DrawingAnchor): { x: number; y: number } | null {
-    const data = this.chart.getData()
     const viewport = this.chart.getViewport()
-    if (!viewport || data.length === 0) return null
+    if (!viewport) return null
 
     const opt = this.chart.getOption()
     const dpr = this.chart.getCurrentDpr()
     const { startXPx, unitPx } = getPhysicalKLineConfig(opt.kWidth, opt.kGap, dpr)
+    if (!Number.isFinite(anchor.index) || anchor.index < 0) return null
 
-    const time = typeof anchor.time === 'string' ? Number(anchor.time) : anchor.time
-    const dataIndex = data.findIndex((item) => item.timestamp === time)
-    if (dataIndex < 0) return null
-
-    const x = (startXPx + dataIndex * unitPx + (unitPx - 1) / 2) / dpr - viewport.scrollLeft
+    const x = (startXPx + anchor.index * unitPx + (unitPx - 1) / 2) / dpr - viewport.scrollLeft
 
     const paneRenderer = this.chart.getPaneRenderers().find((item) => item.getPane().id === 'main')
     const pane = paneRenderer?.getPane()
@@ -450,24 +452,24 @@ export class DrawingInteractionController {
 
   private screenToAnchor(
     screenX: number,
-    screenY: number,
-    container: HTMLElement
+    screenY: number
   ): DrawingAnchorInput | null {
     const data = this.chart.getData()
     const viewport = this.chart.getViewport()
     if (!viewport || data.length === 0) return null
 
-    const dataIndex = this.chart.getDataIndexAtX(screenX)
-    if (dataIndex === null) return null
-    const item = data[dataIndex]
-    if (!item) return null
+    const logicalIndex = this.chart.getLogicalIndexAtX(screenX)
+    if (logicalIndex === null) return null
 
     const paneRenderer = this.chart.getPaneRenderers().find((item) => item.getPane().id === 'main')
     const pane = paneRenderer?.getPane()
     if (!pane) return null
 
+    const timestamp = this.chart.getTimestampAtLogicalIndex(logicalIndex) ?? undefined
+
     return {
-      time: item.timestamp,
+      index: logicalIndex,
+      time: timestamp ?? undefined,
       price: pane.yAxis.yToPrice(screenY - pane.top),
     }
   }
@@ -510,13 +512,13 @@ export class DrawingInteractionController {
     const pane = paneRenderer?.getPane()
     if (!pane) return null
 
-    const dataIndex = this.chart.getDataIndexAtX(mouseX)
-    if (dataIndex === null) return null
-    const item = data[dataIndex]
-    if (!item) return null
+    const logicalIndex = this.chart.getLogicalIndexAtX(mouseX)
+    if (logicalIndex === null) return null
+    const timestamp = this.chart.getTimestampAtLogicalIndex(logicalIndex) ?? undefined
 
     return {
-      time: item.timestamp,
+      index: logicalIndex,
+      time: timestamp ?? undefined,
       price: pane.yAxis.yToPrice(mouseY - pane.top),
     }
   }
@@ -529,7 +531,7 @@ export class DrawingInteractionController {
       kind: this.getDrawingKind(this.activeTool),
       paneId: 'main',
       visible: true,
-      anchors: [{ id: `${Date.now()}-a`, time: anchor.time, price: anchor.price }],
+      anchors: [{ id: `${Date.now()}-a`, index: anchor.index, time: anchor.time, price: anchor.price }],
       params: {},
       style: {
         stroke: '#2962ff',
@@ -554,8 +556,8 @@ export class DrawingInteractionController {
       paneId: 'main',
       visible: true,
       anchors: [
-        { id: `${Date.now()}-a`, time: first.time, price: first.price },
-        { id: `${Date.now()}-b`, time: second.time, price: second.price },
+        { id: `${Date.now()}-a`, index: first.index, time: first.time, price: first.price },
+        { id: `${Date.now()}-b`, index: second.index, time: second.time, price: second.price },
       ],
       params: {},
       style: {

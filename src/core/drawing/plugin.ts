@@ -1,4 +1,4 @@
-import type { RendererPlugin, RenderContext, DrawingAnchor, DrawingStyle, DrawingPrimitive } from '@/plugin'
+import type { RendererPlugin, RenderContext, DrawingStyle, DrawingPrimitive } from '@/plugin'
 import { RENDERER_PRIORITY } from '@/plugin'
 import {
   DrawingStore,
@@ -9,12 +9,6 @@ import {
 import type { PrimitiveRendererSet } from './index'
 import type { KLineData } from '@/types/price'
 import { getPhysicalKLineConfig } from '@/core/utils/klineConfig'
-
-function anchorToIndex(anchor: DrawingAnchor, seriesData: KLineData[]): number {
-  const time = typeof anchor.time === 'string' ? Number(anchor.time) : anchor.time
-  if (!Number.isFinite(time)) return -1
-  return seriesData.findIndex((item) => item.timestamp === time)
-}
 
 export function createDrawingRendererPlugin(options: {
   store: DrawingStore
@@ -72,11 +66,10 @@ export function createDrawingRendererPlugin(options: {
           paneWidth,
           viewport,
           toScreen(anchor) {
-            const dataIndex = anchorToIndex(anchor, seriesData)
-            if (dataIndex < 0) {
+            if (!Number.isFinite(anchor.index) || anchor.index < 0) {
               return { x: -kWidth, y: pane.yAxis.priceToY(anchor.price) }
             }
-            const x = (startXPx + dataIndex * unitPx + (unitPx - 1) / 2) / dpr - viewport.scrollLeft
+            const x = (startXPx + anchor.index * unitPx + (unitPx - 1) / 2) / dpr - viewport.scrollLeft
             return { x, y: pane.yAxis.priceToY(anchor.price) }
           },
         })
