@@ -114,7 +114,7 @@ import MarkerTooltip from './MarkerTooltip.vue'
 import IndicatorSelector from './IndicatorSelector.vue'
 import DrawingStyleToolbar from './DrawingStyleToolbar.vue'
 import { Chart, type PaneSpec } from '@/core/chart'
-import { getPhysicalKLineConfig } from '@/core/utils/klineConfig'
+import { createChartStore, TRAILING_DRAWING_SLOTS, type ChartStore } from '@/core/chart-store'
 import { zoomLevelToKWidth, kGapFromDpr, computeZoom, computeZoomToLevel } from '@/core/utils/zoom'
 import { createCandleRenderer } from '@/core/renderers/candle'
 import { createGridLinesRendererPlugin } from '@/core/renderers/gridLines'
@@ -205,42 +205,59 @@ const chartRef = shallowRef<Chart | null>(null)
 /* ========== 语义化控制器 ========== */
 const semanticController = shallowRef<SemanticChartController | null>(null)
 
-/* ========== 数据长度（响应式，用于计算 totalWidth） ========== */
-const dataLength = ref(0)
-const viewportDpr = ref(1)
+/* ========== ChartStore（响应式状态中心） ========== */
+const store = createChartStore({
+  initialZoomLevel: props.initialZoomLevel ?? 1,
+  minKWidth: props.minKWidth,
+  maxKWidth: props.maxKWidth,
+  zoomLevels: props.zoomLevels,
+  rightAxisWidth: props.rightAxisWidth,
+  priceLabelWidth: props.priceLabelWidth,
+})
 
-/* ========== 缩放状态（Vue SSOT） ========== */
-const zoomLevel = ref(props.initialZoomLevel ?? 1)
-const kWidth = ref(
-  zoomLevelToKWidth(zoomLevel.value, {
+// 初始化 kWidth / kGap
+store.actions.setZoomState(
+  store.state.zoomLevel,
+  zoomLevelToKWidth(store.state.zoomLevel, {
     minKWidth: props.minKWidth,
     maxKWidth: props.maxKWidth,
     zoomLevelCount: props.zoomLevels,
-    dpr: viewportDpr.value,
+    dpr: store.state.viewportDpr,
   }),
+  kGapFromDpr(store.state.viewportDpr),
 )
-const kGap = ref(kGapFromDpr(viewportDpr.value))
+
+// 为逐步迁移保留的局部别名
+const dataLength = computed(() => store.state.dataLength)
+const viewportDpr = computed(() => store.state.viewportDpr)
+const zoomLevel = computed(() => store.state.zoomLevel)
+const kWidth = computed(() => store.state.kWidth)
+const kGap = computed(() => store.state.kGap)
+const paneRatios = computed(() => store.state.paneRatios)
+const selectedDrawingId = computed(() => store.state.selectedDrawingId)
+const dataVersion = computed(() => store.state.dataVersion)
 
 function scheduleRender() {
   chartRef.value?.scheduleDraw()
 }
 
+function measureTooltipSize(el: HTMLDivElement, minWidth: number, minHeight: number) {
+  const r = el.getBoundingClientRect()
+  return {
+    width: Math.max(minWidth, Math.round(r.width)),
+    height: Math.max(minHeight, Math.round(r.height)),
+  }
+}
+
 function setTooltipEl(el: HTMLDivElement | null) {
   if (!el) return
-  const r = el.getBoundingClientRect()
-  chartRef.value?.interaction.setTooltipSize({
-    width: Math.max(180, Math.round(r.width)),
-    height: Math.max(80, Math.round(r.height)),
-  })
+  const size = measureTooltipSize(el, 180, 80)
+  chartRef.value?.interaction.setTooltipSize(size)
 }
 
 function setMarkerTooltipEl(el: HTMLDivElement | null) {
   if (!el) return
-  const r = el.getBoundingClientRect()
-  markerTooltipSize.value = {
-    width: Math.max(120, Math.round(r.width)),
-    height: Math.max(60, Math.round(r.height)),
-  }
+  markerTooltipSize.value = measureTooltipSize(el, 120, 60)
 }
 
 // ===== Marker tooltip 状态 =====
@@ -265,19 +282,14 @@ const interactionState = shallowRef<InteractionSnapshot>({
   isHoveringRightAxis: false,
 })
 
-const drawings = ref<DrawingObject[]>([])
 const drawingController = shallowRef<DrawingInteractionController | null>(null)
-const drawingStateVersion = ref(0)
 const selectedDrawing = computed(() => {
-  void drawingStateVersion.value
-  return drawingController.value?.getSelectedDrawing() ?? null
+  const id = selectedDrawingId.value
+  if (!id) return null
+  return store.state.drawings.find((d) => d.id === id) ?? null
 })
-const paneRatios = ref<Record<string, number>>({ main: 3 })
 const paneSeparatorLines = ref<Array<{ id: string; top: number }>>([])
 const markerTooltipSize = ref({ width: 220, height: 120 })
-
-// 数据版本号，用于强制 chartData computed 重新求值
-const dataVersion = ref(0)
 
 const hoveredMarker = computed(() => interactionState.value.hoveredMarkerData)
 const hoveredCustomMarker = computed(() => interactionState.value.hoveredCustomMarker)
@@ -321,10 +333,6 @@ const chartData = computed(() => {
 })
 
 // 通知数据变化（在数据更新后调用）
-function notifyDataChange() {
-  dataVersion.value++
-}
-
 function handleSelectTool(toolId: string) {
   drawingController.value?.setTool(toolId as DrawingToolId)
 }
@@ -333,15 +341,16 @@ function onUpdateDrawingStyle(style: Partial<DrawingStyle>) {
   const d = selectedDrawing.value
   if (!d || !drawingController.value) return
   drawingController.value.updateDrawingStyle(d.id, style)
-  drawingStateVersion.value++
+  store.actions.bumpDrawingVersion()
 }
 
 function onDeleteDrawing() {
   const d = selectedDrawing.value
   if (!d || !drawingController.value) return
   drawingController.value.removeDrawing(d.id)
-  drawingStateVersion.value++
-  drawings.value = drawingController.value.getDrawings()
+  store.actions.setSelectedDrawingId(null)
+  store.actions.bumpDrawingVersion()
+  store.actions.setDrawings(drawingController.value.getDrawings())
 }
 
 function onPointerDown(e: PointerEvent) {
@@ -350,8 +359,8 @@ function onPointerDown(e: PointerEvent) {
 
   // 优先处理绘图交互
   if (drawingController.value?.onPointerDown(e, container)) {
-    drawings.value = drawingController.value.getDrawings()
-    drawingStateVersion.value++
+    store.actions.setDrawings(drawingController.value.getDrawings())
+    store.actions.bumpDrawingVersion()
     return
   }
 
@@ -367,7 +376,7 @@ function onPointerMove(e: PointerEvent) {
       y: e.clientY - rect.top,
     }
     if (drawingController.value?.onPointerMove(e, container)) {
-      drawings.value = drawingController.value.getDrawings()
+      store.actions.setDrawings(drawingController.value.getDrawings())
       return
     }
   }
@@ -377,7 +386,7 @@ function onPointerMove(e: PointerEvent) {
 function onPointerUp(e: PointerEvent) {
   const container = containerRef.value
   if (container && drawingController.value?.onPointerUp(e, container)) {
-    drawings.value = drawingController.value.getDrawings()
+    store.actions.setDrawings(drawingController.value.getDrawings())
     return
   }
   chartRef.value?.interaction.onPointerUp(e)
@@ -972,18 +981,9 @@ function handleReorderSubIndicators(orderedIndicatorIds: string[]) {
 /* 计算总宽度：从 Vue 响应式状态读取，zoom 变化时自动重算 */
 const axisHostWidth = computed(() => props.rightAxisWidth + props.priceLabelWidth)
 
-const TRAILING_DRAWING_SLOTS = 24
+const TRAILING_DRAWING_SLOTS_VAL = TRAILING_DRAWING_SLOTS
 
-const totalWidth = computed(() => {
-  const n = dataLength.value
-  if (n === 0) return 0
-
-  const dpr = viewportDpr.value
-  const { startXPx, unitPx } = getPhysicalKLineConfig(kWidth.value, kGap.value, dpr)
-  const dataPlotWidth = (startXPx + (n + TRAILING_DRAWING_SLOTS) * unitPx) / dpr
-  const viewWidth = containerRef.value?.clientWidth ?? 0
-  return Math.max(dataPlotWidth, viewWidth)
-})
+const totalWidth = store.computed.totalWidth
 
 // 缩放由 Chart 回调驱动 scrollLeft 与渲染时序。
 
@@ -1016,15 +1016,14 @@ function applyZoomToLevel(targetLevel: number, anchorX?: number) {
     },
   )
   if (!result) return
-  zoomLevel.value = result.targetLevel
-  kWidth.value = result.newKWidth
-  kGap.value = result.newKGap
+  store.actions.setZoomState(result.targetLevel, result.newKWidth, result.newKGap)
   chart.interaction.clearHover()
   nextTick(() => {
     const c = containerRef.value
     if (!c) return
     const max = Math.max(0, c.scrollWidth - c.clientWidth)
-    c.scrollLeft = Math.min(Math.max(0, result.newScrollLeft), max)
+    const clampedScrollLeft = Math.min(Math.max(0, result.newScrollLeft), max)
+    c.scrollLeft = Math.round(clampedScrollLeft * dpr) / dpr
     chart.applyRenderState(result.newKWidth, result.newKGap, result.targetLevel)
     emit('zoomLevelChange', result.targetLevel, result.newKWidth)
   })
@@ -1089,9 +1088,7 @@ onMounted(() => {
     if (!result) return
 
     // 更新 Vue 响应式状态 → totalWidth 重算
-    zoomLevel.value = result.targetLevel
-    kWidth.value = result.newKWidth
-    kGap.value = result.newKGap
+    store.actions.setZoomState(result.targetLevel, result.newKWidth, result.newKGap)
 
     // 清除 hover + crosshair
     chart.interaction.clearHover()
@@ -1100,7 +1097,8 @@ onMounted(() => {
       const c = containerRef.value
       if (!c) return
       const maxScrollLeft = Math.max(0, c.scrollWidth - c.clientWidth)
-      c.scrollLeft = Math.min(Math.max(0, result.newScrollLeft), maxScrollLeft)
+      const clampedScrollLeft = Math.min(Math.max(0, result.newScrollLeft), maxScrollLeft)
+      c.scrollLeft = Math.round(clampedScrollLeft * dpr) / dpr
       chart.applyRenderState(result.newKWidth, result.newKGap, result.targetLevel)
       emit('zoomLevelChange', result.targetLevel, result.newKWidth)
     })
@@ -1219,15 +1217,19 @@ onMounted(() => {
   )
 
   chart.setOnViewportChange((vp) => {
-    viewportDpr.value = vp.dpr
-    kGap.value = kGapFromDpr(vp.dpr)
+    store.actions.setViewportDpr(vp.dpr)
+    store.actions.setViewWidth(vp.plotWidth)
+    const newKGap = kGapFromDpr(vp.dpr)
+    store.actions.setZoomState(store.state.zoomLevel, store.state.kWidth, newKGap)
+    // DPR 变化时同步 kGap 到 Chart
+    chart.applyRenderState(store.state.kWidth, newKGap, store.state.zoomLevel)
   })
   chart.setOnPaneLayoutChange((panes) => {
     const next: Record<string, number> = {}
     for (const pane of panes) {
       next[pane.id] = pane.ratio
     }
-    paneRatios.value = next
+    store.actions.setPaneRatios(next)
 
     const renderers = chart.getPaneRenderers()
     paneSeparatorLines.value = renderers.slice(0, -1).map((renderer) => {
@@ -1238,19 +1240,28 @@ onMounted(() => {
       }
     })
   })
+
+  chart.setOnDataChange((data) => {
+    store.actions.setDataLength(data.length)
+    store.actions.bumpDataVersion()
+  })
   chartRef.value = chart
+
+  // 同步初始 zoom 状态到 Chart（Chart 不持有业务 SSOT，由 store 驱动）
+  chart.applyRenderState(store.state.kWidth, store.state.kGap, store.state.zoomLevel)
 
   // 初始化绘图交互控制器
   drawingController.value = new DrawingInteractionController(chart)
   drawingController.value.setCallbacks({
     onDrawingCreated: (drawing) => {
-      drawings.value.push(drawing)
+      store.actions.setDrawings([...store.state.drawings, drawing])
+      store.actions.setSelectedDrawingId(drawing.id)
     },
     onToolChange: (toolId) => {
       // 可选：同步工具状态到外部
     },
-    onDrawingSelected: () => {
-      drawingStateVersion.value++
+    onDrawingSelected: (drawing) => {
+      store.actions.setSelectedDrawingId(drawing?.id ?? null)
     },
   })
 
@@ -1259,7 +1270,7 @@ onMounted(() => {
     interactionState.value = snapshot
   })
   interactionState.value = chart.interaction.getInteractionSnapshot()
-  viewportDpr.value = chart.getCurrentDpr()
+  store.actions.setViewportDpr(chart.getCurrentDpr())
   chart.resize()
 
   // 初始化语义化控制器
@@ -1268,10 +1279,8 @@ onMounted(() => {
     console.error('Semantic config error:', error)
   })
   semanticController.value.on('config:ready', () => {
-    // 数据加载完成，更新响应式数据长度
-    dataLength.value = chart.getData()?.length ?? 0
-    // 通知数据变化，触发 chartData computed 重新求值
-    notifyDataChange()
+    store.actions.setDataLength(chart.getData()?.length ?? 0)
+    store.actions.bumpDataVersion()
 
     // 从语义化配置初始化指标状态（单向数据流：config → state → chart）
     initIndicatorsFromConfig()

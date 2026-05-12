@@ -5,7 +5,8 @@ import { InteractionController } from '@/core/controller/interaction'
 import { PaneRenderer } from '@/core/paneRenderer'
 import { MarkerManager, type CustomMarkerEntity } from './marker/registry'
 import { getPhysicalKLineConfig, calcKWidthPx } from '@/core/utils/klineConfig'
-import { zoomLevelToKWidth as _zoomLevelToKWidth, kGapFromDpr } from '@/core/utils/zoom'
+import { computeContentWidth } from '@/core/chart-store'
+
 import {
     createPluginHost,
     type PluginHostImpl,
@@ -24,6 +25,11 @@ import { createDrawingRendererPlugin } from '@/core/drawing/plugin'
 // 重新导出以保持向后兼容
 export { getPhysicalKLineConfig, calcKWidthPx }
 
+/**
+ * 图表 DOM 元素引用
+ * @property container 图表容器 div
+ * @property canvasLayer Canvas 层容器 div（包含所有绘制 canvas）
+ */
 /**
  * 图表 DOM 元素引用
  * @property container 图表容器 div
@@ -146,6 +152,9 @@ export class Chart {
     /** pane 布局回流回调（Chart -> UI 单向） */
     private onPaneLayoutChange?: (panes: PaneSpec[]) => void
 
+    /** 数据变化回调（供外部同步 dataLength） */
+    private onDataChange?: (data: KLineData[]) => void
+
     /** 当前缩放级别（1 ~ zoomLevelCount） */
     private currentZoomLevel: number = 1
 
@@ -160,7 +169,8 @@ export class Chart {
     constructor(dom: ChartDom, opt: ChartOptions) {
         this.dom = dom
         const { kWidth: _kWidth, kGap: _kGap, ...restOpt } = opt
-        this.opt = { ...restOpt, kWidth: 0, kGap: 0 }
+        // Chart 不持有业务 SSOT，kWidth/kGap/zoomLevel 由外部通过 applyRenderState() 传入
+        this.opt = { ...restOpt, kWidth: _kWidth ?? 0, kGap: _kGap ?? 0 }
         this.interaction = new InteractionController(this)
         this.markerManager = new MarkerManager()
         this.pluginHost = createPluginHost()
@@ -172,20 +182,11 @@ export class Chart {
 
         this.syncPaneRatiosFromSpecs(this.opt.panes)
 
-        // 初始化缩放级别
+        // 缩放级别由外部 SSOT 管理，Chart 只接收不计算
         this.zoomLevelCount = Math.max(2, Math.round(this.opt.zoomLevels ?? 20))
         this.currentZoomLevel = this.opt.initialZoomLevel ?? 1
         this.currentZoomLevel = Math.max(1, Math.min(this.zoomLevelCount, this.currentZoomLevel))
-
-        // 根据初始缩放级别初始化 kWidth 和 kGap
-        const dpr = this.getEffectiveDpr()
-        const initialKWidth = _zoomLevelToKWidth(this.currentZoomLevel, {
-            minKWidth: this.opt.minKWidth, maxKWidth: this.opt.maxKWidth,
-            zoomLevelCount: this.zoomLevelCount, dpr,
-        })
-        const initialKGap = kGapFromDpr(dpr)
-        this.opt.kWidth = initialKWidth
-        this.opt.kGap = initialKGap
+        // 注意：初始 kWidth/kGap 应由外部通过 applyRenderState() 传入
 
         this.initPanes()
         this.useRenderer(createDrawingRendererPlugin({ store: this.drawingStore }))
@@ -441,12 +442,15 @@ export class Chart {
     // ========== Render State API (Vue SSOT) ==========
 
     /**
-     * 应用渲染状态（由 Vue 层在状态更新后调用）
-     * Chart 不拥有缩放状态，只负责接收参数并渲染
+     * 应用渲染状态（由 Vue/Store 层在状态更新后调用）
+     * Chart 不拥有业务 SSOT，只负责接收参数并渲染
+     * 这是写入 opt.kWidth/kGap 和 currentZoomLevel 的唯一入口
      */
     applyRenderState(kWidth: number, kGap: number, zoomLevel?: number): void {
         this.opt = { ...this.opt, kWidth, kGap }
-        if (zoomLevel !== undefined) this.currentZoomLevel = zoomLevel
+        if (zoomLevel !== undefined) {
+            this.currentZoomLevel = Math.max(1, Math.min(this.zoomLevelCount, zoomLevel))
+        }
         this.scheduleDraw()
     }
 
@@ -463,6 +467,11 @@ export class Chart {
     /** 注册 pane 布局回流回调 */
     setOnPaneLayoutChange(cb: (panes: PaneSpec[]) => void) {
         this.onPaneLayoutChange = cb
+    }
+
+    /** 注册数据变化回调 */
+    setOnDataChange(cb: (data: KLineData[]) => void) {
+        this.onDataChange = cb
     }
 
     /** 获取所有 PaneRenderer */
@@ -900,6 +909,7 @@ export class Chart {
      */
     updateData(data: KLineData[]) {
         this.data = data ?? []
+        this.onDataChange?.(this.data)
 
         // 重算 DOM scrollLeft 状态, 防止左右滚动超出数据长度范围
         const container = this.dom.container
@@ -957,12 +967,13 @@ export class Chart {
 
     /** 获取内容总宽度（用于外部 scroll-content 撑开 scrollWidth） */
     getContentWidth(): number {
-        const n = this.getLogicalSlotCount()
-        const dpr = this.getEffectiveDpr()
-        const { startXPx, unitPx } = getPhysicalKLineConfig(this.opt.kWidth, this.opt.kGap, dpr)
-        const dataPlotWidth = (startXPx + n * unitPx) / dpr
-        const viewportPlotWidth = this.viewport?.plotWidth ?? 0
-        return Math.max(dataPlotWidth, viewportPlotWidth)
+        return computeContentWidth({
+            dataLength: this.data.length,
+            kWidth: this.opt.kWidth,
+            kGap: this.opt.kGap,
+            viewWidth: this.viewport?.plotWidth ?? 0,
+            viewportDpr: this.getEffectiveDpr(),
+        })
     }
 
 

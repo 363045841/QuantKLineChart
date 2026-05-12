@@ -1,3 +1,5 @@
+import { getPhysicalKLineConfig } from './klineConfig'
+
 /**
  * 缩放计算纯函数
  * 无副作用、无 DOM 访问，供 Vue 层直接调用
@@ -49,11 +51,12 @@ export function computeZoom(
   const newKWidth = zoomLevelToKWidth(targetLevel, config)
   const newKGap = kGapFromDpr(config.dpr)
 
-  // 以鼠标位置为锚点的滚动校正
-  const oldUnit = currentKWidth + currentKGap
-  const centerIndex = (scrollLeft + mouseX) / oldUnit
-  const newUnit = newKWidth + newKGap
-  const newScrollLeft = centerIndex * newUnit - mouseX
+  const oldConfig = getPhysicalKLineConfig(currentKWidth, currentKGap, config.dpr)
+  const newConfig = getPhysicalKLineConfig(newKWidth, newKGap, config.dpr)
+  const anchorWorldPx = Math.round((scrollLeft + mouseX) * config.dpr)
+  const anchorSlotFloat = (anchorWorldPx - oldConfig.startXPx) / oldConfig.unitPx
+  const newAnchorWorldPx = newConfig.startXPx + anchorSlotFloat * newConfig.unitPx
+  const newScrollLeft = newAnchorWorldPx / config.dpr - mouseX
 
   return { targetLevel, newKWidth, newKGap, newScrollLeft }
 }
