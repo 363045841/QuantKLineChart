@@ -1232,11 +1232,14 @@ onMounted(() => {
     store.actions.setPaneRatios(next)
 
     const renderers = chart.getPaneRenderers()
+    const borderTop = containerRef.value
+      ? parseInt(getComputedStyle(containerRef.value).borderTopWidth) || 0
+      : 0
     paneSeparatorLines.value = renderers.slice(0, -1).map((renderer) => {
       const pane = renderer.getPane()
       return {
         id: pane.id,
-        top: pane.top + pane.height,
+        top: pane.top + pane.height + borderTop,
       }
     })
   })
@@ -1389,22 +1392,23 @@ watch(
   position: absolute;
   left: 1px;
   right: 1px;
-  height: 1px;
-  background: #e5e7eb;
-  transform: translateY(-0.5px);
+  height: 3px;
+  background: #ffffff;
+  transform: translateY(-50%);
   opacity: 1;
   transition:
     background-color 120ms ease,
     box-shadow 120ms ease,
     opacity 120ms ease;
+  /* 中间1px分割线 */
+  box-shadow: inset 0 1px 0 0 #e5e7eb;
 }
 
 .pane-separator-line.is-active {
   background: #3b82f6;
-  box-shadow:
-    0 0 0 0.5px rgba(59, 130, 246, 0.9),
-    0 0 6px rgba(59, 130, 246, 0.45),
-    0 0 12px rgba(59, 130, 246, 0.25);
+  height: 2px;
+  transform: translateY(-50%);
+  box-shadow: none;
 }
 
 .chart-stage.is-resizing-pane,
