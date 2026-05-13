@@ -1,259 +1,126 @@
-# kmap - 金融图表绘制库
+<div align="center">
 
 [English](README_EN.md) | 简体中文
 
-这是一个基于 Canvas 的金融图表绘制库，提供 Vue 组件封装。专注于高性能 K 线图渲染，支持**语义化 JSON 配置**，便于 AI Agent 直接控制图表渲染。特性包括横向滚动、多种技术指标（MA/BOLL/MACD/RSI 等）、自定义标记标注、多数据源支持（BaoStock、东方财富）。
+# 📈 KLineChartQuant
 
-[NPM](https://www.npmjs.com/package/@363045841yyt/klinechart) | [GitHub](https://github.com/363045841/KLineChartQuant)
+**渲染清晰 · 高性能 · 交互优化**
 
-## 功能特性
+[![npm version](https://img.shields.io/npm/v/@363045841yyt/klinechart.svg?style=flat&color=blue)](https://www.npmjs.com/package/@363045841yyt/klinechart) [![npm downloads](https://img.shields.io/npm/dm/@363045841yyt/klinechart.svg?style=flat&color=green)](https://www.npmjs.com/package/@363045841yyt/klinechart) [![license](https://img.shields.io/npm/l/@363045841yyt/klinechart.svg?style=flat&color=orange)](https://github.com/363045841/klinechart/blob/main/LICENSE) [![demo](https://img.shields.io/badge/Demo-在线体验-purple?style=flat)](http://8.130.98.164/)
 
-- **基于 Canvas**：使用 Canvas 实现高性能的 K 线图绘制
-- **响应式设计**：适配不同屏幕尺寸，支持所有设备像素比（DPR），不同 DPR 下绘制清晰
-- **ResizeObserver 驱动的高清渲染**：单一链路自动维护 Canvas 尺寸与 DPR，浏览器缩放、跨屏拖动、容器 resize 时持续清晰绘制
-- **影线处理**：统一 DPR 坐标计算，底层保证影线在不同 DPR 屏幕下绝对居中并绘制清晰
-- **像素对齐**：统一坐标源，在物理坐标层面实现像素对齐，消除亚像素渲染，确保线条锐利清晰
-- **框架无关**：核心逻辑完全独立，不依赖特定框架
-- **插件化架构**：渲染器插件支持动态注册、配置和生命周期管理
-- **量价关系标注**：自动识别并标注量价齐升、量价背离、量增价跌、量缩价跌四种形态
-- **绘图工具**（v0.5 预览）：支持基础线条绘制，包括趋势线（线段、射线、延长线）、水平线/垂直线/十字线、信息线、平行通道和线性回归通道。v0.5 版本将完善绘图交互与编辑能力
+[![qq](https://img.shields.io/badge/QQ-672011965-blue?style=flat)](https://qm.qq.com/q/672011965) [![tg](https://img.shields.io/badge/Telegram-加入群组-26A5E4?style=flat&logo=telegram)](https://t.me/+1o-6B-wVRTU2MjQ9)
 
-![pasted-image-1778063749574.webp](https://files.seeusercontent.com/2026/05/06/2Udv/pasted-image-1778063749574.webp)
-![pasted-image-1778063691961.webp](https://files.seeusercontent.com/2026/05/06/q1Cq/pasted-image-1778063691961.webp)
-![pasted-image-1778063638151.webp](https://files.seeusercontent.com/2026/05/06/uv3R/pasted-image-1778063638151.webp)
-![pasted-image-1778256491407.webp](https://files.seeusercontent.com/2026/05/08/1Nkp/pasted-image-1778256491407.webp)
+</div>
 
-### Agent 语义化控制
+---
 
-- **JSON 配置驱动**：通过 `semanticConfig` prop 接收 JSON 配置，AI Agent 可直接控制图表渲染
-- **自定义标记**：支持 6 种预设形状（arrow_up、arrow_down、flag、circle、rectangle、diamond），标记大小随 K 线缩放自适应
-- **完整指标支持**：主图 MA/BOLL，副图 MACD/RSI/CCI/STOCH 等
-- **安全校验**：JSON Schema 校验、原型污染防护、颜色 XSS 防护、输入边界检查
-- **日期友好格式**：使用 `YYYY-MM-DD` 自然日期格式，便于 Agent 输出
+轻量级金融 K 线图表库，专注量化交易场景。**Agent 是一等公民** — 支持 AI Agent 直接控制图表操作，提供 TradingView 级别的交互体验。
 
-## 技术栈
+<div align="center">
+  <img src="https://files.seeusercontent.com/2026/05/13/vF8x/pasted-image-1778672929115.webp" width="400" style="border-radius: 12px; margin: 8px;" />
+  <img src="https://files.seeusercontent.com/2026/05/13/J8xd/pasted-image-1778672926979.webp" width="400" style="border-radius: 12px; margin: 8px;" />
+  <br/>
+  <img src="https://files.seeusercontent.com/2026/05/13/vV4u/pasted-image-1778672925611.webp" width="400" style="border-radius: 12px; margin: 8px;" />
+  <img src="https://files.seeusercontent.com/2026/05/13/Vyy8/pasted-image-1778672923956.webp" width="400" style="border-radius: 12px; margin: 8px;" />
+</div>
 
-- [Vue 3](https://vuejs.org/) - 渐进式 JavaScript 框架
-- [Rolldown Vite](https://cn.vite.dev/guide/rolldown) - 下一代前端构建工具，极速构建
-- [TypeScript](https://www.typescriptlang.org/)
-- [Canvas API](https://developer.mozilla.org/zh-CN/docs/Web/API/Canvas_API)
-- [Vitest](https://vitest.dev/) - 单元测试框架
+## ✨ 核心特性
 
-## 项目结构
+- **Agent 优先** - 支持 AI Agent 直接控制图表，缩放、平移、绘制均可程序化调用
+- **渲染清晰** - 全链路 ResizeObserver 驱动，物理像素对齐，各 DPR 屏幕下 K 线、影线、线条均锐利清晰
+- **插件架构** - 渲染器插件化设计，支持动态注册、配置和生命周期管理
+- **自定义标记** - 支持语义化配置自定义标记和自定义信息
+- **高性能** - 流畅处理万级数据点，无卡顿缩放平移
+- **交互优化** - 缩放锚点稳定、十字光标精准、拖拽流畅
+
+## 🚀 快速开始
+
+### 前置要求
+
+KLineChart 需要股票数据后端支持。请确保 `kmap` 与 `stockbao` 处于同一目录下：
 
 ```
-src/
-├── api/                     # API 接口定义
-│   └── data/                # 数据源接口
-├── components/              # Vue 组件
-│   ├── KLineChart.vue       # K 线图主组件
-│   ├── IndicatorSelector.vue # 指标选择器
-│   ├── IndicatorParams.vue  # 指标参数编辑
-│   └── LeftToolbar.vue      # 左侧绘图工具栏
-├── core/                    # 核心渲染引擎
-│   ├── chart.ts             # 图表控制器
-│   ├── drawing/             # 绘图系统
-│   │   ├── index.ts         # DrawingStore、定义注册、图元渲染器
-│   │   └── plugin.ts        # 绘图渲染器插件
-│   ├── renderers/           # 渲染器插件
-│   │   ├── candle.ts        # K 线渲染器
-│   │   ├── ma.ts            # MA 均线渲染器
-│   │   ├── boll.ts          # BOLL 布林带渲染器
-│   │   ├── macd.ts          # MACD 指标渲染器
-│   │   ├── volume.ts        # 成交量渲染器
-│   │   └── ...              # 其他渲染器
-│   ├── theme/               # 主题配置
-│   ├── marker/              # 标记点系统
-│   └── utils/               # 核心工具
-├── semantic/                # 语义化配置模块（Agent 控制）
-│   ├── types.ts             # 类型定义
-│   ├── schema.json          # JSON Schema
-│   ├── validator.ts         # 校验器
-│   ├── controller.ts        # 控制器
-│   └── drawShape.ts         # 形状绘制
-├── plugin/                  # 插件系统
-│   ├── types.ts             # 类型定义
-│   ├── PluginHost.ts        # 插件宿主
-│   ├── EventBus.ts          # 事件总线
-│   ├── HookSystem.ts        # 钩子系统
-│   └── rendererPluginManager.ts  # 渲染器管理
-├── types/                   # 类型定义
-└── utils/                   # 工具函数
+workspace/
+├── kmap/        # 本仓库
+└── stockbao/    # 数据后端仓库
 ```
 
-## 数据源
-
-- [BaoStock](http://baostock.com/) - 开源金融数据接口，每日支持十万次 API 调用
-- [AKTools](https://github.com/akfamily/aktools) - 开源金融数据接口库（可能存在反爬限制）
-
-## 使用 NPM 安装组件库
+### 1. 克隆仓库
 
 ```bash
-npm i @363045841yyt/klinechart
+git clone https://github.com/363045841/kmap.git
+git clone https://github.com/363045841/stockbao.git
 ```
 
-## 快速开始
+### 2. 启动数据后端
 
 ```bash
-# 安装依赖
-pnpm install
-
-# 启动开发服务器
-pnpm dev
+cd kmap
+npm run stockbao
 ```
 
-## 使用示例
+后端启动后，API 地址为 `http://localhost:8000`
+
+### 3. 安装并使用
+
+```bash
+npm install @363045841yyt/klinechart
+```
 
 ```vue
-<template>
-  <KLineChart :semanticConfig="config" />
-</template>
-
 <script setup lang="ts">
-import { ref } from 'vue'
-import KLineChart from '@/components/KLineChart.vue'
-import type { SemanticChartConfig } from '@/semantic'
+import KLineChart from '@363045841yyt/klinechart';
+import type { SemanticChartConfig } from '@363045841yyt/klinechart';
 
-const config = ref<SemanticChartConfig>({
+const config: SemanticChartConfig = {
   version: '1.0.0',
   data: {
     source: 'baostock',
-    symbol: '601360',
-    exchange: 'SH',
+    code: 'sh.000001',
     startDate: '2024-01-01',
     endDate: '2024-12-31',
-    period: 'daily',
-    adjust: 'qfq',
+    frequency: 'day'
   },
   indicators: {
-    main: [{ type: 'MA', enabled: true, params: { periods: [5, 10, 20] } }],
-    sub: [{ type: 'MACD', enabled: true }],
-  },
-  chart: {
-    kWidth: 10,
-    kGap: 2,
-    autoScrollToRight: true,
-  },
-})
+    main: [{ type: 'MA', params: [5, 10, 20] }],
+    sub: [{ type: 'MACD' }]
+  }
+};
 </script>
-```
 
-### 语义化 JSON 控制（Agent 模式）
-
-通过 `semanticConfig` prop，AI Agent 可以用 JSON 配置完整控制图表渲染：
-
-```vue
 <template>
-  <KLineChart :semanticConfig="config" />
+  <KLineChart
+    :semanticConfig="config"
+    :kWidth="7"
+    :kGap="3"
+    :yPaddingPx="24"
+  />
 </template>
-
-<script setup lang="ts">
-import { ref } from 'vue'
-import type { SemanticChartConfig } from '@363045841yyt/klinechart'
-
-const config = ref<SemanticChartConfig>({
-  version: '1.0.0',
-  data: {
-    source: 'baostock',
-    symbol: '600519',
-    exchange: 'SH',
-    startDate: '2025-01-01',
-    endDate: '2025-04-18',
-    period: 'daily',
-    adjust: 'qfq',
-  },
-  indicators: {
-    main: [{ type: 'MA', enabled: true, params: { periods: [5, 10, 20] } }],
-    sub: [{ type: 'MACD', enabled: true }],
-  },
-  markers: {
-    customMarkers: [
-      {
-        id: 'buy_001',
-        date: '2025-02-15',
-        shape: 'arrow_up',
-        label: { text: '买入' },
-        style: { fillColor: '#52c41a' },
-      },
-    ],
-  },
-})
-</script>
 ```
 
-详细配置说明请参阅 [语义化配置文档](./docs/semantic-config.md)。
+## 📖 更多文档
 
-## 数据源配置
+- [渲染引擎架构](./docs/rendering-engine-architecture.md) - 核心渲染管线与物理像素对齐机制
+- [插件系统](./docs/PLUGIN_SYSTEM.md) - 扩展机制与自定义开发
+- [渲染器开发指南](./docs/renderer-development-guide.md) - 自定义渲染器开发
 
-### BaoStock（推荐）
+## 🗺️ Roadmap
 
-免费开源的 Python 证券数据接口，每日支持十万次 API 调用。
+- [x] K 线缩放锚点稳定，缩放手感提升
+- [x] 右轴脱离滚动容器，彻底解决裁剪问题
+- [x] 空白区域支持绘制
+- [x] 限制垂直平移范围，防止视口脱离数据
+- [x] 绘图系统
+- [x] 右轴缩放
+- [x] 最新价线与右轴标签样式优化
+- [ ] 面图元工具及渲染
+- [ ] 更多高级绘图工具
 
-```bash
-# 方式一：手动安装并启动
-uv pip install baostock
-git clone https://github.com/363045841/stockbao.git
-cd stockbao
-uv run python ./server.py
+## 🚀 What's New
 
-# 方式二：使用项目内置脚本（需将 stockbao 克隆到父目录）
-pnpm stockbao
-```
+- **v0.5.0** 完整绘图工具系统，支持直线、矩形、文字绘制与样式编辑
+- **v0.4** 现代化 UI，左侧工具栏、右轴优化、TradingView 式缩放手感
 
-### AKTools
+## 📄 License
 
-基于 Python 的开源财经数据接口，数据来源于东方财富等公开渠道。
-
-```bash
-uv pip install aktools
-uv run python -m aktools  # 启动服务
-```
-
-> ⚠️ 注意：AKTools 采取直连 API，频繁请求可能触发反爬机制
-
-### 组件属性
-
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| semanticConfig | SemanticChartConfig | - | **必需**。语义化配置（唯一控制源） |
-| yPaddingPx | number | 0 | Y 轴上下留白像素 |
-| minKWidth | number | 2 | K 线最小宽度 |
-| maxKWidth | number | 50 | K 线最大宽度 |
-| rightAxisWidth | number | 0 | 右侧价格轴宽度 |
-| bottomAxisHeight | number | 24 | 底部时间轴高度 |
-| priceLabelWidth | number | 60 | 价格标签额外宽度（用于显示涨跌幅） |
-| zoomLevels | number | 20 | 缩放级别数量 |
-| initialZoomLevel | number | 3 | 初始缩放级别（1 ~ zoomLevels） |
-
-## 环境要求
-
-- Node.js: ^20.19.0 || >=22.12.0
-- pnpm: 包管理器
-- Python: 用于运行数据源服务（可选）
-- uv: Python 包管理器
-
-## 构建与部署
-
-```bash
-pnpm build    # 生产环境构建
-pnpm preview  # 预览生产包
-```
-
-## 相关链接
-
-- [NPM 包地址](https://www.npmjs.com/package/@363045841yyt/klinechart)
-- [GitHub 仓库](https://github.com/363045841/KLineChartQuant)
-- [Vue.js 官方文档](https://vuejs.org/guide/introduction.html)
-- [Vite 官方文档](https://vite.dev/guide/)
-- [BaoStock 官方文档](http://baostock.com/)
-- [AKTools 官方文档](https://github.com/akfamily/aktools)
-- [Canvas API MDN 文档](https://developer.mozilla.org/zh-CN/docs/Web/API/Canvas_API)
-- [Vitest 官方文档](https://vitest.dev/)
-- [语义化配置文档](./docs/semantic-config.md) - Agent JSON 配置说明
-- [架构文档（ResizeObserver 重构版）](./docs/architecture.md)
-- [系统架构综述](./docs/system-architecture-overview.md)
-- [渲染器开发指南](./docs/renderer-development-guide.md)
-
-## 许可证
-
-本项目采用 MIT 许可证，详情请见 [LICENSE](./LICENSE) 文件。
+[MIT](LICENSE)

@@ -1,259 +1,124 @@
-# kmap - Financial Charting Library
+<div align="center">
 
-English | [简体中文](README.md)
+# 📈 KLineChartQuant
 
-A financial charting library based on Vue 3 and Canvas, focusing on high-performance K-line (candlestick) chart rendering. The library supports horizontal scrolling, moving average (MA) display, and financial data retrieval from multiple sources including **BaoStock** and AKTools.
+**Crisp Rendering · High Performance · Optimized Interaction**
 
-[NPM](https://www.npmjs.com/package/@363045841yyt/klinechart) | [GitHub](https://github.com/363045841/KLineChartQuant)
+[![npm version](https://img.shields.io/npm/v/@363045841yyt/klinechart.svg?style=flat&color=blue)](https://www.npmjs.com/package/@363045841yyt/klinechart) [![npm downloads](https://img.shields.io/npm/dm/@363045841yyt/klinechart.svg?style=flat&color=green)](https://www.npmjs.com/package/@363045841yyt/klinechart) [![license](https://img.shields.io/npm/l/@363045841yyt/klinechart.svg?style=flat&color=orange)](https://github.com/363045841/klinechart/blob/main/LICENSE) [![demo](https://img.shields.io/badge/Demo-Online-purple?style=flat)](http://8.130.98.164/)
 
-## Features
+[![qq](https://img.shields.io/badge/QQ群-672011965-blue?style=flat)](https://qm.qq.com/q/672011965) [![tg](https://img.shields.io/badge/Telegram-Join-26A5E4?style=flat&logo=telegram)](https://t.me/+1o-6B-wVRTU2MjQ9)
 
-- **Canvas-based**: High-performance K-line chart rendering using Canvas
-- **Responsive Design**: Adapts to different screen sizes, supports all device pixel ratios (DPR) for crisp rendering
-- **ResizeObserver-driven HD Rendering**: Single-chain automatic maintenance of Canvas size and DPR, ensuring consistently crisp drawing during browser zoom, cross-screen dragging, and container resizing
-- **Wick Handling**: Unified DPR coordinate calculation ensures wicks are perfectly centered and crisp across all DPR screens
-- **Pixel Alignment**: Unified coordinate source with physical-level pixel alignment, eliminating sub-pixel rendering for sharp, crisp lines
-- **Framework-agnostic**: Core logic is completely independent, not tied to any specific framework
-- **Plugin Architecture**: Renderer plugins support dynamic registration, configuration and lifecycle management
-- **Volume-Price Annotation**: Automatically identifies and annotates four patterns: volume-price rise, divergence, etc.
-- **Drawing Tools** (v0.5 Preview): Supports basic line drawing including trend lines (segment, ray, extended), horizontal/vertical/cross lines, info lines, parallel channels and regression channels. v0.5 will complete drawing interaction and editing capabilities
+</div>
 
-![pasted-image-1777718129484.webp](https://files.seeusercontent.com/2026/05/02/Lm0w/pasted-image-1777718129484.webp)
-![(ZOS$O}EP(_NKI273RXBV17.png](https://files.seeusercontent.com/2026/04/29/olU0/ZOSOEP_NKI273RXBV17.png)
-![YU8@~$21%{NBJLGIZ}KTKED.png](https://files.seeusercontent.com/2026/04/29/akQ8/YU821NBJLGIZKTKED.png)
-![pasted-image-1778256491407.webp](https://files.seeusercontent.com/2026/05/08/1Nkp/pasted-image-1778256491407.webp)
+---
 
-### Agent Semantic Control
+A lightweight financial K-line charting library focused on quantitative trading scenarios. **Agent is a first-class citizen** — supports AI Agent direct control of chart operations, providing TradingView-level interaction experience.
 
-- **JSON Configuration Driven**: Accepts JSON configuration via `semanticConfig` prop, allowing AI Agents to directly control chart rendering
-- **Custom Markers**: Supports 6 preset shapes (arrow_up, arrow_down, flag, circle, rectangle, diamond), marker size auto-adapts with K-line scaling
-- **Comprehensive Indicators**: Main chart MA/BOLL/EXPMA/ENE, sub-chart MACD/RSI/CCI/STOCH/MOM/WMSR/KST/FASTK/VOLUME
-- **Security Validation**: JSON Schema validation, prototype pollution protection, color XSS protection, input boundary checking
-- **Date-Friendly Format**: Uses `YYYY-MM-DD` natural date format for easy Agent output
+<div align="center">
+  <img src="https://files.seeusercontent.com/2026/05/13/vF8x/pasted-image-1778672929115.webp" width="400" style="border-radius: 12px; margin: 8px;" />
+  <img src="https://files.seeusercontent.com/2026/05/13/J8xd/pasted-image-1778672926979.webp" width="400" style="border-radius: 12px; margin: 8px;" />
+  <br/>
+  <img src="https://files.seeusercontent.com/2026/05/13/vV4u/pasted-image-1778672925611.webp" width="400" style="border-radius: 12px; margin: 8px;" />
+  <img src="https://files.seeusercontent.com/2026/05/13/Vyy8/pasted-image-1778672923956.webp" width="400" style="border-radius: 12px; margin: 8px;" />
+</div>
 
-## Tech Stack
+## ✨ Core Features
 
-- [Vue 3](https://vuejs.org/) - Progressive JavaScript Framework
-- [Rolldown Vite](https://vite.dev/guide/rolldown) - Next-generation frontend build tool
-- [TypeScript](https://www.typescriptlang.org/)
-- [Canvas API](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API)
-- [Vitest](https://vitest.dev/) - Unit testing framework
+- **Agent First** - Supports AI Agent direct control of charts, zoom, pan, and draw operations can all be called programmatically
+- **Crisp Rendering** - Full-chain ResizeObserver driven, physical pixel alignment, K-lines, wicks, and lines are sharp and clear on all DPR screens
+- **Plugin Architecture** - Renderer plugin-based design, supporting dynamic registration, configuration, and lifecycle management
+- **Custom Markers** - Supports semantic configuration of custom markers and custom information
+- **High Performance** - Smoothly handles tens of thousands of data points, no lag during zoom or pan
+- **Optimized Interaction** - Stable zoom anchor, precise crosshair cursor, smooth drag
 
-## Project Structure
+## 🚀 Quick Start
+
+### Prerequisites
+
+KLineChart requires a stock data backend. Please ensure `kmap` and `stockbao` are in the same directory:
 
 ```
-src/
-├── api/                     # API interface definitions
-│   └── data/                # Data source interfaces
-├── components/              # Vue components
-│   ├── KLineChart.vue       # K-line chart main component
-│   ├── IndicatorSelector.vue # Indicator selector
-│   ├── IndicatorParams.vue  # Indicator parameter editor
-│   └── LeftToolbar.vue      # Left drawing toolbar
-├── core/                    # Core rendering engine
-│   ├── chart.ts             # Chart controller
-│   ├── drawing/             # Drawing system
-│   │   ├── index.ts         # DrawingStore, definition registry, primitive renderers
-│   │   └── plugin.ts        # Drawing renderer plugin
-│   ├── renderers/           # Renderer plugins
-│   │   ├── candle.ts        # K-line renderer
-│   │   ├── ma.ts            # MA renderer
-│   │   ├── boll.ts          # BOLL renderer
-│   │   ├── macd.ts          # MACD renderer
-│   │   ├── volume.ts        # Volume renderer
-│   │   └── ...              # Other renderers
-│   ├── theme/               # Theme configuration
-│   ├── marker/              # Marker system
-│   └── utils/               # Core utilities
-├── semantic/                # Semantic configuration module (Agent control)
-│   ├── types.ts             # Type definitions
-│   ├── schema.json          # JSON Schema
-│   ├── validator.ts         # Validator
-│   ├── controller.ts        # Controller
-│   └── drawShape.ts         # Shape drawing
-├── plugin/                  # Plugin system
-│   ├── types.ts             # Type definitions
-│   ├── PluginHost.ts        # Plugin host
-│   ├── EventBus.ts          # Event bus
-│   ├── HookSystem.ts        # Hook system
-│   └── rendererPluginManager.ts  # Renderer manager
-├── types/                   # Type definitions
-└── utils/                   # Utility functions
+workspace/
+├── kmap/        # This repository
+└── stockbao/    # Data backend repository
 ```
 
-## Data Sources
-
-- [BaoStock](http://baostock.com/) - Open-source financial data API, supports 100,000 API calls per day
-- [AKTools](https://github.com/akfamily/aktools) - Open-source financial data API library (may have anti-scraping limitations)
-
-## Install via NPM
+### 1. Clone Repositories
 
 ```bash
-npm i @363045841yyt/klinechart
+git clone https://github.com/363045841/kmap.git
+git clone https://github.com/363045841/stockbao.git
 ```
 
-## Quick Start
+### 2. Start Data Backend
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Start development server
-pnpm dev
+cd kmap
+npm run stockbao
 ```
 
-## Usage Example
+After startup, the API is available at `http://localhost:8000`
+
+### 3. Install and Use
+
+```bash
+npm install @363045841yyt/klinechart
+```
 
 ```vue
-<template>
-  <KLineChart :semanticConfig="config" />
-</template>
-
 <script setup lang="ts">
-import { ref } from 'vue'
-import KLineChart from '@/components/KLineChart.vue'
-import type { SemanticChartConfig } from '@/semantic'
+import KLineChart from '@363045841yyt/klinechart';
+import type { SemanticChartConfig } from '@363045841yyt/klinechart';
 
-const config = ref<SemanticChartConfig>({
+const config: SemanticChartConfig = {
   version: '1.0.0',
   data: {
     source: 'baostock',
-    symbol: '601360',
-    exchange: 'SH',
+    code: 'sh.000001',
     startDate: '2024-01-01',
     endDate: '2024-12-31',
-    period: 'daily',
-    adjust: 'qfq',
+    frequency: 'day'
   },
   indicators: {
-    main: [{ type: 'MA', enabled: true, params: { periods: [5, 10, 20] } }],
-    sub: [{ type: 'MACD', enabled: true }],
-  },
-  chart: {
-    kWidth: 10,
-    kGap: 2,
-    autoScrollToRight: true,
-  },
-})
+    main: [{ type: 'MA', params: [5, 10, 20] }],
+    sub: [{ type: 'MACD' }]
+  }
+};
 </script>
-```
 
-### Semantic JSON Control (Agent Mode)
-
-Through the `semanticConfig` prop, AI Agents can fully control chart rendering with JSON configuration:
-
-```vue
 <template>
-  <KLineChart :semanticConfig="config" />
+  <KLineChart
+    :semanticConfig="config"
+    :kWidth="7"
+    :kGap="3"
+    :yPaddingPx="24"
+  />
 </template>
-
-<script setup lang="ts">
-import { ref } from 'vue'
-import type { SemanticChartConfig } from '@363045841yyt/klinechart'
-
-const config = ref<SemanticChartConfig>({
-  version: '1.0.0',
-  data: {
-    source: 'baostock',
-    symbol: '600519',
-    exchange: 'SH',
-    startDate: '2025-01-01',
-    endDate: '2025-04-18',
-    period: 'daily',
-    adjust: 'qfq',
-  },
-  indicators: {
-    main: [{ type: 'MA', enabled: true, params: { periods: [5, 10, 20] } }],
-    sub: [{ type: 'MACD', enabled: true }],
-  },
-  markers: {
-    customMarkers: [
-      {
-        id: 'buy_001',
-        date: '2025-02-15',
-        shape: 'arrow_up',
-        label: { text: 'Buy' },
-        style: { fillColor: '#52c41a' },
-      },
-    ],
-  },
-})
-</script>
 ```
 
-For detailed configuration, please refer to [Semantic Configuration Documentation](./docs/semantic-config.md).
+## 📖 More Documentation
 
-## Data Source Configuration
+- [Rendering Engine Architecture](./docs/rendering-engine-architecture.md) - Core rendering pipeline and physical pixel alignment mechanism
+- [Plugin System](./docs/PLUGIN_SYSTEM.md) - Extension mechanism and custom development
+- [Renderer Development Guide](./docs/renderer-development-guide.md) - Custom renderer development
 
-### BaoStock (Recommended)
+## 🗺️ Roadmap
 
-Free and open-source Python securities data interface.
+- [x] K-line zoom anchor stability, improved zoom feel
+- [x] Right axis detached from scroll container, completely solving clipping issues
+- [x] Blank area drawing support
+- [x] Limit vertical pan range to prevent viewport from leaving data
+- [x] Drawing system
+- [x] Right axis zoom
+- [x] Latest price line and right axis label style optimization
+- [ ] Area primitive tools and rendering
+- [ ] More advanced drawing tools
 
-```bash
-# Option 1: Manual install and start
-uv pip install baostock
-git clone https://github.com/363045841/stockbao.git
-cd stockbao
-uv run python ./server.py
+## 🚀 What's New
 
-# Option 2: Use built-in project script (requires stockbao in parent directory)
-pnpm stockbao
-```
+- **v0.5.0** Complete drawing tool system, supporting line, rectangle, text drawing and style editing
+- **v0.4** Modern UI, left toolbar, right axis optimization, TradingView-style zoom feel
 
-### AKTools
+## 📄 License
 
-Python-based open-source financial data interface.
-
-```bash
-uv pip install aktools
-uv run python -m aktools  # Start service
-```
-
-> ⚠️ Note: AKTools connects directly to API, frequent requests may trigger anti-scraping mechanisms
-
-### Component Props
-
-| Prop | Type | Default | Description |
-|------|------|--------|------|
-| semanticConfig | SemanticChartConfig | - | **Required**. Semantic configuration (the only control source) |
-| kWidth | number | 10 | K-line body width |
-| kGap | number | 2 | K-line gap |
-| yPaddingPx | number | 0 | Y-axis padding pixels |
-| minKWidth | number | 2 | Minimum K-line width |
-| maxKWidth | number | 50 | Maximum K-line width |
-| rightAxisWidth | number | 0 | Right price axis width |
-| bottomAxisHeight | number | 24 | Bottom time axis height |
-| priceLabelWidth | number | 60 | Price label extra width (for displaying change percentage) |
-
-## Environment Requirements
-
-- Node.js: ^20.19.0 || >=22.12.0
-- pnpm: Package manager
-- Python: For running data source service (optional)
-- uv: Python package manager
-
-## Build & Deployment
-
-```bash
-pnpm build    # Production build
-pnpm preview  # Preview production build
-```
-
-## Related Links
-
-- [NPM Package](https://www.npmjs.com/package/@363045841yyt/klinechart)
-- [GitHub Repository](https://github.com/363045841/KLineChartQuant)
-- [Vue.js Documentation](https://vuejs.org/guide/introduction.html)
-- [Vite Documentation](https://vite.dev/guide/)
-- [BaoStock Documentation](http://baostock.com/)
-- [AKTools Documentation](https://github.com/akfamily/aktools)
-- [Canvas API MDN](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API)
-- [Vitest Documentation](https://vitest.dev/)
-- [Semantic Configuration Documentation](./docs/semantic-config.md)
-- [Architecture Documentation (ResizeObserver Refactored)](./docs/architecture.md)
-- [System Architecture Overview](./docs/system-architecture-overview.md)
-- [Renderer Development Guide](./docs/renderer-development-guide.md)
-
-## License
-
-This project is licensed under the MIT License. See [LICENSE](./LICENSE) file for details.
+[MIT](LICENSE)
