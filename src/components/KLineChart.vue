@@ -14,6 +14,8 @@
         :is-fullscreen="isFullscreen"
         @select-tool="handleSelectTool"
         @toggle-fullscreen="$emit('toggleFullscreen')"
+        @zoom-in="applyZoomToLevel(zoomLevel + 1)"
+        @zoom-out="applyZoomToLevel(zoomLevel - 1)"
       />
       <div class="chart-main">
         <div class="pane-separator-layer" aria-hidden="true">
@@ -1271,6 +1273,48 @@ onMounted(() => {
   chart.interaction.setTooltipAnchorPositioning(useAnchorPositioning.value)
   chart.interaction.setOnInteractionChange((snapshot) => {
     interactionState.value = snapshot
+  })
+
+  // 设置捏合缩放回调（移动端双指缩放）
+  chart.interaction.setOnPinchZoom((delta, centerClientX) => {
+    const container = containerRef.value
+    if (!container || !chart) return
+    const rect = container.getBoundingClientRect()
+    const centerX = centerClientX - rect.left
+    const scrollLeft = container.scrollLeft
+    const dpr = chart.getCurrentDpr()
+
+    const result = computeZoom(
+      delta,
+      centerX,
+      scrollLeft,
+      zoomLevel.value,
+      kWidth.value,
+      kGap.value,
+      {
+        minKWidth: props.minKWidth,
+        maxKWidth: props.maxKWidth,
+        zoomLevelCount: props.zoomLevels,
+        dpr,
+      },
+    )
+    if (!result) return
+
+    // 更新 Vue 响应式状态 → totalWidth 重算
+    store.actions.setZoomState(result.targetLevel, result.newKWidth, result.newKGap)
+
+    // 清除 hover + crosshair
+    chart.interaction.clearHover()
+
+    nextTick(() => {
+      const c = containerRef.value
+      if (!c) return
+      const maxScrollLeft = Math.max(0, c.scrollWidth - c.clientWidth)
+      const clampedScrollLeft = Math.min(Math.max(0, result.newScrollLeft), maxScrollLeft)
+      c.scrollLeft = Math.round(clampedScrollLeft * dpr) / dpr
+      chart.applyRenderState(result.newKWidth, result.newKGap, result.targetLevel)
+      emit('zoomLevelChange', result.targetLevel, result.newKWidth)
+    })
   })
   interactionState.value = chart.interaction.getInteractionSnapshot()
   store.actions.setViewportDpr(chart.getCurrentDpr())

@@ -58,6 +58,35 @@
       <button
         type="button"
         class="left-toolbar__button"
+        title="放大"
+        aria-label="放大"
+        @click="$emit('zoomIn')"
+        @pointerdown.stop
+        @pointermove.stop
+        @pointerup.stop
+      >
+        <IconTablerZoomIn class="tool-icon" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        class="left-toolbar__button"
+        title="缩小"
+        aria-label="缩小"
+        @click="$emit('zoomOut')"
+        @pointerdown.stop
+        @pointermove.stop
+        @pointerup.stop
+      >
+        <IconTablerZoomOut class="tool-icon" aria-hidden="true" />
+      </button>
+    </div>
+
+    <span class="left-toolbar__divider"></span>
+
+    <div class="left-toolbar__group">
+      <button
+        type="button"
+        class="left-toolbar__button"
         :title="isFullscreen ? '退出全屏' : '全屏显示'"
         :aria-label="isFullscreen ? '退出全屏' : '全屏显示'"
         @click="$emit('toggleFullscreen')"
@@ -84,6 +113,8 @@ import IconTablerCrosshair from '~icons/tabler/crosshair'
 import IconTablerInfoCircle from '~icons/tabler/info-circle'
 import IconTablerMaximize from '~icons/tabler/maximize'
 import IconTablerMinimize from '~icons/tabler/minimize'
+import IconTablerZoomIn from '~icons/tabler/zoom-in'
+import IconTablerZoomOut from '~icons/tabler/zoom-out'
 
 export interface ToolDef {
   id: string
@@ -99,6 +130,8 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'selectTool', toolId: string): void
   (e: 'toggleFullscreen'): void
+  (e: 'zoomIn'): void
+  (e: 'zoomOut'): void
 }>()
 
 const primaryTools: ToolDef[] = [
