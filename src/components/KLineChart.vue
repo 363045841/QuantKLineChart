@@ -118,6 +118,7 @@ import DrawingStyleToolbar from './DrawingStyleToolbar.vue'
 import { Chart, type PaneSpec } from '@/core/chart'
 import { createChartStore, TRAILING_DRAWING_SLOTS, type ChartStore } from '@/core/chart-store'
 import { zoomLevelToKWidth, kGapFromDpr, computeZoom, computeZoomToLevel } from '@/core/utils/zoom'
+import { getPhysicalKLineConfig } from '@/core/utils/klineConfig'
 import { createCandleRenderer } from '@/core/renderers/candle'
 import { createGridLinesRendererPlugin } from '@/core/renderers/gridLines'
 import { createLastPriceLineRendererPlugin } from '@/core/renderers/lastPrice'
@@ -991,8 +992,28 @@ const totalWidth = store.computed.totalWidth
 
 function scrollToRight() {
   const container = containerRef.value
-  if (!container) return
-  container.scrollLeft = container.scrollWidth
+  const chart = chartRef.value
+  if (!container || !chart) return
+
+  const dataLength = chart.getData()?.length ?? 0
+  if (dataLength === 0) return
+
+  const dpr = chart.getCurrentDpr()
+  const { unitPx, startXPx } = getPhysicalKLineConfig(kWidth.value, kGap.value, dpr)
+
+  // 计算最后一根K线的结束位置（不含 TRAILING_DRAWING_SLOTS）
+  const lastKLineEndPx = (startXPx + dataLength * unitPx) / dpr
+
+  // 计算最大可滚动距离
+  const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth)
+
+  // 计算需要的滚动位置，使最后一根K线紧贴最右侧
+  const targetScrollLeft = Math.min(
+    maxScrollLeft,
+    Math.max(0, lastKLineEndPx - container.clientWidth)
+  )
+
+  container.scrollLeft = Math.round(targetScrollLeft * dpr) / dpr
   scheduleRender()
 }
 
@@ -1545,6 +1566,13 @@ watch(
   border-bottom-right-radius: 6px;
   pointer-events: none;
   box-sizing: border-box;
+  z-index: 21;
+}
+
+/* 悬停/拖拽分隔线时降低右侧框线 z-index，使蓝色高亮在框线之上 */
+.chart-stage.is-hovering-pane-separator .right-axis-host::after,
+.chart-stage.is-resizing-pane .right-axis-host::after {
+  z-index: 19;
 }
 
 .scroll-content {
