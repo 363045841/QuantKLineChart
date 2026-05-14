@@ -93,8 +93,6 @@ const config: SemanticChartConfig = {
 <template>
   <KLineChart
     :semanticConfig="config"
-    :kWidth="7"
-    :kGap="3"
     :yPaddingPx="24"
   />
 </template>
@@ -111,16 +109,16 @@ const config: SemanticChartConfig = {
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|---------|-------------|
 | semanticConfig | `SemanticChartConfig` | **必填** | 语义化配置，图表数据和指标的唯一控制源 |
-| kWidth | `number` | 10 | K线实体宽度（逻辑像素） |
-| kGap | `number` | 2 | K线间距（逻辑像素） |
 | yPaddingPx | `number` | 0 | Y轴上下留白像素 |
-| minKWidth | `number` | 2 | K线最小宽度 |
-| maxKWidth | `number` | 50 | K线最大宽度 |
+| minKWidth | `number` | 2 | K线最小宽度（逻辑像素） |
+| maxKWidth | `number` | 50 | K线最大宽度（逻辑像素） |
 | rightAxisWidth | `number` | 0 | 右侧价格轴宽度 |
 | bottomAxisHeight | `number` | 24 | 底部时间轴高度 |
 | priceLabelWidth | `number` | 60 | 价格标签额外宽度（用于显示涨跌幅） |
 | zoomLevels | `number` | 20 | 缩放级别总数 |
 | initialZoomLevel | `number` | 3 | 初始缩放级别（1 ~ zoomLevels） |
+
+> `kWidth` 和 `kGap` 由 `zoomLevel` 内部派生，不再作为 props 暴露。
 
 ## 🗺️ Roadmap
 

@@ -93,8 +93,6 @@ const config: SemanticChartConfig = {
 <template>
   <KLineChart
     :semanticConfig="config"
-    :kWidth="7"
-    :kGap="3"
     :yPaddingPx="24"
   />
 </template>
@@ -111,16 +109,16 @@ const config: SemanticChartConfig = {
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | semanticConfig | `SemanticChartConfig` | **required** | Semantic configuration, the only control source for chart data and indicators |
-| kWidth | `number` | 10 | K-line body width (logical pixels) |
-| kGap | `number` | 2 | Gap between K-lines (logical pixels) |
 | yPaddingPx | `number` | 0 | Y-axis padding in pixels |
-| minKWidth | `number` | 2 | Minimum K-line width |
-| maxKWidth | `number` | 50 | Maximum K-line width |
+| minKWidth | `number` | 2 | Minimum K-line width (logical pixels) |
+| maxKWidth | `number` | 50 | Maximum K-line width (logical pixels) |
 | rightAxisWidth | `number` | 0 | Right price axis width |
 | bottomAxisHeight | `number` | 24 | Bottom time axis height |
 | priceLabelWidth | `number` | 60 | Price label extra width for showing change percentage |
 | zoomLevels | `number` | 20 | Total number of zoom levels |
 | initialZoomLevel | `number` | 3 | Initial zoom level (1 ~ zoomLevels) |
+
+> `kWidth` and `kGap` are internally derived from `zoomLevel`, no longer exposed as props.
 
 ## 🗺️ Roadmap
 
