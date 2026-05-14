@@ -1,6 +1,5 @@
-<div align="center">
-
 A lightweight financial charting library with first-class AI Agent support, crisp ResizeObserver-driven rendering, and plugin-based architecture.
+<div align="center">
 
 English | [简体中文](README_CN.md)
 

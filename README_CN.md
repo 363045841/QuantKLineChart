@@ -1,6 +1,6 @@
-<div align="center">
-
 轻量级金融图表库，原生支持 AI Agent 控制，全链路 ResizeObserver 驱动清晰渲染，插件化架构。
+
+<div align="center">
 
 [English](README.md) | 简体中文
 
