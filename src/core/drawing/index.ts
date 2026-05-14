@@ -229,7 +229,7 @@ function formatSigned(value: number, digits = 2): string {
   return value > 0 ? `+${fixed}` : fixed
 }
 
-function computeLinearRegression(values: number[]): { slope: number; intercept: number; stdDev: number } | null {
+export function computeLinearRegression(values: number[]): { slope: number; intercept: number; stdDev: number } | null {
   const n = values.length
   if (n < 2) return null
 
@@ -473,8 +473,76 @@ export function createParallelChannelDefinition(): DrawingDefinition {
           },
           { kind: 'line', a: p1, b: p2, extend, style: drawing.style },
           { kind: 'line', a: p3, b: p4, extend, style: drawing.style },
-          { kind: 'line', a: p1, b: p3, style: drawing.style },
-          { kind: 'line', a: p2, b: p4, style: drawing.style },
+        ],
+      }
+    },
+  }
+}
+
+export function createFlatLineDefinition(): DrawingDefinition {
+  return {
+    kind: 'flat-line',
+    minAnchors: 3,
+    maxAnchors: 3,
+    compute(drawing, context) {
+      const [first, second, third] = drawing.anchors
+      if (!first || !second || !third) return { primitives: [] }
+
+      const p1 = context.toScreen(first)
+      const p2 = context.toScreen(second)
+      const thirdScreen = context.toScreen(third)
+      const h1 = { x: p1.x, y: thirdScreen.y }
+      const h2 = { x: p2.x, y: thirdScreen.y }
+
+      return {
+        primitives: [
+          {
+            kind: 'area',
+            points: [p1, p2, h2, h1],
+            closed: true,
+            style: drawing.style,
+          },
+          { kind: 'line', a: p1, b: p2, style: drawing.style },
+          { kind: 'line', a: h1, b: h2, style: drawing.style },
+          { kind: 'point', point: h1, style: drawing.style },
+          { kind: 'point', point: h2, style: drawing.style },
+        ],
+      }
+    },
+  }
+}
+
+export function createDisjointChannelDefinition(): DrawingDefinition {
+  return {
+    kind: 'disjoint-channel',
+    minAnchors: 3,
+    maxAnchors: 3,
+    compute(drawing, context) {
+      const [first, second, third] = drawing.anchors
+      if (!first || !second || !third) return { primitives: [] }
+
+      const p1 = context.toScreen(first)
+      const p2 = context.toScreen(second)
+      const p3 = context.toScreen(third)
+
+      // 第二条线：过 p3，斜率取反
+      const dx = p2.x - p1.x
+      const dy = p2.y - p1.y
+      const p4 = { x: p3.x + dx, y: p3.y - dy }
+
+      return {
+        primitives: [
+          // 填充区域
+          {
+            kind: 'area',
+            points: [p1, p2, p4, p3],
+            closed: true,
+            style: drawing.style,
+          },
+          // 斜率 k 的线
+          { kind: 'line', a: p1, b: p2, style: drawing.style },
+          // 斜率 -k 的线
+          { kind: 'line', a: p3, b: p4, style: drawing.style },
         ],
       }
     },
@@ -549,6 +617,8 @@ export function registerDefaultDrawingDefinitions(registry: DrawingDefinitionReg
   registry.register(createInfoLineDefinition())
   registry.register(createParallelChannelDefinition())
   registry.register(createRegressionChannelDefinition())
+  registry.register(createFlatLineDefinition())
+  registry.register(createDisjointChannelDefinition())
 }
 
 // 导出交互控制器

@@ -1,6 +1,7 @@
 import type { DrawingObject, DrawingKind, DrawingAnchor, DrawingStyle } from '@/plugin'
 import type { Chart } from '@/core/chart'
 import { getPhysicalKLineConfig } from '@/core/utils/klineConfig'
+import { computeLinearRegression } from './index'
 
 export type DrawingToolId =
   | 'cursor'
@@ -11,6 +12,10 @@ export type DrawingToolId =
   | 'v-line'
   | 'crosshair-line'
   | 'info-line'
+  | 'parallel-channel'
+  | 'regression-channel'
+  | 'flat-line'
+  | 'disjoint-channel'
 
 export interface DrawingAnchorInput {
   index: number
@@ -45,7 +50,7 @@ const LINE_HIT_RADIUS = 6
 export class DrawingInteractionController {
   private chart: Chart
   private activeTool: DrawingToolId = 'cursor'
-  private pendingAnchor: DrawingAnchorInput | null = null
+  private pendingAnchors: DrawingAnchorInput[] = []
   private drawings: DrawingObject[] = []
   private callbacks: DrawingInteractionCallbacks = {}
   private previewDrawingId = '__preview__'
@@ -65,6 +70,14 @@ export class DrawingInteractionController {
     'trend-line',
     'ray',
     'info-line',
+    'regression-channel',
+  ]
+
+  // 三锚点工具列表
+  private static readonly TRIPLE_ANCHOR_TOOLS: DrawingToolId[] = [
+    'parallel-channel',
+    'flat-line',
+    'disjoint-channel',
   ]
 
   constructor(chart: Chart) {
@@ -81,7 +94,7 @@ export class DrawingInteractionController {
 
   setTool(toolId: DrawingToolId) {
     this.activeTool = toolId
-    this.pendingAnchor = null
+    this.pendingAnchors = []
     this.removePreview()
     this.dragState = null
     this.setSelected(null)
@@ -98,7 +111,7 @@ export class DrawingInteractionController {
   }
 
   clear() {
-    this.pendingAnchor = null
+    this.pendingAnchors = []
     this.removePreview()
     this.dragState = null
     this.setSelected(null)
@@ -161,19 +174,19 @@ export class DrawingInteractionController {
       return true
     }
 
-    // 双锚点工具：需要点击两次
-    if (DrawingInteractionController.DOUBLE_ANCHOR_TOOLS.includes(this.activeTool)) {
-      if (!this.pendingAnchor) {
-        this.pendingAnchor = anchor
-        return true
-      }
+    // 双/三锚点工具：累积锚点
+    const isDouble = DrawingInteractionController.DOUBLE_ANCHOR_TOOLS.includes(this.activeTool)
+    const isTriple = DrawingInteractionController.TRIPLE_ANCHOR_TOOLS.includes(this.activeTool)
+    if (!isDouble && !isTriple) return false
 
-      this.createDoubleAnchorDrawing(this.pendingAnchor, anchor)
-      this.pendingAnchor = null
-      return true
+    this.pendingAnchors.push(anchor)
+    const requiredAnchors = isDouble ? 2 : 3
+
+    if (this.pendingAnchors.length >= requiredAnchors) {
+      this.createMultiAnchorDrawing(this.pendingAnchors)
+      this.pendingAnchors = []
     }
-
-    return false
+    return true
   }
 
   /**
@@ -231,6 +244,14 @@ export class DrawingInteractionController {
           time: newAnchor.time,
           price: newAnchor.price,
         }
+        // flat-line：第三个锚点的 index/time 始终跟随第二个锚点
+        if (drawing.kind === 'flat-line' && idx === 1 && drawing.anchors.length >= 3) {
+          drawing.anchors[2] = {
+            ...drawing.anchors[2]!,
+            index: newAnchor.index,
+            time: newAnchor.time,
+          }
+        }
       }
     } else {
       // 拖拽整条线：基于鼠标偏移量移动所有锚点
@@ -247,7 +268,7 @@ export class DrawingInteractionController {
 
         const targetX = snapScreen.x + dx
         const targetY = snapScreen.y + dy
-        const newFromScreen = this.screenToAnchor(targetX, targetY, container)
+        const newFromScreen = this.screenToAnchor(targetX, targetY)
         if (newFromScreen) {
           drawing.anchors[i] = {
             ...drawing.anchors[i]!,
@@ -274,9 +295,11 @@ export class DrawingInteractionController {
 
     const isSingle = DrawingInteractionController.SINGLE_ANCHOR_TOOLS.includes(this.activeTool)
     const isDouble = DrawingInteractionController.DOUBLE_ANCHOR_TOOLS.includes(this.activeTool)
-    if (!isSingle && !isDouble) return false
+    const isTriple = DrawingInteractionController.TRIPLE_ANCHOR_TOOLS.includes(this.activeTool)
+    if (!isSingle && !isDouble && !isTriple) return false
 
     let preview: DrawingObject
+
     if (isSingle) {
       preview = {
         id: this.previewDrawingId,
@@ -291,22 +314,78 @@ export class DrawingInteractionController {
           strokeStyle: 'dashed',
         },
       }
-    } else if (this.pendingAnchor) {
+    } else if (isDouble && this.pendingAnchors.length >= 1) {
       preview = {
         id: this.previewDrawingId,
-        kind: this.activeTool as DrawingKind,
+        kind: this.getDrawingKind(this.activeTool),
         paneId: 'main',
         visible: true,
         anchors: [
-          { id: `${this.previewDrawingId}-a`, index: this.pendingAnchor.index, time: this.pendingAnchor.time, price: this.pendingAnchor.price },
+          { id: `${this.previewDrawingId}-a`, index: this.pendingAnchors[0]!.index, time: this.pendingAnchors[0]!.time, price: this.pendingAnchors[0]!.price },
           { id: `${this.previewDrawingId}-b`, index: anchor.index, time: anchor.time, price: anchor.price },
         ],
-        params: {},
+        params: this.activeTool === 'regression-channel' ? { sigma: 2 } : {},
         style: {
           stroke: '#2962ff',
           strokeWidth: 1,
           strokeStyle: 'dashed',
+          ...(this.activeTool === 'regression-channel' ? { fillOpacity: 0.1 } : {}),
         },
+      }
+    } else if (isTriple) {
+      if (this.pendingAnchors.length === 0) return false
+
+      if (this.pendingAnchors.length === 1) {
+        // 修复：用 trend-line 渲染线段预览（2 个锚点），三锚点工具的 definition 需要 3 个锚点才能渲染
+        preview = {
+          id: this.previewDrawingId,
+          kind: 'trend-line',
+          paneId: 'main',
+          visible: true,
+          anchors: [
+            { id: `${this.previewDrawingId}-a`, index: this.pendingAnchors[0]!.index, time: this.pendingAnchors[0]!.time, price: this.pendingAnchors[0]!.price },
+            { id: `${this.previewDrawingId}-b`, index: anchor.index, time: anchor.time, price: anchor.price },
+          ],
+          params: {},
+          style: {
+            stroke: '#2962ff',
+            strokeWidth: 1,
+            strokeStyle: 'dashed',
+          },
+        }
+      } else {
+        const thirdAnchor = this.activeTool === 'flat-line'
+          ? {
+              id: `${this.previewDrawingId}-c`,
+              index: this.pendingAnchors[1]!.index,
+              time: this.pendingAnchors[1]!.time,
+              price: anchor.price,
+            }
+          : {
+              id: `${this.previewDrawingId}-c`,
+              index: anchor.index,
+              time: anchor.time,
+              price: anchor.price,
+            }
+
+        preview = {
+          id: this.previewDrawingId,
+          kind: this.getDrawingKind(this.activeTool),
+          paneId: 'main',
+          visible: true,
+          anchors: [
+            { id: `${this.previewDrawingId}-a`, index: this.pendingAnchors[0]!.index, time: this.pendingAnchors[0]!.time, price: this.pendingAnchors[0]!.price },
+            { id: `${this.previewDrawingId}-b`, index: this.pendingAnchors[1]!.index, time: this.pendingAnchors[1]!.time, price: this.pendingAnchors[1]!.price },
+            thirdAnchor,
+          ],
+          params: {},
+          style: {
+            stroke: '#2962ff',
+            strokeWidth: 1,
+            strokeStyle: 'dashed',
+            fillOpacity: 0.1,
+          },
+        }
       }
     } else {
       return false
@@ -325,6 +404,12 @@ export class DrawingInteractionController {
 
     // 锚点优先
     for (const drawing of drawings) {
+      // regression-channel：回归线端点也是可拖拽区域
+      if (drawing.kind === 'regression-channel' && drawing.anchors.length >= 2) {
+        const hit = this.hitTestRegressionEndpoints(drawing, mouseX, mouseY)
+        if (hit) return hit
+      }
+
       for (let i = 0; i < drawing.anchors.length; i++) {
         const screen = this.anchorToScreen(drawing.anchors[i]!)
         if (!screen) continue
@@ -382,16 +467,48 @@ export class DrawingInteractionController {
       }
     }
 
-    // 多锚点图元
+    // 多锚点图元：按 kind 特殊处理
     const points = drawing.anchors.map((a) => this.anchorToScreen(a)).filter(Boolean) as { x: number; y: number }[]
     if (points.length < 2) return []
 
     const segments: { a: { x: number; y: number }; b: { x: number; y: number } }[] = []
 
-    // 根据延伸模式扩展线段到屏幕边缘
     if (points.length === 2) {
       const a = points[0]!
       const b = points[1]!
+
+      // regression-channel：计算回归线和上下轨，3 条线段
+      if (drawing.kind === 'regression-channel') {
+        const data = this.chart.getData()
+        const firstIndex = Math.round(drawing.anchors[0]!.index)
+        const secondIndex = Math.round(drawing.anchors[1]!.index)
+        const startIndex = Math.min(Math.max(firstIndex, 0), Math.max(secondIndex, 0))
+        const endIndex = Math.max(Math.max(firstIndex, 0), Math.max(secondIndex, 0))
+        const clampedStart = Math.min(Math.max(startIndex, 0), data.length - 1)
+        const clampedEnd = Math.min(Math.max(endIndex, 0), data.length - 1)
+        const slice = data.slice(clampedStart, clampedEnd + 1)
+        const regression = computeLinearRegression(slice.map((item: { close: number }) => item.close))
+        if (regression) {
+          const sigma = (drawing.params as { sigma?: number } | undefined)?.sigma ?? 2
+          const offset = regression.stdDev * sigma
+          const firstValue = regression.intercept
+          const lastValue = regression.intercept + regression.slope * (slice.length - 1)
+
+          const midStart = this.anchorToScreen({ id: '', index: firstIndex, price: firstValue })
+          const midEnd = this.anchorToScreen({ id: '', index: secondIndex, price: lastValue })
+          const upperStart = this.anchorToScreen({ id: '', index: firstIndex, price: firstValue + offset })
+          const upperEnd = this.anchorToScreen({ id: '', index: secondIndex, price: lastValue + offset })
+          const lowerStart = this.anchorToScreen({ id: '', index: firstIndex, price: firstValue - offset })
+          const lowerEnd = this.anchorToScreen({ id: '', index: secondIndex, price: lastValue - offset })
+
+          if (midStart && midEnd) segments.push({ a: midStart, b: midEnd })
+          if (upperStart && upperEnd) segments.push({ a: upperStart, b: upperEnd })
+          if (lowerStart && lowerEnd) segments.push({ a: lowerStart, b: lowerEnd })
+          return segments
+        }
+      }
+
+      // 其他双锚点工具：标准线段
       const dx = b.x - a.x
       const dy = b.y - a.y
 
@@ -409,13 +526,95 @@ export class DrawingInteractionController {
       }
 
       segments.push({ a: start, b: end })
-    } else {
-      for (let i = 0; i < points.length - 1; i++) {
-        segments.push({ a: points[i]!, b: points[i + 1]! })
+    } else if (points.length >= 3) {
+      switch (drawing.kind) {
+        case 'parallel-channel': {
+          const [p1, p2, p3] = points as [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }]
+          const dx = p2.x - p1.x
+          const dy = p2.y - p1.y
+          const p4 = { x: p3.x + dx, y: p3.y + dy }
+          segments.push(
+            { a: p1, b: p2 },
+            { a: p3, b: p4 },
+          )
+          break
+        }
+        case 'flat-line': {
+          const [p1, p2, p3] = points as [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }]
+          const h1 = { x: p1.x, y: p3.y }
+          const h2 = { x: p2.x, y: p3.y }
+          segments.push({ a: p1, b: p2 })
+          segments.push({ a: h1, b: h2 })
+          break
+        }
+        case 'disjoint-channel': {
+          const [p1, p2, p3] = points as [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }]
+          const dx = p2.x - p1.x
+          const dy = p2.y - p1.y
+          const p4 = { x: p3.x + dx, y: p3.y - dy }
+          segments.push({ a: p1, b: p2 })
+          segments.push({ a: p3, b: p4 })
+          break
+        }
+        default:
+          for (let i = 0; i < points.length - 1; i++) {
+            segments.push({ a: points[i]!, b: points[i + 1]! })
+          }
       }
     }
 
     return segments
+  }
+
+  /**
+   * regression-channel 专用：回归线端点也是可拖拽的锚点区域
+   * 回归线端点可能远离存储的锚点，需要额外检测
+   */
+  private hitTestRegressionEndpoints(
+    drawing: DrawingObject,
+    mouseX: number,
+    mouseY: number,
+  ): { drawing: DrawingObject; anchorIndex: number } | null {
+    const data = this.chart.getData()
+    if (data.length === 0) return null
+
+    const firstIndex = Math.round(drawing.anchors[0]!.index)
+    const secondIndex = Math.round(drawing.anchors[1]!.index)
+    const clampedFirst = Math.min(Math.max(firstIndex, 0), data.length - 1)
+    const clampedSecond = Math.min(Math.max(secondIndex, 0), data.length - 1)
+    const startIndex = Math.min(clampedFirst, clampedSecond)
+    const endIndex = Math.max(clampedFirst, clampedSecond)
+    const slice = data.slice(startIndex, endIndex + 1)
+    const regression = computeLinearRegression(slice.map((item: { close: number }) => item.close))
+    if (!regression) return null
+
+    const sigma = (drawing.params as { sigma?: number } | undefined)?.sigma ?? 2
+    const offset = regression.stdDev * sigma
+    const firstValue = regression.intercept
+    const lastValue = regression.intercept + regression.slope * (slice.length - 1)
+
+    // 回归线的 6 个端点（上/中/下 × 左/右）
+    const endpoints = [
+      { index: firstIndex, price: firstValue },
+      { index: secondIndex, price: lastValue },
+      { index: firstIndex, price: firstValue + offset },
+      { index: secondIndex, price: lastValue + offset },
+      { index: firstIndex, price: firstValue - offset },
+      { index: secondIndex, price: lastValue - offset },
+    ]
+
+    for (const ep of endpoints) {
+      const screen = this.anchorToScreen({ id: '', index: ep.index, price: ep.price })
+      if (!screen) continue
+      const dist = Math.hypot(mouseX - screen.x, mouseY - screen.y)
+      if (dist <= ANCHOR_HIT_RADIUS) {
+        // 左端点 → 拖 anchor[0]，右端点 → 拖 anchor[1]
+        const anchorIndex = ep.index <= Math.min(firstIndex, secondIndex) ? 0 : 1
+        return { drawing, anchorIndex }
+      }
+    }
+
+    return null
   }
 
   private getExtendMode(drawing: DrawingObject): 'none' | 'left' | 'right' | 'both' {
@@ -438,7 +637,7 @@ export class DrawingInteractionController {
     const opt = this.chart.getOption()
     const dpr = this.chart.getCurrentDpr()
     const { startXPx, unitPx } = getPhysicalKLineConfig(opt.kWidth, opt.kGap, dpr)
-    if (!Number.isFinite(anchor.index) || anchor.index < 0) return null
+    if (!Number.isFinite(anchor.index)) return null
 
     const x = (startXPx + anchor.index * unitPx + (unitPx - 1) / 2) / dpr - viewport.scrollLeft
 
@@ -547,23 +746,43 @@ export class DrawingInteractionController {
     this.callbacks.onToolChange?.('cursor')
   }
 
-  private createDoubleAnchorDrawing(first: DrawingAnchorInput, second: DrawingAnchorInput) {
+  private createMultiAnchorDrawing(anchors: DrawingAnchorInput[]) {
     this.drawings = this.drawings.filter((d) => d.id !== this.previewDrawingId)
+
+    const kind = this.getDrawingKind(this.activeTool)
+    const params: Record<string, unknown> = kind === 'regression-channel' ? { sigma: 2 } : {}
+
+    const normalizedAnchors = kind === 'flat-line' && anchors.length >= 3
+      ? [
+          anchors[0]!,
+          anchors[1]!,
+          {
+            index: anchors[1]!.index,
+            time: anchors[1]!.time,
+            price: anchors[2]!.price,
+          },
+        ]
+      : anchors
+
+    const isChannel = ['parallel-channel', 'regression-channel', 'flat-line', 'disjoint-channel'].includes(kind)
 
     const drawing: DrawingObject = {
       id: `drawing-${Date.now()}`,
-      kind: this.activeTool as DrawingKind,
+      kind,
       paneId: 'main',
       visible: true,
-      anchors: [
-        { id: `${Date.now()}-a`, index: first.index, time: first.time, price: first.price },
-        { id: `${Date.now()}-b`, index: second.index, time: second.time, price: second.price },
-      ],
-      params: {},
+      anchors: normalizedAnchors.map((a, i) => ({
+        id: `${Date.now()}-${String.fromCharCode(97 + i)}`,
+        index: a.index,
+        time: a.time,
+        price: a.price,
+      })),
+      params,
       style: {
         stroke: '#2962ff',
         strokeWidth: 1,
         strokeStyle: 'solid',
+        ...(isChannel ? { fillOpacity: 0.1 } : {}),
       },
     }
 

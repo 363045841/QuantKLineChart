@@ -43,6 +43,7 @@ export function createChartStore(opts: ChartStoreOptions) {
     viewWidth: 0,
   })
 
+  // 右侧轴宽度
   const axisHostWidth = computed(() => opts.rightAxisWidth + opts.priceLabelWidth)
 
   const totalWidth = computed(() =>

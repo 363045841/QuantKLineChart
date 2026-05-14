@@ -115,6 +115,10 @@ import IconTablerMaximize from '~icons/tabler/maximize'
 import IconTablerMinimize from '~icons/tabler/minimize'
 import IconTablerZoomIn from '~icons/tabler/zoom-in'
 import IconTablerZoomOut from '~icons/tabler/zoom-out'
+import IconTablerShape from '~icons/tabler/shape'
+import IconTablerChartDots3 from '~icons/tabler/chart-dots-3'
+import IconTablerCaretUpDown from '~icons/tabler/caret-up-down'
+import IconTablerBrackets from '~icons/tabler/brackets'
 
 export interface ToolDef {
   id: string
@@ -148,6 +152,17 @@ const primaryTools: ToolDef[] = [
       { id: 'v-line', title: '垂直线', icon: IconTablerSeparator },
       { id: 'crosshair-line', title: '十字线', icon: IconTablerCrosshair },
       { id: 'info-line', title: '信息线', icon: IconTablerInfoCircle },
+    ],
+  },
+  {
+    id: 'channels',
+    title: '通道',
+    icon: IconTablerShape,
+    children: [
+      { id: 'parallel-channel', title: '平行通道', icon: IconTablerShape },
+      { id: 'regression-channel', title: '回归趋势', icon: IconTablerChartDots3 },
+      { id: 'flat-line', title: '平滑顶底', icon: IconTablerCaretUpDown },
+      { id: 'disjoint-channel', title: '不相交通道', icon: IconTablerBrackets },
     ],
   },
 ]

@@ -242,6 +242,8 @@ export type DrawingKind =
   | 'info-line'
   | 'parallel-channel'
   | 'regression-channel'
+  | 'flat-line'
+  | 'disjoint-channel'
 
 export type DrawingStyle = {
   stroke?: string
