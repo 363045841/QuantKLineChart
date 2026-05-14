@@ -118,8 +118,6 @@ const config: SemanticChartConfig = {
 | zoomLevels | `number` | 20 | Total number of zoom levels |
 | initialZoomLevel | `number` | 3 | Initial zoom level (1 ~ zoomLevels) |
 
-> `kWidth` and `kGap` are internally derived from `zoomLevel`, no longer exposed as props.
-
 ## 🗺️ Roadmap
 
 - [x] K-line zoom anchor stability, improved zoom feel
@@ -129,11 +127,12 @@ const config: SemanticChartConfig = {
 - [x] Drawing system
 - [x] Right axis zoom
 - [x] Latest price line and right axis label style optimization
-- [ ] Area primitive tools and rendering
+- [x] Area primitive tools and rendering
 - [ ] More advanced drawing tools
 
 ## 🚀 What's New
 
+- **v0.5.2** Advanced drawing tools: parallel channel, regression channel, smooth top/bottom, and non-intersecting channel
 - **v0.5.0** Complete drawing tool system, supporting line, rectangle, text drawing and style editing
 - **v0.4** Modern UI, left toolbar, right axis optimization, TradingView-style zoom feel
 

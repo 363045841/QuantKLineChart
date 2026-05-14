@@ -118,8 +118,6 @@ const config: SemanticChartConfig = {
 | zoomLevels | `number` | 20 | 缩放级别总数 |
 | initialZoomLevel | `number` | 3 | 初始缩放级别（1 ~ zoomLevels） |
 
-> `kWidth` 和 `kGap` 由 `zoomLevel` 内部派生，不再作为 props 暴露。
-
 ## 🗺️ Roadmap
 
 - [x] K 线缩放锚点稳定，缩放手感提升
@@ -129,11 +127,12 @@ const config: SemanticChartConfig = {
 - [x] 绘图系统
 - [x] 右轴缩放
 - [x] 最新价线与右轴标签样式优化
-- [ ] 面图元工具及渲染
+- [x] 面图元工具及渲染
 - [ ] 更多高级绘图工具
 
 ## 🚀 What's New
 
+- **v0.5.2** 新增高级绘图工具：平行通道、回归趋势、平滑顶底、不相交通道
 - **v0.5.0** 完整绘图工具系统，支持直线、矩形、文字绘制与样式编辑
 - **v0.4** 现代化 UI，左侧工具栏、右轴优化、TradingView 式缩放手感
 
