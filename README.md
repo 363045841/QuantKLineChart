@@ -106,6 +106,22 @@ const config: SemanticChartConfig = {
 - [Plugin System](./docs/PLUGIN_SYSTEM.md) - Extension mechanism and custom development
 - [Renderer Development Guide](./docs/renderer-development-guide.md) - Custom renderer development
 
+## 📋 Component Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| semanticConfig | `SemanticChartConfig` | **required** | Semantic configuration, the only control source for chart data and indicators |
+| kWidth | `number` | 10 | K-line body width (logical pixels) |
+| kGap | `number` | 2 | Gap between K-lines (logical pixels) |
+| yPaddingPx | `number` | 0 | Y-axis padding in pixels |
+| minKWidth | `number` | 2 | Minimum K-line width |
+| maxKWidth | `number` | 50 | Maximum K-line width |
+| rightAxisWidth | `number` | 0 | Right price axis width |
+| bottomAxisHeight | `number` | 24 | Bottom time axis height |
+| priceLabelWidth | `number` | 60 | Price label extra width for showing change percentage |
+| zoomLevels | `number` | 20 | Total number of zoom levels |
+| initialZoomLevel | `number` | 3 | Initial zoom level (1 ~ zoomLevels) |
+
 ## 🗺️ Roadmap
 
 - [x] K-line zoom anchor stability, improved zoom feel
