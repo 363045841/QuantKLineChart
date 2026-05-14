@@ -1,10 +1,12 @@
 <div align="center">
 
+轻量级金融图表库，原生支持 AI Agent 控制，全链路 ResizeObserver 驱动清晰渲染，插件化架构。
+
 [English](README.md) | 简体中文
 
 # 📈 KLineChartQuant
 
-> 适用于 Vue 3 的轻量化金融图表库，AI Agent 是一等公民，具备物理像素级清晰渲染能力和插件化架构
+**渲染清晰 · 高性能 · 交互优化**
 
 [![npm version](https://img.shields.io/npm/v/@363045841yyt/klinechart.svg?style=flat&color=blue)](https://www.npmjs.com/package/@363045841yyt/klinechart) [![npm downloads](https://img.shields.io/npm/dm/@363045841yyt/klinechart.svg?style=flat&color=green)](https://www.npmjs.com/package/@363045841yyt/klinechart) [![license](https://img.shields.io/npm/l/@363045841yyt/klinechart.svg?style=flat&color=orange)](https://github.com/363045841/klinechart/blob/main/LICENSE) [![demo](https://img.shields.io/badge/Demo-在线体验-purple?style=flat)](http://8.130.98.164/)
 
