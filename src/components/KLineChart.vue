@@ -17,7 +17,7 @@
         @zoom-in="applyZoomToLevel(zoomLevel + 1)"
         @zoom-out="applyZoomToLevel(zoomLevel - 1)"
       />
-      <div class="chart-main">
+      <div class="chart-main" ref="chartMainRef">
         <div class="pane-separator-layer" aria-hidden="true">
           <div
             v-for="line in paneSeparatorLines"
@@ -27,6 +27,7 @@
             :style="{ top: `${line.top}px` }"
           ></div>
         </div>
+        <div ref="tooltipLayerRef" class="tooltip-layer"></div>
         <div
           class="chart-container"
           ref="containerRef"
@@ -45,38 +46,6 @@
               <!-- 底部时间轴（随 X 滚动，但画布不移动） -->
               <canvas class="x-axis-canvas" ref="xAxisCanvasRef"></canvas>
 
-              <div
-                v-if="hovered"
-                class="tooltip-anchor kline-tooltip-anchor"
-                :class="{ 'use-anchor': useAnchorPositioning }"
-                :style="{ left: `${tooltipPos.x}px`, top: `${tooltipPos.y}px` }"
-              ></div>
-              <div
-                v-if="hoveredMarker || hoveredCustomMarker"
-                class="tooltip-anchor marker-tooltip-anchor"
-                :class="{ 'use-anchor': useAnchorPositioning }"
-                :style="{ left: `${mousePos.x}px`, top: `${mousePos.y}px` }"
-              ></div>
-
-              <!-- 悬浮浮窗：放在 sticky 的 canvas-layer 内，避免随 scroll-content 横向滚动而偏移 -->
-              <KLineTooltip
-                v-if="hovered"
-                :k="hovered"
-                :index="hoveredIndex"
-                :data="chartData"
-                :pos="tooltipPos"
-                :set-el="setTooltipEl"
-                :use-anchor="useAnchorPositioning"
-                :anchor-placement="tooltipAnchorPlacement"
-              />
-              <MarkerTooltip
-                v-if="hoveredMarker || hoveredCustomMarker"
-                :marker="hoveredMarker || hoveredCustomMarker"
-                :pos="mousePos"
-                :use-anchor="useAnchorPositioning"
-                :anchor-placement="markerTooltipAnchorPlacement"
-                :set-el="setMarkerTooltipEl"
-              />
               <DrawingStyleToolbar
                 v-if="selectedDrawing"
                 :drawing="selectedDrawing"
@@ -86,6 +55,38 @@
             </div>
           </div>
         </div>
+        <Teleport v-if="tooltipLayerRef" :to="tooltipLayerRef">
+          <div
+            v-if="hovered"
+            class="tooltip-anchor kline-tooltip-anchor"
+            :class="{ 'use-anchor': useAnchorPositioning }"
+            :style="klineTooltipAnchorStyle"
+          ></div>
+          <div
+            v-if="hoveredMarker || hoveredCustomMarker"
+            class="tooltip-anchor marker-tooltip-anchor"
+            :class="{ 'use-anchor': useAnchorPositioning }"
+            :style="markerTooltipAnchorStyle"
+          ></div>
+          <KLineTooltip
+            v-if="hovered"
+            :k="hovered"
+            :index="hoveredIndex"
+            :data="chartData"
+            :pos="teleportedTooltipPos"
+            :set-el="setTooltipEl"
+            :use-anchor="useAnchorPositioning"
+            :anchor-placement="tooltipAnchorPlacement"
+          />
+          <MarkerTooltip
+            v-if="hoveredMarker || hoveredCustomMarker"
+            :marker="hoveredMarker || hoveredCustomMarker"
+            :pos="teleportedMarkerTooltipPos"
+            :use-anchor="useAnchorPositioning"
+            :anchor-placement="markerTooltipAnchorPlacement"
+            :set-el="setMarkerTooltipEl"
+          />
+        </Teleport>
         <div
           class="right-axis-host"
           ref="rightAxisLayerRef"
@@ -201,6 +202,8 @@ const xAxisCanvasRef = ref<HTMLCanvasElement | null>(null)
 const canvasLayerRef = ref<HTMLDivElement | null>(null)
 const rightAxisLayerRef = ref<HTMLDivElement | null>(null)
 const containerRef = ref<HTMLDivElement | null>(null)
+const chartMainRef = ref<HTMLDivElement | null>(null)
+const tooltipLayerRef = ref<HTMLDivElement | null>(null)
 
 /* ========== 十字线（鼠标悬停位置） ========== */
 const chartRef = shallowRef<Chart | null>(null)
@@ -293,6 +296,15 @@ const selectedDrawing = computed(() => {
 })
 const paneSeparatorLines = ref<Array<{ id: string; top: number }>>([])
 const markerTooltipSize = ref({ width: 220, height: 120 })
+const tooltipLayerOffset = computed(() => {
+  const container = containerRef.value
+  const chartMain = chartMainRef.value
+  if (!container || !chartMain) return { x: 0, y: 0 }
+  return {
+    x: container.offsetLeft,
+    y: container.offsetTop,
+  }
+})
 
 const hoveredMarker = computed(() => interactionState.value.hoveredMarkerData)
 const hoveredCustomMarker = computed(() => interactionState.value.hoveredCustomMarker)
@@ -316,6 +328,22 @@ const hovered = computed(() => {
 })
 const hoveredIndex = computed(() => interactionState.value.hoveredIndex)
 const tooltipPos = computed(() => interactionState.value.tooltipPos)
+const teleportedTooltipPos = computed(() => ({
+  x: tooltipPos.value.x + tooltipLayerOffset.value.x,
+  y: tooltipPos.value.y + tooltipLayerOffset.value.y,
+}))
+const klineTooltipAnchorStyle = computed(() => ({
+  left: `${teleportedTooltipPos.value.x}px`,
+  top: `${teleportedTooltipPos.value.y}px`,
+}))
+const teleportedMarkerTooltipPos = computed(() => ({
+  x: mousePos.value.x + tooltipLayerOffset.value.x,
+  y: mousePos.value.y + tooltipLayerOffset.value.y,
+}))
+const markerTooltipAnchorStyle = computed(() => ({
+  left: `${teleportedMarkerTooltipPos.value.x}px`,
+  top: `${teleportedMarkerTooltipPos.value.y}px`,
+}))
 const tooltipAnchorPlacement = computed(() => interactionState.value.tooltipAnchorPlacement)
 const markerTooltipAnchorPlacement = computed<'right-bottom' | 'left-bottom'>(() => {
   const chart = chartRef.value
@@ -1455,25 +1483,23 @@ watch(
 
 .pane-separator-line {
   position: absolute;
-  left: 1px;
-  right: 1px;
-  height: 3px;
-  background: #ffffff;
-  transform: translateY(-50%);
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px solid #e5e7eb;
   opacity: 1;
+  box-sizing: border-box;
   transition:
-    background-color 120ms ease,
-    box-shadow 120ms ease,
+    border-top-color 120ms ease,
+    border-top-width 120ms ease,
+    margin-top 120ms ease,
     opacity 120ms ease;
-  /* 中间1px分割线 */
-  box-shadow: inset 0 1px 0 0 #e5e7eb;
 }
 
 .pane-separator-line.is-active {
-  background: #3b82f6;
-  height: 2px;
-  transform: translateY(-50%);
-  box-shadow: none;
+  border-top-color: #3b82f6;
+  border-top-width: 2px;
+  margin-top: -1px;
 }
 
 .chart-stage.is-resizing-pane,
@@ -1545,6 +1571,7 @@ watch(
   box-sizing: border-box;
   background: #ffffff;
   overflow: visible;
+  border: 1px solid #e5e7eb;
   border-top-right-radius: 6px;
   border-bottom-right-radius: 6px;
 
@@ -1554,26 +1581,6 @@ watch(
   touch-action: none;
 }
 
-.right-axis-host::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-top: 1px solid #e5e7eb;
-  border-right: 1px solid #e5e7eb;
-  border-bottom: 1px solid #e5e7eb;
-  border-left: 1px solid #e5e7eb;
-  border-top-right-radius: 6px;
-  border-bottom-right-radius: 6px;
-  pointer-events: none;
-  box-sizing: border-box;
-  z-index: 21;
-}
-
-/* 悬停/拖拽分隔线时降低右侧框线 z-index，使蓝色高亮在框线之上 */
-.chart-stage.is-hovering-pane-separator .right-axis-host::after,
-.chart-stage.is-resizing-pane .right-axis-host::after {
-  z-index: 19;
-}
 
 .scroll-content {
   height: 100%;
@@ -1588,6 +1595,13 @@ watch(
   top: 0;
   /* width/height 由 JS 在 render() 中设置为视口大小 */
   pointer-events: none;
+}
+
+.tooltip-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
 }
 
 .tooltip-anchor {
@@ -1639,6 +1653,6 @@ watch(
 }
 
 .right-axis {
-  z-index: 999;
+  z-index: 15;
 }
 </style>
