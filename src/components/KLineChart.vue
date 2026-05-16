@@ -1268,12 +1268,23 @@ onMounted(() => {
   )
 
   chart.setOnViewportChange((vp) => {
-    store.actions.setViewportDpr(vp.dpr)
-    store.actions.setViewWidth(vp.plotWidth)
+    if (store.state.viewportDpr !== vp.dpr) {
+      store.actions.setViewportDpr(vp.dpr)
+    }
+    if (store.state.viewWidth !== vp.plotWidth) {
+      store.actions.setViewWidth(vp.plotWidth)
+    }
+
     const newKGap = kGapFromDpr(vp.dpr)
-    store.actions.setZoomState(store.state.zoomLevel, store.state.kWidth, newKGap)
-    // DPR 变化时同步 kGap 到 Chart
-    chart.applyRenderState(store.state.kWidth, newKGap, store.state.zoomLevel)
+    const zoomStateChanged = store.state.kGap !== newKGap
+    if (zoomStateChanged) {
+      store.actions.setZoomState(store.state.zoomLevel, store.state.kWidth, newKGap)
+    }
+
+    const chartState = chart.getOption()
+    if (chartState.kWidth !== store.state.kWidth || chartState.kGap !== newKGap) {
+      chart.applyRenderState(store.state.kWidth, newKGap, store.state.zoomLevel)
+    }
   })
   chart.setOnPaneLayoutChange((panes) => {
     const next: Record<string, number> = {}
@@ -1420,7 +1431,6 @@ watch(
   () => props.yPaddingPx,
   (newVal) => {
     chartRef.value?.updateOptions({ yPaddingPx: newVal })
-    scheduleRender()
   },
 )
 

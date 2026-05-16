@@ -447,9 +447,20 @@ export class Chart {
      * 这是写入 opt.kWidth/kGap 和 currentZoomLevel 的唯一入口
      */
     applyRenderState(kWidth: number, kGap: number, zoomLevel?: number): void {
+        const nextZoomLevel = zoomLevel !== undefined
+            ? Math.max(1, Math.min(this.zoomLevelCount, zoomLevel))
+            : this.currentZoomLevel
+        const renderStateChanged = this.opt.kWidth !== kWidth
+            || this.opt.kGap !== kGap
+            || this.currentZoomLevel !== nextZoomLevel
+
+        if (!renderStateChanged) {
+            return
+        }
+
         this.opt = { ...this.opt, kWidth, kGap }
         if (zoomLevel !== undefined) {
-            this.currentZoomLevel = Math.max(1, Math.min(this.zoomLevelCount, zoomLevel))
+            this.currentZoomLevel = nextZoomLevel
         }
         this.scheduleDraw()
     }
@@ -1276,8 +1287,19 @@ export class Chart {
             scrollLeft,
             dpr,
         }
+        const prevViewport = this.viewport
+        const viewportChanged = !prevViewport
+            || prevViewport.viewWidth !== vp.viewWidth
+            || prevViewport.viewHeight !== vp.viewHeight
+            || prevViewport.plotWidth !== vp.plotWidth
+            || prevViewport.plotHeight !== vp.plotHeight
+            || prevViewport.scrollLeft !== vp.scrollLeft
+            || prevViewport.dpr !== vp.dpr
+
         this.viewport = vp
-        this.onViewportChange?.(vp)
+        if (viewportChanged) {
+            this.onViewportChange?.(vp)
+        }
         return vp
     }
 }

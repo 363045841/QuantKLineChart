@@ -208,6 +208,31 @@ describe('Chart DPR pipeline', () => {
 
     expect(ro?.disconnect).toHaveBeenCalledTimes(1)
   })
+
+  it('does not emit viewport change repeatedly for identical viewport draws', async () => {
+    const chart = new Chart(createDom(1000, 600), defaultOptions)
+    const onViewportChange = vi.fn()
+
+    chart.setOnViewportChange(onViewportChange)
+    chart.draw()
+    chart.draw()
+
+    expect(onViewportChange).toHaveBeenCalledTimes(1)
+
+    await chart.destroy()
+  })
+
+  it('does not schedule redraw for identical render state', async () => {
+    const chart = new Chart(createDom(1000, 600), defaultOptions)
+    const scheduleDrawSpy = vi.spyOn(chart, 'scheduleDraw')
+
+    chart.applyRenderState(12, 3, 2)
+    chart.applyRenderState(12, 3, 2)
+
+    expect(scheduleDrawSpy).toHaveBeenCalledTimes(1)
+
+    await chart.destroy()
+  })
 })
 
 describe('Chart pane layout regressions', () => {
