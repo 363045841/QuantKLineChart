@@ -1,8 +1,8 @@
 name: Deploy Demo to GitHub Pages
 
-on:
+于:
   push:
-    branches: [main]
+    分支: [main]
   workflow_dispatch:
 
 permissions:
@@ -31,13 +31,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-<      - name: Build demo
+      - name: Build demo
         run: pnpm exec vite build --config vite.demo.config.ts --base /${{ github.event.repository.name }}/
         env:
           VITE_API_BASE_URL: http://8.130.98.164
           VITE_BAOSTOCK_API_BASE_URL: http://8.130.98.164
 
-<      - name: Debug build output
+      - name: Debug build output
         run: |
           echo "=== dist-demo contents ==="
           ls -la dist-demo/
