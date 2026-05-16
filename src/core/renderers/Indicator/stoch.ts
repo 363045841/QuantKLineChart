@@ -145,7 +145,7 @@ export function createSTOCHRendererPlugin(options: STOCHRendererOptions = {}): R
         },
 
         draw(context: RenderContext) {
-            const { ctx, pane, data, range, scrollLeft, kWidth, dpr, kLinePositions } = context
+            const { ctx, pane, data, range, scrollLeft, dpr, kLineCenters } = context
             const klineData = data as KLineData[]
             if (klineData.length < config.n + config.m - 1) return
 
@@ -205,13 +205,11 @@ export function createSTOCHRendererPlugin(options: STOCHRendererOptions = {}): R
                     const point = stochData[i]
                     if (!point) continue
 
-                    const x = kLinePositions[i - range.start]
-                    if (x === undefined) continue
-
-                    const logicX = x + kWidth / 2
+                    const centerX = kLineCenters[i - range.start]
+                    if (centerX === undefined) continue
                     const logicY = pane.height - (point.k - displayMin) / displayValueRange * pane.height
 
-                    const px = alignToPhysicalPixelCenter(logicX, dpr)
+                    const px = centerX
                     const py = alignToPhysicalPixelCenter(logicY, dpr)
 
                     if (isFirst) {
@@ -237,13 +235,11 @@ export function createSTOCHRendererPlugin(options: STOCHRendererOptions = {}): R
                     const point = stochData[i]
                     if (!point) continue
 
-                    const x = kLinePositions[i - range.start]
-                    if (x === undefined) continue
-
-                    const logicX = x + kWidth / 2
+                    const centerX = kLineCenters[i - range.start]
+                    if (centerX === undefined) continue
                     const logicY = pane.height - (point.d - displayMin) / displayValueRange * pane.height
 
-                    const px = alignToPhysicalPixelCenter(logicX, dpr)
+                    const px = centerX
                     const py = alignToPhysicalPixelCenter(logicY, dpr)
 
                     if (isFirst) {

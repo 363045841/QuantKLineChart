@@ -132,7 +132,7 @@ export function createBOLLRendererPlugin(initialConfig: BOLLConfig = {}): Render
         priority: RENDERER_PRIORITY.INDICATOR,
 
         draw(context: RenderContext) {
-            const { ctx, pane, data, range, scrollLeft, kWidth, dpr, kLinePositions } = context
+            const { ctx, pane, data, range, scrollLeft, dpr, kLineCenters } = context
             const klineData = data as KLineData[]
             if (klineData.length < config.period) return
 
@@ -155,9 +155,10 @@ export function createBOLLRendererPlugin(initialConfig: BOLLConfig = {}): Render
                     const boll = bollData[i]
                     if (!boll) continue
 
-                    const logicX = kLinePositions[i - range.start]! + kWidth / 2
+                    const centerX = kLineCenters[i - range.start]
+                    if (centerX === undefined) continue
                     const logicY = pane.yAxis.priceToY(boll.upper)
-                    const x = alignToPhysicalPixelCenter(logicX, dpr)
+                    const x = centerX
                     const y = alignToPhysicalPixelCenter(logicY, dpr)
 
                     if (isFirst) {
@@ -173,9 +174,10 @@ export function createBOLLRendererPlugin(initialConfig: BOLLConfig = {}): Render
                     const boll = bollData[i]
                     if (!boll) continue
 
-                    const logicX = kLinePositions[i - range.start]! + kWidth / 2
+                    const centerX = kLineCenters[i - range.start]
+                    if (centerX === undefined) continue
                     const logicY = pane.yAxis.priceToY(boll.lower)
-                    const x = alignToPhysicalPixelCenter(logicX, dpr)
+                    const x = centerX
                     const y = alignToPhysicalPixelCenter(logicY, dpr)
 
                     ctx.lineTo(x, y)
@@ -199,9 +201,10 @@ export function createBOLLRendererPlugin(initialConfig: BOLLConfig = {}): Render
                     const boll = bollData[i]
                     if (!boll) continue
 
-                    const logicX = kLinePositions[i - range.start]! + kWidth / 2
+                    const centerX = kLineCenters[i - range.start]
+                    if (centerX === undefined) continue
                     const logicY = pane.yAxis.priceToY(boll[type])
-                    const x = alignToPhysicalPixelCenter(logicX, dpr)
+                    const x = centerX
                     const y = alignToPhysicalPixelCenter(logicY, dpr)
 
                     if (isFirst) {

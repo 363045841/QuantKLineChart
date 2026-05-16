@@ -91,7 +91,7 @@ export function createMARendererPlugin(showMA: MAFlags = {}): RendererPlugin {
         context: RenderContext,
         color: string
     ) {
-        const { pane, range, kWidth, dpr, kLinePositions } = context
+        const { pane, range, dpr, kLineCenters } = context
 
         ctx.strokeStyle = color
         ctx.lineWidth = 1
@@ -105,10 +105,11 @@ export function createMARendererPlugin(showMA: MAFlags = {}): RendererPlugin {
             const maValue = maData[i]
             if (maValue === undefined) continue
 
-            const logicX = kLinePositions[i - range.start]! + kWidth / 2
+            const centerX = kLineCenters[i - range.start]
+            if (centerX === undefined) continue
             const logicY = pane.yAxis.priceToY(maValue)
 
-            const x = alignToPhysicalPixelCenter(logicX, dpr)
+            const x = centerX
             const y = alignToPhysicalPixelCenter(logicY, dpr)
 
             if (isFirst) {

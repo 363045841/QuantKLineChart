@@ -191,7 +191,7 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
         },
 
         draw(context: RenderContext) {
-            const { ctx, pane, data, range, scrollLeft, kWidth, kGap, dpr, kLinePositions } = context
+            const { ctx, pane, data, range, scrollLeft, dpr } = context
             const klineData = data as KLineData[]
             if (klineData.length < config.slowPeriod) return
 
@@ -247,28 +247,15 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
             // 绘制 MACD 柱状图
             if (config.showBAR) {
                 const alignedZeroY = Math.round(zeroY * dpr) / dpr
-                const fallbackUnitPx = Math.max(1, Math.round((kWidth + kGap) * dpr))
 
                 for (let i = drawStart; i < drawEnd; i++) {
                     const point = macdData[i]
                     if (!point) continue
 
-                    const x = kLinePositions[i - range.start]
-                    if (x === undefined) continue
-
-                    const nextX = kLinePositions[i - range.start + 1]
-                    const prevX = kLinePositions[i - range.start - 1]
-                    const unitPx = nextX !== undefined
-                        ? Math.max(1, Math.round((nextX - x) * dpr))
-                        : prevX !== undefined
-                            ? Math.max(1, Math.round((x - prevX) * dpr))
-                            : fallbackUnitPx
-
-                    // 固定 1 物理像素间距：柱宽 = 单位宽 - 1px
-                    const barWidthPx = Math.max(1, unitPx - 1)
-                    const alignedBarWidth = barWidthPx / dpr
-                    const alignedBarXPx = Math.round((x + (kWidth - alignedBarWidth) / 2) * dpr)
-                    const alignedBarX = alignedBarXPx / dpr
+                    const barRect = context.kBarRects[i - range.start]
+                    if (!barRect) continue
+                    const alignedBarX = barRect.x
+                    const alignedBarWidth = barRect.width
 
                     const barY = pane.height - (point.macd - displayMin) / displayValueRange * pane.height
                     const isPositive = point.macd >= 0
@@ -327,13 +314,12 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
                     const point = macdData[i]
                     if (!point) continue
 
-                    const x = kLinePositions[i - range.start]
-                    if (x === undefined) continue
+                    const centerX = context.kLineCenters[i - range.start]
+                    if (centerX === undefined) continue
 
-                    const logicX = x + kWidth / 2
                     const logicY = pane.height - (point.dif - displayMin) / displayValueRange * pane.height
 
-                    const px = alignToPhysicalPixelCenter(logicX, dpr)
+                    const px = centerX
                     const py = alignToPhysicalPixelCenter(logicY, dpr)
 
                     if (isFirst) {
@@ -359,13 +345,12 @@ export function createMACDRendererPlugin(options: MACDRendererOptions = {}): Ren
                     const point = macdData[i]
                     if (!point) continue
 
-                    const x = kLinePositions[i - range.start]
-                    if (x === undefined) continue
+                    const centerX = context.kLineCenters[i - range.start]
+                    if (centerX === undefined) continue
 
-                    const logicX = x + kWidth / 2
                     const logicY = pane.height - (point.dea - displayMin) / displayValueRange * pane.height
 
-                    const px = alignToPhysicalPixelCenter(logicX, dpr)
+                    const px = centerX
                     const py = alignToPhysicalPixelCenter(logicY, dpr)
 
                     if (isFirst) {

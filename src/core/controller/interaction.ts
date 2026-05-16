@@ -710,7 +710,10 @@ export class InteractionController {
             this.crosshairIndex = idx
 
             const kLineStartX = this.kLinePositions[localIdx]!
-            const snappedX = kLineStartX + (this.kWidthPx - 1) / 2 / dpr - scrollLeft
+            // 与影线位置算法一致: leftPx + (widthPx - 1) / 2
+            const leftPx = Math.round(kLineStartX * dpr)
+            const wickXPx = leftPx + (this.kWidthPx - 1) / 2
+            const snappedX = wickXPx / dpr - scrollLeft
 
             this.crosshairPos = {
                 x: Math.min(Math.max(snappedX, 0), plotWidth),

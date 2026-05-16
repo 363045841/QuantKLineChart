@@ -205,7 +205,7 @@ export function createKSTRendererPlugin(options: KSTRendererOptions = {}): Rende
         },
 
         draw(context: RenderContext) {
-            const { ctx, pane, data, range, scrollLeft, kWidth, dpr, kLinePositions } = context
+            const { ctx, pane, data, range, scrollLeft, dpr, kLineCenters } = context
             const klineData = data as KLineData[]
             if (klineData.length < config.roc4 + 15 + config.signalPeriod) return
 
@@ -272,13 +272,11 @@ export function createKSTRendererPlugin(options: KSTRendererOptions = {}): Rende
                     const point = kstData[i]
                     if (!point) continue
 
-                    const x = kLinePositions[i - range.start]
-                    if (x === undefined) continue
-
-                    const logicX = x + kWidth / 2
+                    const centerX = kLineCenters[i - range.start]
+                    if (centerX === undefined) continue
                     const logicY = pane.height - (point.kst - displayMin) / displayValueRange * pane.height
 
-                    const px = alignToPhysicalPixelCenter(logicX, dpr)
+                    const px = centerX
                     const py = alignToPhysicalPixelCenter(logicY, dpr)
 
                     if (isFirst) {
@@ -304,13 +302,11 @@ export function createKSTRendererPlugin(options: KSTRendererOptions = {}): Rende
                     const point = kstData[i]
                     if (!point) continue
 
-                    const x = kLinePositions[i - range.start]
-                    if (x === undefined) continue
-
-                    const logicX = x + kWidth / 2
+                    const centerX = kLineCenters[i - range.start]
+                    if (centerX === undefined) continue
                     const logicY = pane.height - (point.signal - displayMin) / displayValueRange * pane.height
 
-                    const px = alignToPhysicalPixelCenter(logicX, dpr)
+                    const px = centerX
                     const py = alignToPhysicalPixelCenter(logicY, dpr)
 
                     if (isFirst) {

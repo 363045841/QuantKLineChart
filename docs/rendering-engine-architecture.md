@@ -107,7 +107,7 @@ sequenceDiagram
 **各层职责说明：**
 
 - **Vue 组件层** (`src/components/KLineChart.vue`, 约 1557 行)：管理 zoomLevel 响应式状态（SSOT），创建 DOM 容器，注册所有渲染器插件，将用户交互事件转发给 InteractionController。
-- **编排层** (`src/core/chart.ts`, 约 1252 行)：`Chart` 类是核心中枢。每次 `draw()` 执行：计算视口 -> 裁剪可见数据范围 -> 预计算每根 K 线 X 坐标 -> 遍历所有 PaneRenderer，构建 `RenderContext`，交给 RendererPluginManager 调度绘制。
+- **编排层** (`src/core/chart.ts`, 约 1252 行)：`Chart` 类是核心中枢。每次 `draw()` 执行：计算视口 -> 裁剪可见数据范围 -> 预计算每根 K 线的 X 轴位置与共享几何信息 -> 遍历所有 PaneRenderer，构建 `RenderContext`，交给 RendererPluginManager 调度绘制。`Chart.draw()` 基于 `kWidth`、`kGap` 和 DPR 统一派生渲染器共享的 X 轴几何数据，`RenderContext` 则作为这些几何数据的分发载体，形成 renderer 层的几何 SSOT。
 - **插件调度层** (`src/plugin/rendererPluginManager.ts`)：维护渲染器注册表，按 `paneId` 分组 + 优先级排序，渲染时逐个调用 `draw()`，每个渲染器异常互不传染。
 - **渲染器层** (`src/core/renderers/`)：各渲染器只关心自身绘制逻辑，接收统一的 `RenderContext`，通过 `ctx.fillRect/stroke/fillText` 等 Canvas API 输出图形。
 - **基础设施层**：`pixelAlign.ts` 提供物理像素对齐函数，`PriceScale` 管理 Y 轴价格-像素映射，`viewport.ts` 计算可见数据范围。
@@ -152,7 +152,7 @@ graph TB
     end
 
     subgraph Context["Stage 5: 上下文构建"]
-        RC["RenderContext<br/>ctx, pane, data, range,<br/>scrollLeft, kWidth, kGap,<br/>dpr, kLinePositions..."]
+        RC["RenderContext<br/>ctx, pane, data, range,<br/>scrollLeft, kWidth, kGap,<br/>dpr, kLinePositions,<br/>kLineCenters, kBarRects..."]
     end
 
     subgraph Rendering["Stage 6: 渲染器绘制"]
@@ -407,11 +407,8 @@ classDiagram
         +number kGap
         +number dpr
         +number paneWidth
-        +number[] kLinePositions
-        +MarkerManager markerManager
-        +number crosshairIndex
-        +CanvasRenderingContext2D yAxisCtx
-        +number zoomLevel
+        +number[] kLineCenters
+        +Array<{ x: number, width: number }> kBarRects
     }
 
     class RendererPluginManager {
@@ -441,6 +438,8 @@ interface RenderContext {
   dpr: number
   paneWidth: number
   kLinePositions: number[]
+  kLineCenters: number[]
+  kBarRects: Array<{ x: number, width: number }>
   markerManager: MarkerManager
   crosshairIndex: number
   yAxisCtx?: CanvasRenderingContext2D
@@ -448,6 +447,8 @@ interface RenderContext {
   viewport: { scrollLeft, plotWidth, plotHeight }
 }
 ```
+
+`RenderContext` 承担编排层向渲染器层分发共享几何信息的职责：`kLinePositions` 表示每根 K 线的左边界，`kLineCenters` 表示统一的中心参考点，`kBarRects` 表示围绕统一中心点推导出的柱状图矩形。各渲染器直接消费这组统一几何数据，而不是在各自内部重复推导 X 轴对齐结果，因此 `RenderContext` 同时也是 renderer 层几何信息的 SSOT。
 
 ### 4.2 渲染优先级
 

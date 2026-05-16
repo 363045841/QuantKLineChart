@@ -144,9 +144,10 @@ export function createEXPMARendererPlugin(initialConfig: EXPMAConfig = {}): Rend
           const expma = expmaData[i]
           if (!expma) continue
 
-          const logicX = kLinePositions[i - range.start]! + kWidth / 2
+          const centerX = context.kLineCenters[i - range.start]
+          if (centerX === undefined) continue
           const logicY = pane.yAxis.priceToY(expma[type])
-          const x = alignToPhysicalPixelCenter(logicX, dpr)
+          const x = centerX
           const y = alignToPhysicalPixelCenter(logicY, dpr)
 
           if (isFirst) {

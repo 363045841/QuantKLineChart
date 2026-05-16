@@ -327,6 +327,26 @@ export class Chart {
         // 3. 计算 K 线坐标
         const kLinePositions = this.calcKLinePositions(range)
 
+        // 3.5 预计算像素对齐后的中心和柱矩形
+        const physConfig = getPhysicalKLineConfig(this.opt.kWidth, this.opt.kGap, vp.dpr)
+        // 确保 barWidthPx 为奇数，使 (barWidthPx-1)/2 为整数，避免 round 误差
+        let barWidthPx = Math.max(1, physConfig.unitPx - 1)
+        if (barWidthPx % 2 === 0) barWidthPx -= 1
+
+        const kLineCenters: number[] = new Array(kLinePositions.length)
+        const kBarRects: Array<{ x: number; width: number }> = new Array(kLinePositions.length)
+
+        for (let i = 0; i < kLinePositions.length; i++) {
+            const x = kLinePositions[i]!
+            // 与 candle 渲染器的影线位置算法保持完全一致
+            const leftPx = Math.round(x * vp.dpr)
+            const wickXPx = leftPx + (physConfig.kWidthPx - 1) / 2
+            kLineCenters[i] = wickXPx / vp.dpr
+
+            const barLeftPx = wickXPx - (barWidthPx - 1) / 2
+            kBarRects[i] = { x: barLeftPx / vp.dpr, width: barWidthPx / vp.dpr }
+        }
+
         // 4. 设置交互控制器
         const { kWidthPx } = getPhysicalKLineConfig(this.opt.kWidth, this.opt.kGap, vp.dpr)
         this.interaction.setKLinePositions(kLinePositions, range, kWidthPx)
@@ -368,6 +388,8 @@ export class Chart {
                 dpr: vp.dpr,
                 paneWidth: vp.plotWidth,
                 kLinePositions,
+                kLineCenters,
+                kBarRects,
                 markerManager: this.markerManager,
                 crosshairIndex: this.interaction.getCrosshairIndex(),
                 yAxisCtx: yAxisCtx ?? undefined,
@@ -425,6 +447,8 @@ export class Chart {
                 dpr: vp.dpr,
                 paneWidth: vp.plotWidth,
                 kLinePositions,
+                kLineCenters,
+                kBarRects,
                 xAxisCtx,
                 viewport: {
                     scrollLeft: vp.scrollLeft,

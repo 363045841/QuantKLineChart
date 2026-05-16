@@ -39,7 +39,7 @@ export function createVolumeRendererPlugin(options: VolumeRendererOptions = {}):
         },
 
         draw(context: RenderContext) {
-            const { ctx, pane, data, range, scrollLeft, kWidth, kGap, dpr, kLinePositions } = context
+            const { ctx, pane, data, range, scrollLeft, dpr } = context
             const klineData = data as KLineData[]
             if (!klineData.length) return
 
@@ -85,22 +85,10 @@ export function createVolumeRendererPlugin(options: VolumeRendererOptions = {}):
                 if (!item) continue
                 const volume = item.volume
                 if (!volume) continue
-                const x = kLinePositions[i - start]
-                if (x === undefined) continue
-
-                const nextX = kLinePositions[i - start + 1]
-                const prevX = kLinePositions[i - start - 1]
-                const fallbackUnitPx = Math.max(1, Math.round((kWidth + kGap) * dpr))
-                const unitPx = nextX !== undefined
-                    ? Math.max(1, Math.round((nextX - x) * dpr))
-                    : prevX !== undefined
-                        ? Math.max(1, Math.round((x - prevX) * dpr))
-                        : fallbackUnitPx
-
-                const barWidthPx = Math.max(1, unitPx - 1)
-                const barWidth = barWidthPx / dpr
-                const barXPx = Math.round((x + (kWidth - barWidth) / 2) * dpr)
-                const alignedBarX = barXPx / dpr
+                const barRect = context.kBarRects[i - start]
+                if (!barRect) continue
+                const alignedBarX = barRect.x
+                const barWidth = barRect.width
 
                 const color = judgeColor(item)
                 drawVolume(ctx, alignedBarX, color, volume, barWidth, displayMin, displayValueRange, baseY, pane.height, dpr)

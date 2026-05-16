@@ -137,7 +137,7 @@ export function createENERendererPlugin(initialConfig: ENEConfig = {}): Renderer
     priority: RENDERER_PRIORITY.INDICATOR,
 
     draw(context: RenderContext) {
-      const { ctx, pane, data, range, scrollLeft, kWidth, dpr, kLinePositions } = context
+      const { ctx, pane, data, range, scrollLeft, dpr, kLineCenters } = context
       const klineData = data as KLineData[]
       if (klineData.length < config.period) return
 
@@ -168,9 +168,10 @@ export function createENERendererPlugin(initialConfig: ENEConfig = {}): Renderer
         const ene = eneData[i]
         if (!ene) continue
 
-        const logicX = kLinePositions[i - range.start]! + kWidth / 2
+        const centerX = kLineCenters[i - range.start]
+        if (centerX === undefined) continue
         const logicY = pane.yAxis.priceToY(ene.upper)
-        const x = alignToPhysicalPixelCenter(logicX, dpr)
+        const x = centerX
         const y = alignToPhysicalPixelCenter(logicY, dpr)
 
         if (isFirst) {
@@ -186,9 +187,10 @@ export function createENERendererPlugin(initialConfig: ENEConfig = {}): Renderer
         const ene = eneData[i]
         if (!ene) continue
 
-        const logicX = kLinePositions[i - range.start]! + kWidth / 2
+        const centerX = kLineCenters[i - range.start]
+        if (centerX === undefined) continue
         const logicY = pane.yAxis.priceToY(ene.lower)
-        const x = alignToPhysicalPixelCenter(logicX, dpr)
+        const x = centerX
         const y = alignToPhysicalPixelCenter(logicY, dpr)
 
         ctx.lineTo(x, y)
@@ -211,9 +213,10 @@ export function createENERendererPlugin(initialConfig: ENEConfig = {}): Renderer
           const ene = eneData[i]
           if (!ene) continue
 
-          const logicX = kLinePositions[i - range.start]! + kWidth / 2
+          const centerX = kLineCenters[i - range.start]
+          if (centerX === undefined) continue
           const logicY = pane.yAxis.priceToY(ene[type])
-          const x = alignToPhysicalPixelCenter(logicX, dpr)
+          const x = centerX
           const y = alignToPhysicalPixelCenter(logicY, dpr)
 
           if (isFirst) {

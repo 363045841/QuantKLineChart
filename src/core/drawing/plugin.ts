@@ -29,7 +29,7 @@ export function createDrawingRendererPlugin(options: {
     paneId: options.paneId ?? 'main',
     priority: RENDERER_PRIORITY.OVERLAY,
     draw(context: RenderContext) {
-      const { ctx, pane, data, range, dpr, paneWidth, kLinePositions, kWidth, kGap } = context
+      const { ctx, pane, data, range, dpr, paneWidth, kLinePositions, kLineCenters, kBarRects, kWidth, kGap } = context
       const viewport = context.viewport ?? {
         scrollLeft: context.scrollLeft,
         plotWidth: paneWidth,
@@ -60,6 +60,8 @@ export function createDrawingRendererPlugin(options: {
           seriesData,
           range,
           kLinePositions,
+          kLineCenters,
+          kBarRects,
           kWidth,
           kGap,
           dpr,

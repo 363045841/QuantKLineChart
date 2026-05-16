@@ -206,6 +206,10 @@ export interface RenderContext {
   dpr: number
   paneWidth: number
   kLinePositions: number[]
+  /** 每根K线柱中心的X坐标（物理像素对齐后，逻辑像素） */
+  kLineCenters: number[]
+  /** 每根K线对应柱的X/宽度（物理像素对齐后，逻辑像素），供柱状图使用 */
+  kBarRects: Array<{ x: number; width: number }>
   markerManager?: MarkerManagerLike
   /** 十字线指向的 K 线索引（无十字线时为 null） */
   crosshairIndex?: number | null
@@ -316,6 +320,8 @@ export type DrawingComputeContext = {
   seriesData: KLineData[]
   range: { start: number; end: number }
   kLinePositions: number[]
+  kLineCenters: number[]
+  kBarRects: Array<{ x: number; width: number }>
   kWidth: number
   kGap: number
   dpr: number
