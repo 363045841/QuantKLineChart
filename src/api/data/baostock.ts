@@ -192,6 +192,18 @@ export async function getKlineDataBaoStock(
     timeout?: number
   }
 ): Promise<KLineData[]> {
+  // GitHub Pages 静态部署环境直接走 mock
+  if (typeof window !== 'undefined' && window.location.hostname.includes('github.io')) {
+    const mockResponse = await fetch('mock-stock-data.json')
+    const mockData: BaoStockKDataResponse = await mockResponse.json()
+    if (mockData.success && mockData.data) {
+      return mockData.data
+        .map(mapBaoStockToKLineData)
+        .sort((a, b) => a.timestamp - b.timestamp)
+    }
+    throw new Error('Mock data failed')
+  }
+
   const { timeout, ...requestParams } = param
 
   const url = `${BASE_URL}${KDATA_PATH}`
@@ -228,7 +240,8 @@ export async function getKlineDataBaoStock(
   } catch (error) {
     // API 失败时尝试使用 mock 数据（用于 GitHub Pages 等静态部署）
     try {
-      const mockResponse = await fetch('/mock-stock-data.json')
+      console.log('fetch mock-stock-data.json')
+      const mockResponse = await fetch('mock-stock-data.json')
       if (mockResponse.ok) {
         const mockData: BaoStockKDataResponse = await mockResponse.json()
         if (mockData.success && mockData.data) {
