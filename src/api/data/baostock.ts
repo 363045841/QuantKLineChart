@@ -226,6 +226,20 @@ export async function getKlineDataBaoStock(
       .map(mapBaoStockToKLineData)
       .sort((a, b) => a.timestamp - b.timestamp)
   } catch (error) {
+    // API 失败时尝试使用 mock 数据（用于 GitHub Pages 等静态部署）
+    try {
+      const mockResponse = await fetch('/mock-stock-data.json')
+      if (mockResponse.ok) {
+        const mockData: BaoStockKDataResponse = await mockResponse.json()
+        if (mockData.success && mockData.data) {
+          return mockData.data
+            .map(mapBaoStockToKLineData)
+            .sort((a, b) => a.timestamp - b.timestamp)
+        }
+      }
+    } catch {
+      // mock 数据也失败了，抛出原始错误
+    }
     if (axios.isAxiosError(error)) {
       throw new Error(`获取K线数据失败: ${error.message}`)
     }
