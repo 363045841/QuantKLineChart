@@ -31,13 +31,18 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm exec vite build --config vite.demo.config.ts --base /${{ github.event.repository.name }}/
+<      - name: Build demo
+        run: pnpm exec vite build --config vite.demo.config.ts --base /${{ github.event.repository.name }}/
         env:
           VITE_API_BASE_URL: http://8.130.98.164
           VITE_BAOSTOCK_API_BASE_URL: http://8.130.98.164
 
-      - name: Verify build output
-        run: cat dist-demo/index.html
+<      - name: Debug build output
+        run: |
+          echo "=== dist-demo contents ==="
+          ls -la dist-demo/
+          echo "=== index.html ==="
+          cat dist-demo/index.html
 
       - uses: actions/upload-pages-artifact@v3
         with:
